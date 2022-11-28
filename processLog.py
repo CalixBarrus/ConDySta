@@ -78,10 +78,10 @@ def pickPIIst(stackTraces):
 
 def processLog(app):
     stackTraces = getStackTraces(app)
-    print 'len(stackTraces): ' + str(len(stackTraces))
+    print('len(stackTraces): ' + str(len(stackTraces)))
     # for line in stackTraces[0]:
     #     print line
     PIIstackTraces = pickPIIst(stackTraces)
-    print 'len(PIIstackTraces): ' + str(len(PIIstackTraces))
+    print('len(PIIstackTraces): ' + str(len(PIIstackTraces)))
 
     return PIIstackTraces

@@ -44,4 +44,4 @@ for app in apps:
                 else:
                     source_count_PII += 1
                     # print 'PII source ' + str(source_count_PII) + ': ' + source
-    print app + '      PII source ' + str(source_count_PII)
+    print(app + '      PII source ' + str(source_count_PII))

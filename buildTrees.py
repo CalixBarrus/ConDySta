@@ -207,7 +207,8 @@ class Node:
         return self.children
 
     def show(self,layer):
-        print  "   |"*layer+self.id  + '  ' + self.stmt + '   ' + self.location_method + '(' + self.location_class + ".java:" + self.location_lineNumber + ')'
+        print(
+            "   |" * layer + self.id + '  ' + self.stmt + '   ' + self.location_method + '(' + self.location_class + ".java:" + self.location_lineNumber + ')')
         map(lambda child:child.show(layer+1),self.children)
 
 
@@ -267,23 +268,22 @@ def buildTrees(app):
     trees = []
     lines = open(FlowDroidPath + app).readlines()
     # lines = open('/Users/xueling/Desktop/hybrid/out').readlines()
-    print 'len(lines)' + str(len(lines))
+    print('len(lines)' + str(len(lines)))
     paths = getPaths(lines)
     i = 0
     for path in paths:
         try:
-            print 'print path:'
+            print('print path:')
             if len(path) > 0:
-                print path[0]
+                print(path[0])
             i += 1
-            print 'Processing path ' + str(i) + '.........'
+            print('Processing path ' + str(i) + '.........')
             root = Node('', '', '', '', '', '', '','')
             tree = processPath(path, root)
             tree.show(0)
             trees.append(tree)
         except Exception as e:
-            print "Exception"
-
+            print("Exception")
 
     leakStackTrace = turnTreesToStackTrace(trees)    # turning the tree into a big list, each element is a list of node, indicate a path from source to sink
 

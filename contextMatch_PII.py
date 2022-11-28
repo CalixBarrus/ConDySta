@@ -2,12 +2,14 @@ import re
 
 def printStack(stack):
     for line in stack:
-        print line.strip()
+        print(line.strip())
         # print line.strip().split('W System.err: ')[1]
 
 
 def printNode(node):
-    print "node: " + node.abstraction + ' ' + node.stmt + ' ' + node.location_method + ' ' + node.location_class + ' ' + node.location_lineNumber
+    print(
+        "node: " + node.abstraction + ' ' + node.stmt + ' ' + node.location_method + ' ' + node.location_class + ' ' + node.location_lineNumber)
+
 
 def findLeaf(trees):
     leafNodes = []
@@ -66,15 +68,17 @@ def level_1_compare (PIIstack,leakStackTraces):
                     if node.location_lineNumber == PIICallStack_location_lineNumber:
                         level_1_matched_callStacks.append(leakStackTrace)
                     else:
-                        print "method and class match, but line number does not match!!!"
-                        print "method in node: " + node.stmt + ' ' + node.location_method + ' ' + node.location_class + ' ' + node.location_lineNumber
-                        print "in callstack: " + PIICallStack_location_method + ' ' + PIICallStack_location_class + ' ' + PIICallStack_location_lineNumber
+                        print("method and class match, but line number does not match!!!")
+                        print(
+                            "method in node: " + node.stmt + ' ' + node.location_method + ' ' + node.location_class + ' ' + node.location_lineNumber)
+                        print(
+                            "in callstack: " + PIICallStack_location_method + ' ' + PIICallStack_location_class + ' ' + PIICallStack_location_lineNumber)
 
     return level_1_matched_callStacks
 
 
 def level_1_check(PIICallStacks, leakStackTraces):
-    print "level 1 check ..........."
+    print("level 1 check ...........")
     # print len(PIICallStacks)
     level_1_matched = []    # each element is a list, the last element is the PII stack, the rest are matched leakTrace
 
@@ -88,7 +92,7 @@ def level_1_check(PIICallStacks, leakStackTraces):
     return level_1_matched
 
 def getAllCallStacks_level_1_match(PIIstack, allCallStack):
-    print "getAllCallStacks_level_1_match......."
+    print("getAllCallStacks_level_1_match.......")
 
     printStack(PIIstack)
 
@@ -129,9 +133,11 @@ def level_2_compare (PIIstack,leakStackTraces):
                 if node.location_lineNumber == PIICallStack_location_lineNumber:
                     level_2_matched_callStacks.append(leakStackTrace)
                 else:
-                    print "method and class match, but line number does not match!!!"
-                    print "method in node: " + node.stmt + ' ' + node.location_method + ' ' + node.location_class + ' ' + node.location_lineNumber
-                    print "in callstack: " + PIICallStack_location_method + ' ' + PIICallStack_location_class + ' ' + PIICallStack_location_lineNumber
+                    print("method and class match, but line number does not match!!!")
+                    print(
+                        "method in node: " + node.stmt + ' ' + node.location_method + ' ' + node.location_class + ' ' + node.location_lineNumber)
+                    print(
+                        "in callstack: " + PIICallStack_location_method + ' ' + PIICallStack_location_class + ' ' + PIICallStack_location_lineNumber)
 
     return level_2_matched_callStacks
 
@@ -139,7 +145,7 @@ def level_2_compare (PIIstack,leakStackTraces):
 
 
 def level_2_check(level_1_matched):
-    print "level 2 check ..........."
+    print("level 2 check ...........")
     level_2_matched = []
     for match in level_1_matched:
         PIIstack = match[-1]
@@ -205,23 +211,23 @@ def contextMatch(leakStackTraces, PIIstackTraces):
     level_1_matched = level_1_check(PIIstackTraces, leakStackTraces) # each element is a list, in sub list, the last ele is the callstack, the first ones are matched leak traces
 
     if len(level_1_matched) == 0:
-        print "level 1 check fail"
+        print("level 1 check fail")
 
     else:
-        print "after level_1 compare, %d sources matched:" %len(level_1_matched)
+        print("after level_1 compare, %d sources matched:" % len(level_1_matched))
         for match in level_1_matched:
             PIICallStack = match[-1]
             for line in PIICallStack:
-                print line.strip().split('W System.err: ')[1]
+                print(line.strip().split('W System.err: ')[1])
 
             # print PIICallStack[0].strip().split('W System.err: ')[1]
             # print PIICallStack[1].strip().split('W System.err: ')[1]
             # print PIICallStack[2].strip().split('W System.err: ')[1]
             # print PIICallStack[3].strip().split('W System.err: ')[1]
 
-            print 'Matched path: '
+            print('Matched path: ')
             for i in range(0, len(match)-1):
-                print 'path: ' + str(i+1)
+                print('path: ' + str(i + 1))
                 for node in match[i]:
                     printNode(node)
 
