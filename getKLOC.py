@@ -1,4 +1,5 @@
-import commands
+# import commands
+import subprocess
 import os
 
 
@@ -9,7 +10,7 @@ def getLOC(app):
     cmd = 'find ' + decodeFilePath + app + '/ -name *.smali'
     # print cmd
 
-    smalis = commands.getoutput(cmd).split('\n')
+    smalis = subprocess.getoutput(cmd).split('\n')
     # print outs
 
     # print len(smalis)
@@ -19,7 +20,7 @@ def getLOC(app):
         lines = open(smali).readlines()
         sumLen += len(lines)
 
-    print app + " LOD: " + str(sumLen)
+    print(app + " LOD: " + str(sumLen))
     result.writelines(app + " LOD: " + str(sumLen))
 
 
@@ -32,7 +33,7 @@ def decode(app):
     # apkPath = "/Users/xueling/Desktop/research/hybrid_paper2/apk_1/flipboard.app.apk"
 
     cmd_decode = 'apktool d -f ' + apkPath + ' -o ' + decodeFilePath + app
-    print cmd_decode
+    print(cmd_decode)
     os.system(cmd_decode)
 
 
@@ -43,7 +44,7 @@ result = open('/Users/xueling/Desktop/research/hybrid_paper2/temp/temp_result.tx
 apps = ['flipboard.app']
 for app in apps:
     app = app.strip()
-    print app
+    print(app)
     try:
         decode(app)
         getLOC(app)

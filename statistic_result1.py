@@ -39,6 +39,6 @@ for line in leakResult:
                 # print 'IU source ' + str(source_count_UI) + ': ' + source
             else:
                 source_count_PII += 1
-                print 'PII source ' + str(source_count_PII) + ': ' + source
+                print('PII source ' + str(source_count_PII) + ': ' + source)
 
 

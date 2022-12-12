@@ -2,7 +2,8 @@
 
 import re
 import os
-import commands
+# import commands
+# import subprocess
 import time
 
 
@@ -134,7 +135,7 @@ files = ["temp.txt"]
 
 apps = []
 for file in files:
-    print file
+    print(file)
     lines = open(path + file).readlines()
     for line in lines:
         # print line.strip()

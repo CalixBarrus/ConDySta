@@ -26,31 +26,32 @@ def genLeakSource(app):
         stmt_1 = line.split("on line")[0]
         if "The sink" in line:
             sink = re.search(r'<.*?>', stmt_1).group(0)
-            print "\n" + "sink: " + str(sink)
+            print("\n" + "sink: " + str(sink))
             sinks.add(sink)
         else:
             source = re.search(r'<.*?>', stmt_1)
             if source:
-                print "source: " + str(source.group(0))
+                print("source: " + str(source.group(0)))
                 sources.add(source.group(0))
 
     # add label
     for sink in sinks:
         sink = sink + ' -> _SINK_'
         leakSourceSink.writelines(sink + '\n')
-        print sink
+        print(sink)
 
     for source in sources:
         source = source + ' -> _SOURCE_'
         leakSourceSink.writelines(source + '\n')
-        print source
+        print(source)
+
 
 #
 # genLeakSource('com.adobe.reader')
 path = '/Users/xueling/Desktop/hybrid/result_1_batch2'
 files = os.listdir(path)
 for app in files:
-    print app
+    print(app)
     genLeakSource(app)
 
 

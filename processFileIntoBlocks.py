@@ -1,8 +1,9 @@
 import os
-import commands
+# import commands
+import subprocess
 
 lines = open('/Users/xueling/Desktop/hybrid/out.txt').readlines()
-print len(lines)
+print(len(lines))
 results = []
 flag = 0
 
@@ -24,10 +25,10 @@ for i in range(0, len(lines)):
             results.append(temp)
 
         else:
-            print line
+            print(line)
             temp.append(line)
 
-print len(results)
+print(len(results))
 
 for result in results:
     app = result[0].split(': ')[1]

@@ -1,16 +1,18 @@
 import processLog
-import commands
+# import commands
 import re
 import os
+import subprocess
 
 def convert(methodSet, app):
     decodeFilePath = "/Users/xueling/Desktop/hybrid/decode_batch2/"
     signaturePath = "/Users/xueling/Desktop/hybrid/PII_sourceSig_batch2/"
 
-    print 'Converting methods into FLowDroid source signatures.................'
-    files = commands.getoutput('ls ' + signaturePath).split('\n')
+    print(
+        'Converting methods into FLowDroid source signatures.................')
+    files = subprocess.getoutput('ls ' + signaturePath).split('\n')
     if app in files:
-        print app + 'exists!!'
+        print(app + 'exists!!')
 
     else:
         fw = open(signaturePath + app, 'a')
@@ -30,8 +32,8 @@ def convert(methodSet, app):
 
             cmd = 'grep --include ' + className + '.smali -F ' + '\'' + methodName + '(\' ' + decodeFilePath  +  app + '/ ' +'-r '  + '| grep \'.method\' ' + '| grep \')Ljava/lang/String;\''
             # cmd = 'grep --include *.smali -F ' + '\'' + methodName + '(\' ' + decodeFilePath  + ' -r '  + '| grep \'.method\' '
-            print cmd
-            outs = commands.getoutput(cmd).split('\n')                                # all mathes, one app could have multiple method using same name under different classes
+            print(cmd)
+            outs = subprocess.getoutput(cmd).split('\n')                                # all mathes, one app could have multiple method using same name under different classes
             # print outs
             for out in outs:
                 # print out
@@ -57,7 +59,7 @@ def convert(methodSet, app):
                         sigNew = '<' + classPath + ': ' + 'java.lang.String ' + methodName + '()' + '>' + ' -> _SOURCE_'
                         fw.write(sigNew + '\n')
                         # print out
-                        print sigNew
+                        print(sigNew)
                         continue
 
                     else:
@@ -103,7 +105,7 @@ def convert(methodSet, app):
                         newArguments = ','.join(newArgumentsList).rstrip(',')
                         sigNew = '<' + classPath + ': ' + 'java.lang.String ' + methodName + '(' + newArguments + ')' + '>' + ' -> _SOURCE_'
                         fw.write(sigNew + '\n')
-                        print sigNew
+                        print(sigNew)
                 else:
                     continue
 
@@ -114,7 +116,7 @@ def getSources(app):
     for stack in PIIstackTraces:
         if len(stack) > 1:
             method = stack[1].split("(")[0].split("W System.err: 	at ")[1]
-            print method
+            print(method)
             methodSet.add(method)
     convert(methodSet, app)
 
@@ -124,16 +126,16 @@ def getSources(app):
 signaturePath = "/Users/xueling/Desktop/hybrid/PII_sourceSig_batch2/"
 logPath = "/Users/xueling/Desktop/hybrid/log_batch2/"
 
-apks = commands.getoutput('ls ' + logPath).split('\n')
+apks = subprocess.getoutput('ls ' + logPath).split('\n')
 
 i = 1
 files = os.listdir(signaturePath)
 
 for apk in apks:
-    print apk
+    print(apk)
     if apk in files:
-        print apk
-        print "exists!!!"
+        print(apk)
+        print("exists!!!")
         i += 1
     else:
         getSources(apk)

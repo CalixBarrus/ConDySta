@@ -1,4 +1,5 @@
-import commands
+# import commands
+import subprocess
 SourceAndSinks_default = '/Users/xueling/Desktop/hybrid/SourceAndSinks_default.txt'
 signaturePath = "/Users/xueling/Desktop/hybrid/PII_sourceSig_batch2/"
 
@@ -11,7 +12,7 @@ def generateSourceFile(app):
     default = open(SourceAndSinks_default).readlines();
     for source in detectedSource:
         if source in default:
-            print source + "exists.....";
+            print(source + "exists.....")
         else:
             # print source
             newSource.append(source)
@@ -28,7 +29,7 @@ def generateSourceFile(app):
         fw.writelines(line)
 
 
-apps = commands.getoutput('ls ' + signaturePath).split('\n')
+apps = subprocess.getoutput('ls ' + signaturePath).split('\n')
 for app in apps:
     generateSourceFile(app)
 

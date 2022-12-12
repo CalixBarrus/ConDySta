@@ -5,13 +5,14 @@ app = 'com.bbm'
 
 def processPramDroidLog(app):
     lines = open(logPath+app).readlines()
-    print 'Log Activities: '
+    print('Log Activities: ')
 
     for line in lines:
         if 'ActivityManager' in line and app +'/' in line:
             # print line.strip()
             activities = re.findall(r'(?<=com.bbm/).*', line)
-            print activities
+            print(activities)
+
 
 def processFlowDroidLeak(app):
     out_1 = '/Users/xueling/Desktop/hybrid/comparision_result_batch2/'
@@ -37,9 +38,10 @@ def processFlowDroidLeak(app):
             activity = re.search(r'(?<=in method <).*(?=:)', line).group(0)
             activities.add(activity)
 
-    print 'FlowDroidLeak Activities: '
+    print('FlowDroidLeak Activities: ')
     for activity in activities:
-        print activity
+        print(activity)
+
 
 processFlowDroidLeak(app)
 
