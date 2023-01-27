@@ -1,4 +1,6 @@
 # process the log, get the call stack into list
+import re
+
 Model = "Nexus"
 Make = "motorola"
 OS = '7.1.1'
@@ -66,6 +68,8 @@ def getStackTraces(app):       # process log file into a list, each element will
     return stackTraces
 
 def pickPIIst(stackTraces):
+    """Filter the stack traces down to those who contain an exception with value
+    equalling one of the PII strings listed at the top of this file."""
     PIIstackTraces = []
     for stack in stackTraces:
         for item in PII:

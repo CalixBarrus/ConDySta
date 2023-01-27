@@ -1,3 +1,9 @@
+'''
+This script takes a single flowdroid log file that has been run on many apks and
+created different files for each apk, with each file containing the corresponding
+flowdroid log statements.
+'''
+
 import os
 # import commands
 import subprocess

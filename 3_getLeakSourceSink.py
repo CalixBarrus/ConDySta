@@ -4,10 +4,21 @@ import os
 # first run result
 
 def genLeakSource(app):
+    """
+    This function seems to read a flowdroid log from a hard coded folder, and
+    write down all the sources and seeks associated with found
+    leaks into a file in a different hard coded folder.
+    The sources and sinks written into this output folder seem to be usable as
+    input for flowdroid.
+    :param app: The name of the input text file and output text file (each found
+    in different hard coded folders).
+    """
+
     out_1 = '/Users/xueling/Desktop/research/hybrid_paper2/result_1_batch2/' + app
     leakSourceSink = open('/Users/xueling/Desktop/hybrid/Leak_SourcesAndSinks_batch2/' + app + '.txt', 'w');
     leakResult = []
     lines = open(out_1).readlines()
+    # TODO: why does this double reverse happen here
     lines.reverse()
 
     # get the result block
@@ -21,9 +32,12 @@ def genLeakSource(app):
     # get the source and sink list
     sinks = set()
     sources = set()
-    leakResult.reverse()
+    leakResult.reverse() # TODO: and here?
     for line in leakResult:
         stmt_1 = line.split("on line")[0]
+        # TODO: there is no "on line" in a Flowdroid log from
+        #  running flowdroid on a compiled app. Is out_1 a log from the
+        #  instrumented app?
         if "The sink" in line:
             sink = re.search(r'<.*?>', stmt_1).group(0)
             print("\n" + "sink: " + str(sink))
