@@ -1,5 +1,7 @@
 import os
 import re
+
+
 def instrument(method):
     localsNumber = 0
     locals_index = 0
@@ -31,15 +33,15 @@ def instrument(method):
 
     if len(paraNumberList) > 0:
         parameterCount = max(paraNumberList) + 1
-    print "parameterCount: %d"%parameterCount
+    print("parameterCount: {}".format(parameterCount))
 
-    print paraNumberList
+    print(paraNumberList)
 
-    print parameterCount
-    print localsNumber
+    print(parameterCount)
+    print(localsNumber)
 
     if (16 - localsNumber - parameterCount) >= 1:
-        locas_new = "    .locals " + str(localsNumber + 1)
+        locals_new = "    .locals " + str(localsNumber + 1)
         v1 = "v" + str(localsNumber)
        # v2 = "v" + str(localsNumber + 1)
 
@@ -76,7 +78,8 @@ def instrument(method):
             # newMethod.append(text_toBeAdd_s5)
 
 
-            text_toBeAdd_cond = "    if-eqz " + returnVar + ", :cond_returnStringDetection" + str(cond_index)
+            text_toBeAdd_cond = "    if-nez " + returnVar + ", " \
+                                                             ":cond_returnStringDetection" + str(cond_index)
             newMethod.append(text_toBeAdd_cond)
 
             text_toBeAdd_s1 = "    new-instance " + v1 + ", Ljava/lang/Exception;"
@@ -108,7 +111,7 @@ def instrument(method):
     # for line in newMethod:
     #         print line.strip()
 
-    newMethod[locals_index] = locas_new
+    newMethod[locals_index] = locals_new
 
     return newMethod
 
@@ -116,49 +119,54 @@ def instrument(method):
 
 
 def stringReturnDetection():
-    apkPath = "/home/xueling/researchProjects/sourceDetection/decodeFile/"
+    apkPath = decoded_apks_path
     flag = 0
 
     v1 = " "
     v2 = " "
 
-    cmd = "find %s -iname *.smali " % (apkPath)
-    paths = os.popen(cmd).readlines()
+    cmd = "find {} -iname *.smali ".format(apkPath)
+    smali_paths = os.popen(cmd).readlines()
 
-    print str(len(paths)) + " smali files found!"
+    print(str(len(smali_paths)) + " smali files found!")
 
-    for path in paths:
-        path = path.strip()
-        smaliFile = open(path)
-        text_org = smaliFile.readlines()
+    for smali_path in smali_paths:
+        smali_path = smali_path.strip()
+        smali_file = open(smali_path)
+        text_orig = smali_file.readlines()
         text_new = []
         method = []
-        # print len(text_org)
+        # print len(text_orig)
 
-        for lines in text_org:
+        for lines in text_orig:
             line = lines.rstrip()
 
+            # Start method collection for any string return functions that are
+            # not abstract, contructors, or native.
             if ".method" in line and "abstract" in line:
                 text_new.append(line)
                 continue
 
-            if ".method" in line and "constructor" in line:
+            elif ".method" in line and "constructor" in line:
                 text_new.append(line)
                 continue
 
 
-            if ".method" in line and "native" in line:
+            elif ".method" in line and "native" in line:
                 text_new.append(line)
                 continue
 
-            if ".method" in line and ")Ljava/lang/String;" in line:  #  method return string
-                print path
-                print "%s" % line
+            elif ".method" in line and ")Ljava/lang/String;" in line:  #  method return string
+                print(smali_path)
+                print(line)
                 flag = 1
                 method.append(line)
                 continue
 
-
+            # When an appropriate string return method is detected, collect all
+            # the code until ".end method" into the "method" variable. When
+            # ".end method" gets hit, pass it to "instrument" and begin scanning
+            # for more methods.
             if flag == 1:
                 if ".end method" in line:
                     method.append(line)
@@ -169,16 +177,18 @@ def stringReturnDetection():
                         text_new.append(line)
                 else:
                     method.append(line)
-
-
             else:
                 text_new.append(line)
 
-        smaliFile.close()
-        os.remove(path)
-        fw = open(path, 'w+')
+        smali_file.close()
+        # Replace the smali code with the instrumented code
+        os.remove(smali_path)
+        fw = open(smali_path, 'w+')
         for line in text_new:
             fw.write(line + '\n')
 
-# stringArgumentDetection()
-stringReturnDetection()
+if __name__ == '__main__':
+    decoded_apks_path = 'decoded-apks/'
+
+    # stringArgumentDetection()
+    stringReturnDetection()

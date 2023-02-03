@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # apkPath = "/home/xueling/apkAnalysis/invokeDetection/apks/"
     # smaliPath = "/home/xueling/apkAnalysis/invokeDetection/smalis/"
     # decodeFilePath = "/home/xueling/researchProjects/sourceDetection/decodeFile/"
-    input_apks_path = "input-apks/"
+    input_apks_path = "../input-apks/"
     decoded_apks_path = 'decoded-apks/'
 
     decode()

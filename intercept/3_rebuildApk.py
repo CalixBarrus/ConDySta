@@ -11,17 +11,18 @@ import sys
 
 def rebuild():
     i = 1
-    for apkName in os.listdir(decodeOutputFilePath):
+    for apkName in os.listdir(decoded_apks_path):
         print(i)
-        if os.path.isfile(os.path.join(decodeOutputFilePath, apkName)):
-            continue
+        apk_name_with_suffix = apkName + ".apk"
 
-        if apkName in os.listdir(rebuiltApksPath):
+        if apk_name_with_suffix in os.listdir(rebuiltApksPath):
             print("Exists!!!!")
+            # don't rebuild an apk that has already been rebuilt
+            continue
 
         else:
             # rebuild the first file name, and place the output as the second file name
-            cmd = "apktool b {}{} -o {}{}".format(decodeOutputFilePath, apkName, rebuiltApksPath, apkName)
+            cmd = "apktool b {}{} -o {}{}".format(decoded_apks_path, apkName, rebuiltApksPath, apk_name_with_suffix)
             print(cmd)
             os.system(cmd)
         i += 1
@@ -29,8 +30,7 @@ def rebuild():
 if __name__ == '__main__':
     # rebuildApkPath = "/home/xueling/apkAnalysis/invokeDetection/rebuildApk/branch/"
     # decodeFilePath = "/home/xueling/apkAnalysis/invokeDetection/decodeFile/branch/"
-    decodeOutputFilePath = "decoded-apks/"
+    decoded_apks_path = "decoded-apks/"
     rebuiltApksPath = "rebuilt-apks/"
-    apkNameList = []
 
     rebuild()

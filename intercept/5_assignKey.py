@@ -5,9 +5,10 @@ import os
 
 def main():
     apkNameList = []
-    for apkName in open(apkNameTextFile).readlines():
-        apkName = apkName.strip()
-        apkNameList.append(apkName)
+    for apk_name in os.listdir(rebuiltApksPath):
+        apk_name = apk_name.strip()
+        apkNameList.append(apk_name)
+    print(len(apkNameList))
 
     i = 1
     # for line in apkNameList:
@@ -52,8 +53,6 @@ if __name__ == '__main__':
     signedApksPath = "signed-apks/"
     # rebuiltApksPath = "/home/xueling/apkAnalysis/invokeDetection/rebuildApk/branch/"
     rebuiltApksPath = "rebuilt-apks/"
-
-    apkNameTextFile = "namelist.txt"
 
     main()
 

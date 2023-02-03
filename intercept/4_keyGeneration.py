@@ -5,9 +5,9 @@ import os
 def generate_keys():
 
     apkNameList = []
-    for apkName in open(apkNameTextFile).readlines():
-        apkName = apkName.strip()
-        apkNameList.append(apkName)
+    for apk_name in os.listdir(rebuilt_apks_path):
+        apk_name = apk_name.strip()
+        apkNameList.append(apk_name)
     print(len(apkNameList))
 
     i = 1
@@ -109,5 +109,6 @@ if __name__ == '__main__':
     # keyPath = "/home/xueling/apkAnalysis/invokeDetection/keys/"
 
     keyPath = "apk-keys/"
-    apkNameTextFile = "namelist.txt"
+    rebuilt_apks_path = 'rebuilt-apks/'
+
     generate_keys()

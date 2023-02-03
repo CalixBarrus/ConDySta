@@ -16,26 +16,31 @@ def getCmdExecuteResult(cmd):
     return tmp
 
 
-def getPackageName(installName):
-    installName = signedApkPath + installName
+def getPackageName(installName, signed_apk_path):
+    installName = signed_apk_path + installName
     cmd = 'aapt dump badging "{}" '.format(installName)
     print(cmd)
     str= getCmdExecuteResult(cmd)[0].split(" ")[1]
     return str[6:-1]
 
-def getPackageNameInfo(packageName):
+def getApkMainIntent(packageName):
+    """
+    :param packageName: packageName resulting from getPackageName call.
+    :return: String that can be used as an Intent to launch the main activity of
+    the apk.
+    """
     cmd='adb shell dumpsys package {}'.format(packageName)
     print(cmd)
-    exeResut= getCmdExecuteResult(cmd)
-    #print exeResut
-    for index,val  in enumerate(exeResut):
+    exeResult= getCmdExecuteResult(cmd)
+    #print exeResult
+    for index, val in enumerate(exeResult):
         #print index ,val
         if val.strip("\r\n").strip()=='Action: "android.intent.action.MAIN"':
-            return exeResut[index-1].strip().split(" ")[1]
+            return exeResult[index-1].strip().split(" ")[1]
 
 def startApk(packageName):
     try:
-        packagename_mainActivity = getPackageNameInfo(packageName)
+        packagename_mainActivity = getApkMainIntent(packageName)
         print(packagename_mainActivity)
     except:
         print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
@@ -76,7 +81,7 @@ def batch(apkNameList,index):
     print(" the appInstalled in this bath:")
     print(apkName_installed)
     for apkName in apkName_installed:
-        packageName = getPackageName(apkName)
+        packageName = getPackageName(apkName, signedApkPath)
         packageNameList.append(packageName)
         # packageNameListALL.append(packageName)
 
@@ -185,12 +190,14 @@ if __name__ == '__main__':
 
     # installAndStart()
 
+
+    apkPackageName = getPackageName(apkName, signedApkPath)
+    uninstallApk(apkPackageName)
+
     installApk(apkName)
 
-    # apkPackageName = getPackageName(apkName)
+    # apkPackageName = getPackageName(apkName, signedApkPath)
     # startApk(apkPackageName)
 
-    apkPackageName = getPackageName(apkName)
-    uninstallApk(apkPackageName)
 
     # moveToDone()

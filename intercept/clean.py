@@ -10,13 +10,22 @@ def main():
     print(cmd)
     os.system(cmd)
 
-    # Remove the whole directory and replace the root in order to avoid a
-    # confirmation prompt.
-    cmd = 'rm.rf {}'.format('smalis')
+    cmd = 'rm {}*.idsig'.format(signed_apks_path)
     print(cmd)
     os.system(cmd)
 
-    cmd = 'mkdir {}'.format('smalis')
+    cmd = 'rm {}*.log'.format(logs_path)
+    print(cmd)
+    os.system(cmd)
+
+    # For the smali code,
+    # remove the whole directory and replace the root in order to avoid a
+    # confirmation prompt.
+    cmd = 'rm -rf {}'.format(decoded_apks_path)
+    print(cmd)
+    os.system(cmd)
+
+    cmd = 'mkdir {}'.format(decoded_apks_path)
     print(cmd)
     os.system(cmd)
 
@@ -24,7 +33,7 @@ def main():
 
 def setup_folders():
     directory_list = [input_apks_path, decoded_apks_path, rebuilt_apks_path, key_path,
-                      signed_apks_path]
+                      signed_apks_path, logs_path]
     for directory in directory_list:
         if not os.path.exists(directory):
             cmd = "mkdir {}".format(directory)
@@ -33,11 +42,12 @@ def setup_folders():
 
 if __name__ == '__main__':
     # All these paths should end with '/'
-    input_apks_path = "input-apks/"
+    input_apks_path = "../input-apks/"
     decoded_apks_path = 'decoded-apks/'
     rebuilt_apks_path = 'rebuilt-apks/'
     key_path = "apk-keys/"
     signed_apks_path = 'signed-apks/'
+    logs_path = "../logs/"
 
     main()
     # setup_folders()

@@ -1,5 +1,15 @@
 .idea/
+__pycache__
 
 *.txt
 *.xml
+*.log
+
+intercept/apk-keys
+intercept/decoded-apks
+input-apks
+intercept/rebuilt-apks
+intercept/signed-apks
+logs
+
 
