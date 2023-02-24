@@ -8,8 +8,10 @@ import sys
 #     line = line.strip() + ".apk"
 #     apkNameList.append(line)
 # print len(apkNameList)
+from intercept import intercept_config
 
-def rebuild():
+
+def rebuild(config):
     i = 1
     for apkName in os.listdir(decoded_apks_path):
         print(i)
@@ -28,9 +30,10 @@ def rebuild():
         i += 1
 
 if __name__ == '__main__':
+    config = intercept_config.get_default_intercept_config()
     # rebuildApkPath = "/home/xueling/apkAnalysis/invokeDetection/rebuildApk/branch/"
     # decodeFilePath = "/home/xueling/apkAnalysis/invokeDetection/decodeFile/branch/"
     decoded_apks_path = "decoded-apks/"
     rebuiltApksPath = "rebuilt-apks/"
 
-    rebuild()
+    rebuild(config)

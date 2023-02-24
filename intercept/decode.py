@@ -4,11 +4,18 @@ import os
 # import commands
 import subprocess
 
+import intercept.intercept_config
+from intercept import intercept_main, intercept_config
+
 apkNameList = []
 
 
 #decode 1007 apks
-def decode():
+def decode(config: intercept_config.InterceptConfig):
+
+    input_apks_path = config.input_apks_path
+    decoded_apks_path = config.decoded_apks_path
+
     # get apkNamelist_1007
     # for line in open("/home/xueling/apkAnalysis/invokeDetection/apkName_1007").readlines():
 
@@ -62,14 +69,9 @@ def decode():
 #                 fw.close()
 
 if __name__ == '__main__':
-    # APKpath = "/home/xueling/researchProjects/sourceDetection/apk_org/"
-    # apkPath = "/home/xueling/apkAnalysis/invokeDetection/apks/"
-    # smaliPath = "/home/xueling/apkAnalysis/invokeDetection/smalis/"
-    # decodeFilePath = "/home/xueling/researchProjects/sourceDetection/decodeFile/"
-    input_apks_path = "../input-apks/"
-    decoded_apks_path = 'decoded-apks/'
+    config = intercept_config.get_default_intercept_config()
 
-    decode()
+    decode(config)
 
 
 # move()

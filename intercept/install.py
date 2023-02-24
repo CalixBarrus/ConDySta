@@ -179,6 +179,9 @@ if __name__ == '__main__':
     # signedApkPath = "input-apks/"
     apkName = "app-debug.apk"
 
+    signedApkPath = "../test-apks/"
+    apkName = "art.coloringpages.paint.number.zodiac.free.apk"
+
     adbOnPath = True
     if not adbOnPath:
         platformPath = "/home/xueling/Android/Sdk/platform-tools"
@@ -192,7 +195,8 @@ if __name__ == '__main__':
 
 
     apkPackageName = getPackageName(apkName, signedApkPath)
-    uninstallApk(apkPackageName)
+    print(apkPackageName, apkName, signedApkPath)
+    # uninstallApk(apkPackageName)
 
     installApk(apkName)
 

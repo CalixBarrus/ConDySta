@@ -1,6 +1,8 @@
 import os
 import re
 
+from intercept import intercept_config
+
 
 def instrument(method):
     localsNumber = 0
@@ -118,7 +120,10 @@ def instrument(method):
 
 
 
-def stringReturnDetection():
+def stringReturnDetection(config: intercept_config.InterceptConfig):
+    decoded_apks_path = 'decoded-apks/'
+    decoded_apks_path = config.decoded_apks_path
+
     apkPath = decoded_apks_path
     flag = 0
 
@@ -188,7 +193,7 @@ def stringReturnDetection():
             fw.write(line + '\n')
 
 if __name__ == '__main__':
-    decoded_apks_path = 'decoded-apks/'
+    config = intercept_config.get_default_intercept_config()
 
     # stringArgumentDetection()
-    stringReturnDetection()
+    stringReturnDetection(config)
