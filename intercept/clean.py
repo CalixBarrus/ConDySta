@@ -1,20 +1,29 @@
 import os
 
-def main():
+from intercept import intercept_config
+
+
+def clean(config):
+    decoded_apks_path = config.decoded_apks_path
+    rebuilt_apks_path = config.rebuilt_apks_path
+    key_path = config.key_path
+    signed_apks_path = config.signed_apks_path
+    logs_path = config.logs_path
+
     for folder in [rebuilt_apks_path, signed_apks_path]:
-        cmd = 'rm {}*.apk'.format(folder)
+        cmd = f'rm {os.path.join(folder, "*.apk")}'
         print(cmd)
         os.system(cmd)
     
-    cmd = 'rm {}*.keystore'.format(key_path)
+    cmd = f'rm {os.path.join(key_path, "*.keystore")}'
     print(cmd)
     os.system(cmd)
 
-    cmd = 'rm {}*.idsig'.format(signed_apks_path)
+    cmd = f'rm {os.path.join(signed_apks_path, "*.idsig")}'
     print(cmd)
     os.system(cmd)
 
-    cmd = 'rm {}*.log'.format(logs_path)
+    cmd = f'rm {os.path.join(logs_path, "*.log")}'
     print(cmd)
     os.system(cmd)
 
@@ -31,7 +40,14 @@ def main():
 
     # Todo: uninstall apks off connected device
 
-def setup_folders():
+def setup_folders(config):
+    input_apks_path = config.input_apks_path
+    decoded_apks_path = config.decoded_apks_path
+    rebuilt_apks_path = config.rebuilt_apks_path
+    key_path = config.key_path
+    signed_apks_path = config.signed_apks_path
+    logs_path = config.logs_path
+
     directory_list = [input_apks_path, decoded_apks_path, rebuilt_apks_path, key_path,
                       signed_apks_path, logs_path]
     for directory in directory_list:
@@ -41,13 +57,8 @@ def setup_folders():
             os.system(cmd)
 
 if __name__ == '__main__':
-    # All these paths should end with '/'
-    input_apks_path = "../input-apks/"
-    decoded_apks_path = 'decoded-apks/'
-    rebuilt_apks_path = 'rebuilt-apks/'
-    key_path = "apk-keys/"
-    signed_apks_path = 'signed-apks/'
-    logs_path = "../logs/"
+    configuration = intercept_config.get_default_intercept_config()
 
-    main()
+    clean(configuration)
+
     # setup_folders()

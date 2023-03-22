@@ -2,25 +2,32 @@ import pexpect
 import sys
 import os
 
-def generate_keys():
+from intercept import intercept_config
+
+
+def generate_keys(config):
+    print("Generating Keys...")
+
+    key_path = config.key_path
+    rebuilt_apks_path = config.rebuilt_apks_path
 
     apkNameList = []
     for apk_name in os.listdir(rebuilt_apks_path):
         apk_name = apk_name.strip()
         apkNameList.append(apk_name)
-    print(len(apkNameList))
 
     i = 1
-    files = os.listdir(keyPath)
+    files = os.listdir(key_path)
     for apkName in apkNameList:
 
 
         print(i)
         apkKeyName = apkName + ".keystore"
         if apkKeyName in files:
-            print("{} exists!!!!".format(apkKeyName))
+            print("APK keystore {} already exists, skipping.".format(
+                apkKeyName))
         else:
-            cmd = "keytool -genkey -alias abc.keystore -keyalg RSA -validity 20000 -keystore {}{}".format(keyPath, apkKeyName)
+            cmd = "keytool -genkey -alias abc.keystore -keyalg RSA -validity 20000 -keystore {}{}".format(key_path, apkKeyName)
             print(cmd)
             # Send all the pexpect error messages to stdout.
             # set encoding to utf-8 or stdout will whine about getting bytes, instead of strings
@@ -106,9 +113,6 @@ def generate_keys():
             i+= 1
 
 if __name__ == '__main__':
-    # keyPath = "/home/xueling/apkAnalysis/invokeDetection/keys/"
+    configuration = intercept_config.get_default_intercept_config()
 
-    keyPath = "apk-keys/"
-    rebuilt_apks_path = 'rebuilt-apks/'
-
-    generate_keys()
+    generate_keys(configuration)

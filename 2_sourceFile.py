@@ -8,9 +8,11 @@ signaturePath = "/Users/xueling/Desktop/hybrid/PII_sourceSig_batch2/"
 
 def generateSourceFile(app):
     newSource = []
-    detectedSource = open(signaturePath + app).readlines();
-    default = open(SourceAndSinks_default).readlines();
+    detectedSource = open(signaturePath + app).readlines()
+    default = open(SourceAndSinks_default).readlines()
+
     for source in detectedSource:
+        # don't include source if already present in the default
         if source in default:
             print(source + "exists.....")
         else:

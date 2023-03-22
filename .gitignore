@@ -9,7 +9,9 @@ intercept/apk-keys
 intercept/decoded-apks
 input-apks
 intercept/rebuilt-apks
-intercept/signed-apks
+signed-apks
 logs
 
 
+/signed-apks/
+/intercept/manual-smali-files/

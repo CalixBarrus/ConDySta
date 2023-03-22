@@ -12,28 +12,27 @@ from intercept import intercept_config
 
 
 def rebuild(config):
-    i = 1
+    print("Rebuilding instrumented smali code...")
+
+    decoded_apks_path = config.decoded_apks_path
+    rebuilt_apks_path = config.rebuilt_apks_path
+
     for apkName in os.listdir(decoded_apks_path):
-        print(i)
         apk_name_with_suffix = apkName + ".apk"
 
-        if apk_name_with_suffix in os.listdir(rebuiltApksPath):
-            print("Exists!!!!")
-            # don't rebuild an apk that has already been rebuilt
+        if apk_name_with_suffix in os.listdir(rebuilt_apks_path):
+            print(f"Instrumented APK {apk_name_with_suffix} already in "
+                  f"{rebuilt_apks_path}, skipping.")
             continue
 
         else:
-            # rebuild the first file name, and place the output as the second file name
-            cmd = "apktool b {}{} -o {}{}".format(decoded_apks_path, apkName, rebuiltApksPath, apk_name_with_suffix)
+            cmd = "apktool b {} -o {}".format(
+                os.path.join(decoded_apks_path, apkName),
+                os.path.join(rebuilt_apks_path, apk_name_with_suffix))
             print(cmd)
             os.system(cmd)
-        i += 1
 
 if __name__ == '__main__':
-    config = intercept_config.get_default_intercept_config()
-    # rebuildApkPath = "/home/xueling/apkAnalysis/invokeDetection/rebuildApk/branch/"
-    # decodeFilePath = "/home/xueling/apkAnalysis/invokeDetection/decodeFile/branch/"
-    decoded_apks_path = "decoded-apks/"
-    rebuiltApksPath = "rebuilt-apks/"
+    configuration = intercept_config.get_default_intercept_config()
 
-    rebuild(config)
+    rebuild(configuration)

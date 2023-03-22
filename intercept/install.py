@@ -5,11 +5,14 @@ import os
 import webbrowser
 import time
 
-def uninstallApk(packageName):
-    cmd="adb uninstall %s"%packageName
+from intercept import intercept_config
+
+
+def uninstall_apk(package_name):
+    cmd="adb uninstall {}".format(package_name)
     print(cmd)
     print(getCmdExecuteResult(cmd))
-#
+
 
 def getCmdExecuteResult(cmd):
     tmp = os.popen(cmd).readlines()
@@ -22,6 +25,7 @@ def getPackageName(installName, signed_apk_path):
     print(cmd)
     str= getCmdExecuteResult(cmd)[0].split(" ")[1]
     return str[6:-1]
+
 
 def getApkMainIntent(packageName):
     """
@@ -38,6 +42,7 @@ def getApkMainIntent(packageName):
         if val.strip("\r\n").strip()=='Action: "android.intent.action.MAIN"':
             return exeResult[index-1].strip().split(" ")[1]
 
+
 def startApk(packageName):
     try:
         packagename_mainActivity = getApkMainIntent(packageName)
@@ -52,14 +57,12 @@ def startApk(packageName):
     print(getCmdExecuteResult(cmd))
 
 
-def installApk(apkName):
-    apkName = signedApkPath + apkName
+def installApk(apkName, signed_apk_path):
+    apkName = signed_apk_path + apkName
     # -r, replace the app if already installed
     # -t, allows test packages
+
     cmd='adb  install "{}"'.format(apkName)
-    # If adb is not on the path, change to the AndroidPlatform Directory
-    if not adbOnPath:
-        os.chdir(platformPath)
     print(cmd)
     return os.system(cmd)
 
@@ -95,7 +98,7 @@ def batch(apkNameList,index):
     console=input("delete all apk in this batch,enter y")
     if console =='y':
         for packageName in packageNameList:
-            uninstallApk(packageName)
+            uninstall_apk(packageName)
 
 
 def installAndStart():
@@ -140,47 +143,23 @@ def installAndStart():
     batch(list2, 0)
 
 
-def  moveToWork():
-    files = os.listdir("/home/xueling/apkAnalysis/invokeDetection/apk_signed/branch/")
-    apklist = list()
-    for file in files:
-        if os.path.isfile(os.path.join("/home/xueling/apkAnalysis/invokeDetection/apk_signed/branch/", file)):
-            apklist.append(file)
-    print(len(apklist))
-    for i in range(0,10):
-        cmd = "mv /home/xueling/apkAnalysis/invokeDetection/apk_signed/tune/%s %s" % (apklist[i], apk_signedPath)
-        print(cmd)
-        os.system(cmd)
+def launch(with_logging):
+    pass
 
-
-def  moveToDone():
-    files = os.listdir(apk_signedPath)
-    for file in files:
-        cmd = "mv %s%s /home/xueling/apkAnalysis/invokeDetection/apk_signed/tune/done/"  %(apk_signedPath,file)
-        print(cmd)
-        os.system(cmd)
-
-
-def openWeb():
-    # files = os.listdir(apk_signedPath)
-    files = open("/home/xueling/apkAnalysis/invokeDetection/temp").readlines()
-    for file in files:
-        file = file.strip()
-        url_1 = "https://play.google.com/store/apps/details?id="
-        webbrowser.open(url_1 + file, new=0, autoraise=True)
-        time.sleep(2)
-
+def run_monkey():
+    pass
 
 if __name__ == '__main__':
+    configuration = intercept_config.get_default_intercept_config()
 
     # apk_signedPath = "/home/xueling/apkAnalysis/invokeDetection/apk_signed/test/"
-    signedApkPath = "signed-apks/"
+    # signedApkPath = "signed-apks/"
     # signedApkPath = "rebuilt-apks/"
     # signedApkPath = "input-apks/"
     apkName = "app-debug.apk"
-
-    signedApkPath = "../test-apks/"
-    apkName = "art.coloringpages.paint.number.zodiac.free.apk"
+    
+    # signedApkPath = "../test-apks/"
+    # apkName = "art.coloringpages.paint.number.zodiac.free.apk"
 
     adbOnPath = True
     if not adbOnPath:
@@ -193,12 +172,12 @@ if __name__ == '__main__':
 
     # installAndStart()
 
+    apkPackageName = getPackageName(apkName, configuration.signed_apks_path)
+    uninstall_apk(apkPackageName)
 
-    apkPackageName = getPackageName(apkName, signedApkPath)
-    print(apkPackageName, apkName, signedApkPath)
-    # uninstallApk(apkPackageName)
+    installApk(apkName, configuration.signed_apks_path)
 
-    installApk(apkName)
+    startApk(apkPackageName)
 
     # apkPackageName = getPackageName(apkName, signedApkPath)
     # startApk(apkPackageName)

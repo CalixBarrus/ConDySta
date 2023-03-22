@@ -1,5 +1,5 @@
 # decode
-
+import copy
 import os
 # import commands
 import subprocess
@@ -9,35 +9,37 @@ from intercept import intercept_main, intercept_config
 
 apkNameList = []
 
-
-#decode 1007 apks
 def decode(config: intercept_config.InterceptConfig):
+    print("Decoding input APKs...")
 
     input_apks_path = config.input_apks_path
     decoded_apks_path = config.decoded_apks_path
-
-    # get apkNamelist_1007
-    # for line in open("/home/xueling/apkAnalysis/invokeDetection/apkName_1007").readlines():
-
-    apks = subprocess.getoutput('ls ' + input_apks_path).split('\n')
-    print(apks)
-    i = 1
     output_files = os.listdir(decoded_apks_path)
-    for apk in apks:
-        # decompile to smaliPath
-        print(i)
-        if apk in output_files:
-            print(apk)
-            print("exists!!!")
-            i += 1
-            continue
 
-        else:
-            # Pull off the ".apk" of the name of the output file
-            cmd = "apktool d -r {}{} -o {}{}".format(input_apks_path, apk, decoded_apks_path, apk[:-4])
-            print(cmd)
-            os.system(cmd)
-            i += 1
+    recursive = config.is_recursive_on_input_apks_path
+
+    for item in os.listdir(input_apks_path):
+        if os.path.isfile(os.path.join(input_apks_path, item)) and item.endswith(".apk"):
+            apk = item
+            if apk in output_files:
+                print(f"APK {item} already decompiled. Skipping.")
+                continue
+
+            else:
+                # decompile to decoded_apks_path
+                # Pull off the ".apk" of the name of the output file
+                cmd = "apktool d -r {} -o {}".format(
+                    os.path.join(input_apks_path, apk),
+                    os.path.join(decoded_apks_path, apk[:-4]))
+                print(cmd)
+                os.system(cmd)
+
+        if recursive and os.path.isdir(os.path.join(input_apks_path, item)):
+            # Recursively check subdirectories for APKs.
+            config_copy = copy.deepcopy(config)
+            config_copy.input_apks_path = \
+                os.path.join(config_copy.input_apks_path, item)
+            decode(config_copy)
 
 
 

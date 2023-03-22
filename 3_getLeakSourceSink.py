@@ -6,7 +6,7 @@ import os
 def genLeakSource(app):
     """
     This function seems to read a flowdroid log from a hard coded folder, and
-    write down all the sources and seeks associated with found
+    writes down all the sources associated with found
     leaks into a file in a different hard coded folder.
     The sources and sinks written into this output folder seem to be usable as
     input for flowdroid.
