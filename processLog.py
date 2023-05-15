@@ -1,4 +1,4 @@
-# process the log, get the call stack into list
+# process the input_log_path, get the call stack into list
 import re
 
 Model = "Nexus"
@@ -28,10 +28,10 @@ PII = (Model, Make, OS,  IMEI, Serial, Email, AndroidID, PassWord, UserName_1, U
        advertiserId, timezone_1, timezone_2,
        CPU_1, CPU_2, NetWork)
 
-def getStackTraces(app):       # process log file into a list, each element will be a stackTrace
+def getStackTraces(app):       # process input_log_path file into a list, each element will be a stackTrace
 
-    logPath = "/Users/xueling/Desktop/hybrid/log/"
-    # logPath = "/Users/xueling/Desktop/hybrid/log_batch2/"
+    logPath = "/Users/xueling/Desktop/hybrid/input_log_path/"
+    # input_log_path = "/Users/xueling/Desktop/hybrid/log_batch2/"
 
     stackTraces = []
     flag = 0

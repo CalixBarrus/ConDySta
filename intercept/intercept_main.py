@@ -17,8 +17,9 @@ def main(config, do_clean=True):
 
     pass
 
-def generate_smali_code(config):
-    clean.clean(config)
+def generate_smali_code(config, do_clean=True):
+    if do_clean:
+        clean.clean(config)
     decode.decode(config)
 
 def rebuild_smali_code(config):

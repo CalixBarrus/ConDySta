@@ -28,7 +28,7 @@ def decode(config: intercept_config.InterceptConfig):
             else:
                 # decompile to decoded_apks_path
                 # Pull off the ".apk" of the name of the output file
-                cmd = "apktool d -r {} -o {}".format(
+                cmd = "apktool d '{}' -o '{}'".format(
                     os.path.join(input_apks_path, apk),
                     os.path.join(decoded_apks_path, apk[:-4]))
                 print(cmd)

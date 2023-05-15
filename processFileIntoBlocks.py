@@ -1,7 +1,7 @@
 '''
-This script takes a single flowdroid log file that has been run on many apks and
+This script takes a single flowdroid input_log_path file that has been run on many apks and
 created different files for each apk, with each file containing the corresponding
-flowdroid log statements.
+flowdroid input_log_path statements.
 '''
 
 import os

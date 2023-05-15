@@ -14,12 +14,11 @@ def run_apk(config):
     use_monkey = config.use_monkey
 
     for apkName in os.listdir(target_apks_path):
-
-        log_file_path = os.path.join(config.logs_path, apkName + ".log")
-
         # Only run apks
         if not apkName.endswith(".apk"):
             continue
+
+        log_file_path = os.path.join(config.logs_path, apkName + ".log")
 
         install.installApk(apkName, config.signed_apks_path)
 
@@ -40,7 +39,7 @@ def run_apk(config):
         # dump logcat to a text file on the host machine
         # cmd = "adb logcat -d \"DySta-Instrumentation:I System.err:W *:S\" > {}" \
         #       "".format(log_file_name)
-        cmd = "adb logcat -d > {}".format(log_file_path)
+        cmd = "adb logcat -d > '{}'".format(log_file_path)
         print(cmd)
         os.system(cmd)
 
@@ -63,7 +62,7 @@ def test_apk_manual(target_apks_path, apkName: str, block_duration):
     :param apkName:
     :param block_duration: Function will block for this number of seconds. The
     logs are collected after this function returns; this blocking behavior
-    prevents the log dump from grabbing the log before it fills up from the
+    prevents the logs dump from grabbing the logs before it fills up from the
     testing.
     :return:
     """

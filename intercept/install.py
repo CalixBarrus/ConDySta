@@ -19,9 +19,9 @@ def getCmdExecuteResult(cmd):
     return tmp
 
 
-def getPackageName(installName, signed_apk_path):
-    installName = signed_apk_path + installName
-    cmd = 'aapt dump badging "{}" '.format(installName)
+def getPackageName(apk_name, signed_apk_path):
+    install_name = os.path.join(signed_apk_path, apk_name)
+    cmd = 'aapt dump badging "{}" '.format(install_name)
     print(cmd)
     str= getCmdExecuteResult(cmd)[0].split(" ")[1]
     return str[6:-1]
@@ -58,7 +58,7 @@ def startApk(packageName):
 
 
 def installApk(apkName, signed_apk_path):
-    apkName = signed_apk_path + apkName
+    apkName = os.path.join(signed_apk_path, apkName)
     # -r, replace the app if already installed
     # -t, allows test packages
 
@@ -155,8 +155,9 @@ if __name__ == '__main__':
     # apk_signedPath = "/home/xueling/apkAnalysis/invokeDetection/apk_signed/test/"
     # signedApkPath = "signed-apks/"
     # signedApkPath = "rebuilt-apks/"
-    # signedApkPath = "input-apks/"
-    apkName = "app-debug.apk"
+    configuration.signed_apks_path = "input-apks/"
+    apkName = "FieldSensitivity1.apk"
+
     
     # signedApkPath = "../test-apks/"
     # apkName = "art.coloringpages.paint.number.zodiac.free.apk"
@@ -175,9 +176,9 @@ if __name__ == '__main__':
     apkPackageName = getPackageName(apkName, configuration.signed_apks_path)
     uninstall_apk(apkPackageName)
 
-    installApk(apkName, configuration.signed_apks_path)
+    # installApk(apkName, configuration.signed_apks_path)
 
-    startApk(apkPackageName)
+    # startApk(apkPackageName)
 
     # apkPackageName = getPackageName(apkName, signedApkPath)
     # startApk(apkPackageName)

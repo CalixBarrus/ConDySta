@@ -26,7 +26,7 @@ def rebuild(config):
             continue
 
         else:
-            cmd = "apktool b {} -o {}".format(
+            cmd = "apktool b '{}' -o '{}' --use-aapt2".format(
                 os.path.join(decoded_apks_path, apkName),
                 os.path.join(rebuilt_apks_path, apk_name_with_suffix))
             print(cmd)

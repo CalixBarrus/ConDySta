@@ -11,6 +11,8 @@ input-apks
 intercept/rebuilt-apks
 signed-apks
 logs
+test-apks
+input-smali-directories
 
 
 /signed-apks/

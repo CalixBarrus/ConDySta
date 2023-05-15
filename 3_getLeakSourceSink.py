@@ -5,7 +5,7 @@ import os
 
 def genLeakSource(app):
     """
-    This function seems to read a flowdroid log from a hard coded folder, and
+    This function seems to read a flowdroid input_log_path from a hard coded folder, and
     writes down all the sources associated with found
     leaks into a file in a different hard coded folder.
     The sources and sinks written into this output folder seem to be usable as
@@ -35,8 +35,8 @@ def genLeakSource(app):
     leakResult.reverse() # TODO: and here?
     for line in leakResult:
         stmt_1 = line.split("on line")[0]
-        # TODO: there is no "on line" in a Flowdroid log from
-        #  running flowdroid on a compiled app. Is out_1 a log from the
+        # TODO: there is no "on line" in a Flowdroid input_log_path from
+        #  running flowdroid on a compiled app. Is out_1 a input_log_path from the
         #  instrumented app?
         if "The sink" in line:
             sink = re.search(r'<.*?>', stmt_1).group(0)

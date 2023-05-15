@@ -79,7 +79,7 @@ import os
 # ## average length of callStack, need to get avergae from the 2 files
 #
 # import os
-# paths = ['/Users/xueling/Desktop/research/hybrid_paper2/log/','/Users/xueling/Desktop/research/hybrid_paper2/log_batch2/']
+# paths = ['/Users/xueling/Desktop/research/hybrid_paper2/input_log_path/','/Users/xueling/Desktop/research/hybrid_paper2/log_batch2/']
 #
 # sum_mean = 0
 # for path in paths:
@@ -88,7 +88,7 @@ import os
 #         print(app)
 #         if ".DS_Store" == app:
 #             continue
-#         # for each app's log
+#         # for each app's input_log_path
 #         callStacks_count = 0
 #         callStacks_len = 0
 #         lines = open(path+app).readlines()

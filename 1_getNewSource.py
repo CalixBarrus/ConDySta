@@ -132,9 +132,9 @@ def getSources(app):
     PIIstackTraces = processLog.processLog(app)
     # print len(PIIstackTraces)
 
-    # Create set of methods that show up in the app log file after "W System.err:"
+    # Create set of methods that show up in the app input_log_path file after "W System.err:"
     # Each "Method" is a long string with a lot of info that gets parsed by convert.
-    # TODO: what are these log files? A simple Flowdroid log file with leaks
+    # TODO: what are these input_log_path files? A simple Flowdroid input_log_path file with leaks
     #  does not have any System.err.
     methodSet = set()
     for stack in PIIstackTraces:
@@ -154,7 +154,7 @@ apks = subprocess.getoutput('ls ' + logPath).split('\n')
 i = 1
 files = os.listdir(signaturePath)
 
-# Only call getSources on files in the "log" folder who do not have corresponding
+# Only call getSources on files in the "input_log_path" folder who do not have corresponding
 # files in the "signature" folder
 
 for apk in apks:
