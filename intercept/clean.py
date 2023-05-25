@@ -1,9 +1,10 @@
 import os
 
 from intercept import intercept_config
+from intercept.intercept_config import InterceptConfig
 
 
-def clean(config):
+def clean(config: InterceptConfig):
     decoded_apks_path = config.decoded_apks_path
     rebuilt_apks_path = config.rebuilt_apks_path
     key_path = config.key_path

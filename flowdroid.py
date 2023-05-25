@@ -3,8 +3,10 @@ import intercept.intercept_config
 from hybrid_config import HybridAnalysisConfig
 
 
-def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_name: str,
-                       source_and_sink_path: str, output_log_path: str,
+def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: str,
+                       apk_name: str,
+                       source_and_sink_path: str,
+                       output_log_path: str,
                        ) -> str:
     # Use the compiled version of flowdroid at the specified jar on the specified apk.
     # Write the logged results to the specified file.
@@ -13,15 +15,12 @@ def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_name: s
     if not apk_name.endswith(".apk"):
         raise ValueError(f"Input apk_name {apk_name} needs to end with \".apk\"")
 
-    input_apk_directory = hybrid_analysis_config.input_apks_path
-
     flowdroid_jar = hybrid_analysis_config.flowdroid_jar_path
     android_platform_path = hybrid_analysis_config.android_platform_path
 
     log_name = apk_name + ".log"
 
-    cmd = 'java -jar ' + flowdroid_jar + ' -a ' + os.path.join(
-        input_apk_directory, apk_name) + ' -p ' + android_platform_path + ' -s ' + \
+    cmd = 'java -jar ' + flowdroid_jar + ' -a ' + apk_path + ' -p ' + android_platform_path + ' -s ' + \
           source_and_sink_path + ' --paths --pathspecificresults ' \
                                  '--outputlinenumbers > ' + \
           os.path.join(
@@ -40,22 +39,22 @@ def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_name: s
 """
 
 
-def run_flowdroid_batch(input_apks_path, source_and_sink_path,
-                        output_log_path, recursive=False):
-    if not os.path.isdir(input_apks_path):
-        raise FileNotFoundError(f"Directory {input_apks_path} not found.")
-
-    for item in os.listdir(input_apks_path):
-        if os.path.isfile(os.path.join(input_apks_path, item)) and item.endswith(
-                ".apk"):
-            activate_flowdroid(input_apks_path, item, source_and_sink_path,
-                               output_log_path)
-
-        if recursive:
-            if os.path.isdir(os.path.join(input_apks_path, item)):
-                run_flowdroid_batch(os.path.join(input_apks_path, item),
-                                    source_and_sink_path,
-                                    output_log_path, recursive)
+# def run_flowdroid_batch(input_apks_path, source_and_sink_path,
+#                         output_log_path, recursive=False):
+#     if not os.path.isdir(input_apks_path):
+#         raise FileNotFoundError(f"Directory {input_apks_path} not found.")
+#
+#     for item in os.listdir(input_apks_path):
+#         if os.path.isfile(os.path.join(input_apks_path, item)) and item.endswith(
+#                 ".apk"):
+#             activate_flowdroid(input_apks_path, item, source_and_sink_path,
+#                                output_log_path)
+#
+#         if recursive:
+#             if os.path.isdir(os.path.join(input_apks_path, item)):
+#                 run_flowdroid_batch(os.path.join(input_apks_path, item),
+#                                     source_and_sink_path,
+#                                     output_log_path, recursive)
 
 
 if __name__ == '__main__':

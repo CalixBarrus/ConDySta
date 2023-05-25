@@ -13,6 +13,7 @@ signed-apks
 logs
 test-apks
 input-smali-directories
+results
 
 
 /signed-apks/

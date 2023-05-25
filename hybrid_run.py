@@ -3,13 +3,25 @@ import shutil
 import re
 from typing import List, Optional
 
+import results
+from clean import clean
 from flowdroid import activate_flowdroid
 from hybrid_config import HybridAnalysisConfig, get_default_hybrid_analysis_config
 from intercept import intercept_main
 from intercept.intercept_config import get_default_intercept_config
 
+def main(hybrid_config, do_clean=True):
+    if do_clean:
+        clean(hybrid_config)
 
-def dysta(hybrid_config: HybridAnalysisConfig):
+    results.HybridAnalysisResult.experiment_start(hybrid_config)
+
+    dysta(hybrid_config, hybrid_config.input_apks_path, do_clean)
+
+    results.HybridAnalysisResult.experiment_end(hybrid_config)
+
+
+def dysta(hybrid_config: HybridAnalysisConfig, input_apks_path, do_clean):
     unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
     flowdroid_first_pass_logs_path = hybrid_config.flowdroid_first_pass_logs_path
     flowdroid_second_pass_logs_path = hybrid_config.flowdroid_second_pass_logs_path
@@ -17,14 +29,21 @@ def dysta(hybrid_config: HybridAnalysisConfig):
     # dynamic pass
     dynamic_pass_logs_path = "logs/instrumentation-run"
     hybrid_config.intercept_config.logs_path = dynamic_pass_logs_path
-    intercept_main.main(hybrid_config.intercept_config, do_clean=False)
+    # TODO: Should be able to skip specific APKs if there's already a result for them.
+    intercept_main.main(hybrid_config.intercept_config, do_clean=do_clean)
 
-    for item in os.listdir(hybrid_config.input_apks_path):
+    for item in os.listdir(input_apks_path):
+        if hybrid_config.is_recursive_on_input_apks_path \
+                and os.path.isdir(os.path.join(input_apks_path, item)):
+            dysta(hybrid_config, os.path.join(input_apks_path, item), do_clean)
+
         if item.endswith(".apk"):
             apk_name = item
 
+            apk_path = os.path.join(input_apks_path, apk_name)
+
             # flowdroid 1st pass
-            result_log_name = activate_flowdroid(hybrid_config, apk_name,
+            result_log_name = activate_flowdroid(hybrid_config, apk_path, apk_name,
                                                  unmodified_source_and_sink_path,
                                                  flowdroid_first_pass_logs_path)
 
@@ -35,29 +54,25 @@ def dysta(hybrid_config: HybridAnalysisConfig):
                 modified_source_and_sink_directory,
                 apk_name + "source-and-sinks.txt")
             log_path = os.path.join(dynamic_pass_logs_path, result_log_name)
-            process_dynamic_log_to_source_file(hybrid_config,
-                                               modified_source_and_sink_path,
-                                               log_path)
+            new_sources_count = process_dynamic_log_to_source_file(hybrid_config,
+                                                                   modified_source_and_sink_path,
+                                                                   log_path)
+            results.HybridAnalysisResult.report_new_sources_count(hybrid_config, apk_name,
+                                                          new_sources_count)
 
             # flowdroid 2nd pass
             activate_flowdroid(hybrid_config,
-                               apk_name,
+                               apk_path, apk_name,
                                modified_source_and_sink_path,
                                flowdroid_second_pass_logs_path)
-
-    # count the number of leaks found in 1st and 2nd pass
-    count_leaks_in_flowdroid_logs(flowdroid_first_pass_logs_path)
-    count_leaks_in_flowdroid_logs(flowdroid_second_pass_logs_path)
-
-
-
 
 
 def process_dynamic_log_to_source_file(hybrid_config: HybridAnalysisConfig,
                                        modified_source_and_sink_path: str,
-                                       log_path: str) -> None:
+                                       log_path: str) -> int:
     # Place any observed sources from "logs_to_process_directory/log_to_process_name)"
     # into a new source/sink file at "modified_source_and_sink_path"
+    # return the number of discovered/added sources
 
     unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
     verbose = hybrid_config.verbose
@@ -79,6 +94,8 @@ def process_dynamic_log_to_source_file(hybrid_config: HybridAnalysisConfig,
     shutil.copyfile(unmodified_source_and_sink_path, modified_source_and_sink_path)
     with open(modified_source_and_sink_path, 'a') as result_file:
         result_file.writelines(map(lambda s: s.get_source_string(), new_sources))
+
+    return len(new_sources)
 
 
 # def process_dynamic_logs_to_source_file(unmodified_source_and_sink_path,
@@ -151,25 +168,6 @@ Example line:
                 resultSources.append(FlowdroidSourceModel.from_string(line))
 
     return resultSources
-
-
-def count_leaks_in_flowdroid_logs(flowdroid_logs_directory):
-    for item in os.listdir(flowdroid_logs_directory):
-        if item.endswith(".log"):
-            flowdroid_log_path = os.path.join(flowdroid_logs_directory, item)
-
-            with open(flowdroid_log_path, 'r') as file:
-                for line in file.readlines():
-
-                    # looking for line such as
-                    """
-[main] INFO soot.jimple.infoflow.android.SetupApplication - Found 1 leaks
-                    """
-                    if " - Found " in line:
-                        # Pull number from phrase "Found n leaks"
-                        num_leaks = re.search("Found (\d+) leaks", line).group(1)
-                        print(f"Log file {flowdroid_log_path} reported "
-                              f"{num_leaks} leak.")
 
 
 class FlowdroidSourceModel:
@@ -357,6 +355,9 @@ class ExceptionModel:
         prefix = "java.lang.Exception:"
         # We expect the header value to follow the prefix, separated by
         # a space.
+        if header_line.find(prefix) == -1:
+            # If prefix not found, then this is not the exception we are looking for.
+            return None
         prefix_index = header_line.index(prefix)
         # the index after the prefix and a space
         value_index = prefix_index + len(prefix) + 1
@@ -390,5 +391,10 @@ if __name__ == '__main__':
     intercept_configuration = get_default_intercept_config()
     hybrid_analysis_configuration = get_default_hybrid_analysis_config(
         intercept_configuration)
-    dysta(hybrid_analysis_configuration)
+
+    main(hybrid_analysis_configuration, True)
+
+    results.print_results_to_terminal(hybrid_analysis_configuration)
+    results.print_csv_results_to_file(hybrid_analysis_configuration,
+                                      "results/single-apk-test.csv")
     # test_file_source_parsing()

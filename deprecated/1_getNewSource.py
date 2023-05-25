@@ -1,4 +1,4 @@
-import processLog
+from deprecated import processLog
 # import commands
 import re
 import os

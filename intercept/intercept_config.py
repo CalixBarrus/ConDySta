@@ -30,6 +30,8 @@ class InterceptConfig:
         self.verbose = verbose
         self.is_recursive_on_input_apks_path = is_recursive_on_input_apks_path
 
+        # If True, use monkey to send random commands to the app. If False,
+        # launch the app but do not send commands to it.
         self.use_monkey = True
         # About how many seconds monkey should run on a given app
         self.seconds_to_test_each_app = 5

@@ -1,22 +1,22 @@
-from flowdroid import run_flowdroid_batch
+import hybrid_config
+import hybrid_run
+import results
+# from flowdroid import run_flowdroid_batch
 from intercept import intercept_config, intercept_main, monkey
 
 
-def flowdroid_on_droidbench():
-    """
-    Run default flowdroid on all droidbench apps
-    """
-
-    droidbench_path = "/Users/calix/Documents/programming/research-programming/DroidBench/apk"
-    source_and_sink_path = "SourcesAndSinks.txt"
-    experiment_output = "logs/plain-droidbench-logs"
-
-    run_flowdroid_batch(droidbench_path, source_and_sink_path,
-                        experiment_output,
-                        recursive=True)
-
-def dysta_on_droidbench():
-    pass
+# def flowdroid_on_droidbench():
+#     """
+#     Run default flowdroid on all droidbench apps
+#     """
+#
+#     droidbench_path = "/Users/calix/Documents/programming/research-programming/DroidBench/apk"
+#     source_and_sink_path = "SourcesAndSinks.txt"
+#     experiment_output = "logs/plain-droidbench-logs"
+#
+#     run_flowdroid_batch(droidbench_path, source_and_sink_path,
+#                         experiment_output,
+#                         recursive=True)
 
 def instrument_and_run_droidbench():
     """
@@ -104,6 +104,58 @@ def recompile_and_run_with_no_instrumentation():
     monkey.run_apk(configuration)
 
 
+def dysta_on_droidbench():
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
+                      "/DroidBench/apk-pared"
+    intercept_configuration.input_apks_path = input_apks_path
+    intercept_configuration.is_recursive_on_input_apks_path = True
+    hybrid_analysis_configuration.input_apks_path = input_apks_path
+    hybrid_analysis_configuration.is_recursive_on_input_apks_path = True
+
+    hybrid_run.main(hybrid_analysis_configuration, do_clean=False)
+
+    results.print_csv_results_to_file(hybrid_analysis_configuration,
+                                      "results/dysta-on-droidbench.csv")
+
+def dysta_on_droidbench_folder():
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
+                      "/DroidBench/apk/Callbacks"
+    intercept_configuration.input_apks_path = input_apks_path
+    intercept_configuration.is_recursive_on_input_apks_path = True
+    intercept_configuration.use_monkey = False
+    hybrid_analysis_configuration.input_apks_path = input_apks_path
+    hybrid_analysis_configuration.is_recursive_on_input_apks_path = True
+
+    hybrid_run.main(hybrid_analysis_configuration)
+
+    results.print_csv_results_to_file(hybrid_analysis_configuration,
+                                      "results/dysta-on-droidbench-CallBacks-only.csv")
+
+def dysta_on_successful_condysta_apps():
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
+                      "/benchmarks/condysta-apps"
+    intercept_configuration.input_apks_path = input_apks_path
+    intercept_configuration.is_recursive_on_input_apks_path = True
+    hybrid_analysis_configuration.input_apks_path = input_apks_path
+    hybrid_analysis_configuration.is_recursive_on_input_apks_path = True
+
+    hybrid_run.main(hybrid_analysis_configuration, do_clean=False)
+
+    results.print_csv_results_to_file(hybrid_analysis_configuration,
+                                      "results/dysta-on-successful-condysta-apps.csv")
+
+
 if __name__ == '__main__':
-    # recompile_manually_modified_smalis()
-    manually_run_app()
+    dysta_on_droidbench()
