@@ -1,12 +1,11 @@
 import os
 import shutil
-import re
 from typing import List, Optional
 
-import results
-from clean import clean
-from flowdroid import activate_flowdroid
-from hybrid_config import HybridAnalysisConfig, get_default_hybrid_analysis_config
+from hybrid import results
+from hybrid.clean import clean
+from hybrid.flowdroid import activate_flowdroid
+from hybrid.hybrid_config import HybridAnalysisConfig, get_default_hybrid_analysis_config
 from intercept import intercept_main
 from intercept.intercept_config import get_default_intercept_config
 
@@ -27,7 +26,7 @@ def dysta(hybrid_config: HybridAnalysisConfig, input_apks_path, do_clean):
     flowdroid_second_pass_logs_path = hybrid_config.flowdroid_second_pass_logs_path
 
     # dynamic pass
-    dynamic_pass_logs_path = "logs/instrumentation-run"
+    dynamic_pass_logs_path = "../logs/instrumentation-run"
     hybrid_config.intercept_config.logs_path = dynamic_pass_logs_path
     # TODO: Should be able to skip specific APKs if there's already a result for them.
     intercept_main.main(hybrid_config.intercept_config, do_clean=do_clean)
@@ -58,7 +57,7 @@ def dysta(hybrid_config: HybridAnalysisConfig, input_apks_path, do_clean):
                                                                    modified_source_and_sink_path,
                                                                    log_path)
             results.HybridAnalysisResult.report_new_sources_count(hybrid_config, apk_name,
-                                                          new_sources_count)
+                                                                  new_sources_count)
 
             # flowdroid 2nd pass
             activate_flowdroid(hybrid_config,
@@ -374,7 +373,7 @@ class ExceptionModel:
 
 
 def test_exception_parsing():
-    log = LogcatLogFileModel("test-resources/FieldSensitivity3.apk.log")
+    log = LogcatLogFileModel("../test-resources/FieldSensitivity3.apk.log")
     exceptions = log.filter_exceptions_by_header(["8901240197155182897"])
     assert len(exceptions) == 1
     assert exceptions[0].lines[
@@ -382,7 +381,7 @@ def test_exception_parsing():
 
 
 def test_file_source_parsing():
-    file_path = "sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
+    file_path = "../sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
     sources = get_sources_from_file(file_path)
     print(list(map(lambda s: s.get_source_string(), sources)))
 
@@ -396,5 +395,5 @@ if __name__ == '__main__':
 
     results.print_results_to_terminal(hybrid_analysis_configuration)
     results.print_csv_results_to_file(hybrid_analysis_configuration,
-                                      "results/single-apk-test.csv")
+                                      "../results/single-apk-test.csv")
     # test_file_source_parsing()

@@ -1,6 +1,6 @@
 import os
 import intercept.intercept_config
-from hybrid_config import HybridAnalysisConfig
+from hybrid.hybrid_config import HybridAnalysisConfig
 
 
 def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: str,

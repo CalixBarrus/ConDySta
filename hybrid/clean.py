@@ -1,6 +1,6 @@
 import os
 
-from hybrid_config import HybridAnalysisConfig
+from hybrid.hybrid_config import HybridAnalysisConfig
 
 
 def clean(config: HybridAnalysisConfig):

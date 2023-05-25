@@ -1,8 +1,7 @@
 import os
 import re
-from typing import Dict
 
-from hybrid_config import HybridAnalysisConfig
+from hybrid.hybrid_config import HybridAnalysisConfig
 
 
 def print_results_to_terminal(hybrid_config: HybridAnalysisConfig):
@@ -116,7 +115,7 @@ class HybridAnalysisResult:
 def test_initialize_results_dict_entries_works_recursively():
     from intercept import intercept_config
     intercept_configuration = intercept_config.get_default_intercept_config()
-    from hybrid_config import get_default_hybrid_analysis_config
+    from hybrid.hybrid_config import get_default_hybrid_analysis_config
     hybrid_analysis_configuration = get_default_hybrid_analysis_config(
         intercept_configuration)
 

@@ -1,6 +1,4 @@
-import hybrid_config
-import hybrid_run
-import results
+from hybrid import hybrid_run, hybrid_config, results
 # from flowdroid import run_flowdroid_batch
 from intercept import intercept_config, intercept_main, monkey
 
@@ -119,7 +117,7 @@ def dysta_on_droidbench():
     hybrid_run.main(hybrid_analysis_configuration, do_clean=False)
 
     results.print_csv_results_to_file(hybrid_analysis_configuration,
-                                      "results/dysta-on-droidbench.csv")
+                                      "../results/dysta-on-droidbench.csv")
 
 def dysta_on_droidbench_folder():
     intercept_configuration = intercept_config.get_default_intercept_config()
@@ -154,7 +152,7 @@ def dysta_on_successful_condysta_apps():
     hybrid_run.main(hybrid_analysis_configuration, do_clean=False)
 
     results.print_csv_results_to_file(hybrid_analysis_configuration,
-                                      "results/dysta-on-successful-condysta-apps.csv")
+                                      "../results/dysta-on-successful-condysta-apps.csv")
 
 
 if __name__ == '__main__':
