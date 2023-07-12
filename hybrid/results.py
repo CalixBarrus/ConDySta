@@ -3,6 +3,9 @@ import re
 
 from hybrid.hybrid_config import HybridAnalysisConfig
 
+from util.logger import get_logger
+logger = get_logger("hybrid", "results")
+
 
 def print_results_to_terminal(hybrid_config: HybridAnalysisConfig):
     results_dict = hybrid_config.results_dict
@@ -17,15 +20,21 @@ def print_results_to_terminal(hybrid_config: HybridAnalysisConfig):
 def print_csv_results_to_file(hybrid_config: HybridAnalysisConfig, outfile_path: str):
     with open(outfile_path, 'w') as file:
 
-        col_headers = ["APK Name", "Flowdroid Leaks", "Sources Added", "DySTa Leaks"]
+        col_headers = ["APK Name", "Flowdroid Leaks", "Sources Added", "DySTa Leaks",
+                       "Error Message"]
         file.write(",".join(col_headers) + "\n")
 
         results_dict = hybrid_config.results_dict
         for result in results_dict.values():
             file.write(",".join([result.apk_name,
-                                 str(result.flowdroid_leaks),
-                                 str(result.number_added_sources),
-                                 str(result.dysta_leaks)]) + "\n")
+                                 str(result.flowdroid_leaks if
+                                     result.flowdroid_leaks is not None else ""),
+                                 str(result.number_added_sources if
+                                     result.number_added_sources is not None else ""),
+                                 str(result.dysta_leaks if
+                                     result.dysta_leaks is not None else ""),
+                                 str(result.error_msg),
+                                 ]) + "\n")
 
 
 class HybridAnalysisResult:
@@ -33,31 +42,24 @@ class HybridAnalysisResult:
     number_added_sources: int
     flowdroid_leaks: int
     dysta_leaks: int
+    error_msg: str
 
     def __init__(self, apk_name):
         self.apk_name = apk_name
+        self.number_added_sources = None
+        self.flowdroid_leaks = None
+        self.dysta_leaks = None
+        self.error_msg = ""
 
     @classmethod
     def experiment_start(cls, hybrid_config: HybridAnalysisConfig):
         hybrid_config.results_dict = dict()
 
-        cls.initialize_results_dict_entries(hybrid_config,
-                                            hybrid_config.input_apks_path,
-                                            hybrid_config.is_recursive_on_input_apks_path)
+        # Initialize result model objects in dictionary
+        for input_apk in hybrid_config.intercept_config.input_apks:
+            hybrid_config.results_dict[input_apk.apk_name] = HybridAnalysisResult(
+                input_apk.apk_name)
 
-    @classmethod
-    def initialize_results_dict_entries(cls, hybrid_config: HybridAnalysisConfig, apks_path, is_recursive):
-        results_dict = hybrid_config.results_dict
-        for item in os.listdir(apks_path):
-            if is_recursive and \
-                    os.path.isdir(os.path.join(apks_path, item)):
-                cls.initialize_results_dict_entries(hybrid_config, os.path.join(
-                    apks_path, item), True)
-            if item.endswith(".apk"):
-                apk_name = item
-                results_dict[apk_name] = HybridAnalysisResult(apk_name)
-
-        pass
 
     @classmethod
     def report_new_sources_count(cls, hybrid_config, apk_name, new_sources_count):
@@ -86,19 +88,30 @@ class HybridAnalysisResult:
 
                 first_pass_log_path = os.path.join(flowdroid_first_pass_logs_path,
                                                    item)
-                first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
-                    first_pass_log_path)
+                try:
+                    first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
+                        first_pass_log_path)
+                    results_dict[apk_name].flowdroid_leaks = first_pass_leaks_count
+                except FlowdroidLogException as e:
+                    results_dict[apk_name].error_msg = str(e)
 
                 second_pass_log_path = os.path.join(flowdroid_second_pass_logs_path,
                                                     item)
-                second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
-                    second_pass_log_path)
-
-                results_dict[apk_name].flowdroid_leaks = first_pass_leaks_count
-                results_dict[apk_name].dysta_leaks = second_pass_leaks_count
+                try:
+                    second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
+                        second_pass_log_path)
+                    results_dict[apk_name].dysta_leaks = second_pass_leaks_count
+                except FlowdroidLogException as e:
+                    results_dict[apk_name].error_msg = str(e)
 
     @classmethod
     def _count_leaks_in_flowdroid_log(cls, flowdroid_log_path: str) -> int:
+        if not os.path.isfile(flowdroid_log_path):
+            logger.error(f"Flowdroid did not execute; log file"
+                         f" {flowdroid_log_path} does not exist.")
+            raise FlowdroidLogException(f"Flowdroid did not execute; log file"
+                         f" {flowdroid_log_path} does not exist.")
+
         with open(flowdroid_log_path, 'r') as file:
             for line in file.readlines():
 
@@ -110,6 +123,15 @@ class HybridAnalysisResult:
                     # Pull number from phrase "Found n leaks"
                     num_leaks = int(re.search("Found (\d+) leaks", line).group(1))
                     return num_leaks
+
+        logger.error(f"Flowdroid did not execute as expected in log file"
+               f" {flowdroid_log_path}")
+        return None
+
+
+    @classmethod
+    def report_error(cls, hybrid_config, apk_name, error_msg):
+        hybrid_config.results_dict[apk_name].error_msg = error_msg
 
 
 def test_initialize_results_dict_entries_works_recursively():
@@ -127,6 +149,8 @@ def test_initialize_results_dict_entries_works_recursively():
     # There are 118 apks in this Droidbench directory
     assert len(hybrid_analysis_configuration.results_dict) == 118
 
+class FlowdroidLogException(Exception):
+    pass
 
 if __name__ == '__main__':
     test_initialize_results_dict_entries_works_recursively()

@@ -6,9 +6,12 @@ import time
 
 from intercept import intercept_config, install
 from intercept.install import getPackageName, getApkMainIntent
+from intercept.intercept_config import InterceptConfig
 
+from util import logger
+logger = logger.get_logger('intercept', 'monkey')
 
-def run_apk(config):
+def run_apk(config: InterceptConfig):
     target_apks_path = config.signed_apks_path
 
     use_monkey = config.use_monkey
@@ -25,7 +28,7 @@ def run_apk(config):
         # Clear logcat so the log dump will only consist of statements
         # relevant to this test
         cmd = "adb logcat -c"
-        print(cmd)
+        logger.debug(cmd)
         os.system(cmd)
 
         seconds_to_test = config.seconds_to_test_each_app
@@ -40,7 +43,7 @@ def run_apk(config):
         # cmd = "adb logcat -d \"DySta-Instrumentation:I System.err:W *:S\" > {}" \
         #       "".format(log_file_name)
         cmd = "adb logcat -d > '{}'".format(log_file_path)
-        print(cmd)
+        logger.debug(cmd)
         os.system(cmd)
 
         # simple dump to sout
@@ -72,7 +75,7 @@ def test_apk_manual(target_apks_path, apkName: str, block_duration):
 
     # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
     cmd = "adb shell am start {}".format(apkMainIntent)
-    print(cmd)
+    logger.debug(cmd)
     os.system(cmd)
 
     if block_duration > 0:
@@ -91,13 +94,13 @@ def test_apk_monkey(target_apks_path, apkName: str, seconds_to_test, seed=-1):
 
     apkPackageName = getPackageName(apkName, target_apks_path)
     if seed == -1:
-        cmd = "adb shell monkey -p {} -v --throttle {} {}".format(
+        cmd = "adb shell monkey -p {} --throttle {} {}".format(
             apkPackageName, throttle_ms, num_events)
     else:
-        cmd = "adb shell monkey -p {} -v -s {} --throttle {} {}".format(
+        cmd = "adb shell monkey -p {} -s {} --throttle {} {}".format(
             apkPackageName, seed, throttle_ms, num_events)
 
-    print(cmd)
+    logger.debug(cmd)
     # This command will block for the duration that monkey runs.
     os.system(cmd)
 

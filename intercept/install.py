@@ -4,14 +4,19 @@
 import os
 import webbrowser
 import time
+import subprocess
+from typing import List
 
 from intercept import intercept_config
+
+from util import logger
+logger = logger.get_logger('intercept', 'install')
 
 
 def uninstall_apk(package_name):
     cmd="adb uninstall {}".format(package_name)
-    print(cmd)
-    print(getCmdExecuteResult(cmd))
+    logger.debug(cmd)
+    cmd_result = getCmdExecuteResult(cmd)
 
 
 def getCmdExecuteResult(cmd):
@@ -22,7 +27,7 @@ def getCmdExecuteResult(cmd):
 def getPackageName(apk_name, signed_apk_path):
     install_name = os.path.join(signed_apk_path, apk_name)
     cmd = 'aapt dump badging "{}" '.format(install_name)
-    print(cmd)
+    logger.debug(cmd)
     str= getCmdExecuteResult(cmd)[0].split(" ")[1]
     return str[6:-1]
 
@@ -34,7 +39,7 @@ def getApkMainIntent(packageName):
     the apk.
     """
     cmd='adb shell dumpsys package {}'.format(packageName)
-    print(cmd)
+    logger.debug(cmd)
     exeResult= getCmdExecuteResult(cmd)
     #print exeResult
     for index, val in enumerate(exeResult):
@@ -46,15 +51,15 @@ def getApkMainIntent(packageName):
 def startApk(packageName):
     try:
         packagename_mainActivity = getApkMainIntent(packageName)
-        print(packagename_mainActivity)
+        logger.debug(packagename_mainActivity)
     except:
-        print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        logger.debug("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
         packagename_mainActivity = packageName + "/"
 
-    print(packagename_mainActivity)
+    logger.debug(packagename_mainActivity)
     cmd = "adb shell am start {}".format(packagename_mainActivity)
-    print(cmd)
-    print(getCmdExecuteResult(cmd))
+    logger.debug(cmd)
+    logger.debug(getCmdExecuteResult(cmd))
 
 
 def installApk(apkName, signed_apk_path):
@@ -63,91 +68,98 @@ def installApk(apkName, signed_apk_path):
     # -t, allows test packages
 
     cmd='adb  install "{}"'.format(apkName)
-    print(cmd)
+    logger.debug(cmd)
     return os.system(cmd)
 
-def batch(apkNameList,index):
-    packageNameList=[]
-    count_installed = 0
-    print("the {}dth batch:".format(index))
-    for i in range(0,len(apkNameList)):
-        print(apkNameList[i][:-4])
+def check_device_is_ready():
+    cmd = 'adb devices'
+    result = run_command(cmd.split())
+    return result.splitlines()[1].__contains__("device")
 
-    apkName_installed=[]
-    for apkName in apkNameList:                      # install 10apk
-        # print "%s installing"%apkName
-        if ((installApk(apkName)) == 0):
-            count_installed += 1
-            print("apk_installed: %d" % count_installed)
-            print(apkName[:-4])
-            apkName_installed.append(apkName)
-    print(" the appInstalled in this bath:")
-    print(apkName_installed)
-    for apkName in apkName_installed:
-        packageName = getPackageName(apkName, signedApkPath)
-        packageNameList.append(packageName)
-        # packageNameListALL.append(packageName)
+def run_command(args: List['str']) -> str:
+    completed_process: subprocess.CompletedProcess = subprocess.run(args,
+                                                                    capture_output=True,
+                                                                    check=True, # Raise a python exception if the process exits with exit code != 0
+                                                                    text=True # Have output be captured as a string (not bytes)
+                                                                    )
 
-    # print "start Apk..........................."
-    # # start APK
-    # for packageName in packageNameList:
-    #     startApk(packageName)
-    # time.sleep(30)
-    print("login to the app....................")
-    # time.sleep(180)
-    console=input("delete all apk in this batch,enter y")
-    if console =='y':
-        for packageName in packageNameList:
-            uninstall_apk(packageName)
+    return completed_process.stdout
 
-
-def installAndStart():
-    apkNameList=[]       # complete list
-    apkNameList10N=[]        # 10 apks
-    apkNameList_lastbatch = []
-    count = 0
-    # # get from folder
-    # for i in os.listdir(apk_signedPath):
-    #     if os.path.isfile(os.path.join(apk_signedPath, i)):
-    #         if i[-4:] == '.apk':
-    #             apkName = i
-    #             apkNameList.append(apkName)
-    # print len(apkNameList)
-    #
-    # index=1
-    # for apkName in apkNameList:
-    #     apkNameList10N.append(apkName)
-    #     count+=1
-    #     if count%10 == 0:
-    #         # print apkNameList10N
-    #         batch(apkNameList10N, index)            #rank every 10 apks
-    #         index += 1
-    #         apkNameList10N = []
-    #
-    #     if (len(apkNameList) - count) < (len(apkNameList)%10):
-    #         apkNameList_lastbatch.append(apkName)
-    #
-    #     if len(apkNameList_lastbatch) > 0 and count == len(apkNameList):
-    #         batch(apkNameList_lastbatch, index)
-    #
-    # print apkNameList10N
+# def batch(apkNameList,index):
+#     packageNameList=[]
+#     count_installed = 0
+#     print("the {}dth batch:".format(index))
+#     for i in range(0,len(apkNameList)):
+#         print(apkNameList[i][:-4])
+#
+#     apkName_installed=[]
+#     for apkName in apkNameList:                      # install 10apk
+#         # print "%s installing"%apkName
+#         if ((installApk(apkName)) == 0):
+#             count_installed += 1
+#             print("apk_installed: %d" % count_installed)
+#             print(apkName[:-4])
+#             apkName_installed.append(apkName)
+#     print(" the appInstalled in this bath:")
+#     print(apkName_installed)
+#     for apkName in apkName_installed:
+#         packageName = getPackageName(apkName, signedApkPath)
+#         packageNameList.append(packageName)
+#         # packageNameListALL.append(packageName)
+#
+#     # print "start Apk..........................."
+#     # # start APK
+#     # for packageName in packageNameList:
+#     #     startApk(packageName)
+#     # time.sleep(30)
+#     print("login to the app....................")
+#     # time.sleep(180)
+#     console=input("delete all apk in this batch,enter y")
+#     if console =='y':
+#         for packageName in packageNameList:
+#             uninstall_apk(packageName)
 
 
-    # get from temp
-    temp = open("/home/xueling/apkAnalysis/invokeDetection/temp").readlines()
-    print(len(temp))
-    list2 = []
-    for line in temp:
-        line = line.strip() + ".apk"
-        list2.append(line.strip())
-    batch(list2, 0)
-
-
-def launch(with_logging):
-    pass
-
-def run_monkey():
-    pass
+# def installAndStart():
+#     apkNameList=[]       # complete list
+#     apkNameList10N=[]        # 10 apks
+#     apkNameList_lastbatch = []
+#     count = 0
+#     # # get from folder
+#     # for i in os.listdir(apk_signedPath):
+#     #     if os.path.isfile(os.path.join(apk_signedPath, i)):
+#     #         if i[-4:] == '.apk':
+#     #             apkName = i
+#     #             apkNameList.append(apkName)
+#     # print len(apkNameList)
+#     #
+#     # index=1
+#     # for apkName in apkNameList:
+#     #     apkNameList10N.append(apkName)
+#     #     count+=1
+#     #     if count%10 == 0:
+#     #         # print apkNameList10N
+#     #         batch(apkNameList10N, index)            #rank every 10 apks
+#     #         index += 1
+#     #         apkNameList10N = []
+#     #
+#     #     if (len(apkNameList) - count) < (len(apkNameList)%10):
+#     #         apkNameList_lastbatch.append(apkName)
+#     #
+#     #     if len(apkNameList_lastbatch) > 0 and count == len(apkNameList):
+#     #         batch(apkNameList_lastbatch, index)
+#     #
+#     # print apkNameList10N
+#
+#
+#     # get from temp
+#     temp = open("/home/xueling/apkAnalysis/invokeDetection/temp").readlines()
+#     print(len(temp))
+#     list2 = []
+#     for line in temp:
+#         line = line.strip() + ".apk"
+#         list2.append(line.strip())
+#     batch(list2, 0)
 
 if __name__ == '__main__':
     configuration = intercept_config.get_default_intercept_config()

@@ -1,32 +1,41 @@
 import os
 import re
 import shutil
-from typing import List
+from typing import List, Tuple
 
 from intercept import intercept_config
 
-def stringReturnDetection(config: intercept_config.InterceptConfig):
-    print("Instrumenting smali code...")
+from util import logger
 
-    # instrument_smali_code(config.decoded_apks_path, StringReturnInstrumenter())
+logger = logger.get_logger('intercept', 'instrument')
+
+
+def instrument_main(config: intercept_config.InterceptConfig):
+    logger.info("Instrumenting smali code...")
+
+    instrumentation_strategy: InformalInstrumentationStrategyInterface = \
+        instrStrategyFromInterceptConfig(config)
+
     apk_models: List[DecodedApkModel] = []
     for item in os.listdir(config.decoded_apks_path):
         apk_path = os.path.join(config.decoded_apks_path, item)
         if os.path.isdir(apk_path):
+            # Parse each apk into a model class
             apk_models.append(DecodedApkModel(apk_path))
 
     for apk_model in apk_models:
-        apk_model.instrument(LogStringReturnInstrumenter())
+        # Pass the instrumentation_strategy to each apk
+        apk_model.instrument(instrumentation_strategy)
 
-class InformalInstrumenterInterface:
+
+class InformalInstrumentationStrategyInterface:
     # def instrument(self, contents: List[str]) -> List[str]:
     #     """Scan through contents of smali file and return the instrumented
     #     smali code"""
     #     raise NotImplementedError("Interface not implemented")
 
-    def instrument_file(self, smali_file: 'SmaliFile') -> List[str]:
-        """Scan through contents of smali file and return the instrumented
-        smali code"""
+    def instrument_file(self, smali_file: 'SmaliFile'):
+        """Hook gets called on each SmaliFile model in a given DecodedApkModel"""
         raise NotImplementedError("Interface not implemented")
 
     def needs_to_insert_directory(self) -> bool:
@@ -41,31 +50,14 @@ class InformalInstrumenterInterface:
         This method shouldn't be called unless
         needs_to_insert_directory() returns true.
         :return: Path to root of smali directories that need to be dropped
-        into a smali_classes[n] file.
+        into a smali_classes file.
         """
         raise NotImplementedError("Interface not implemented")
 
 
-# def instrument_smali_code(target_folder_path,
-#                           instrumenter: InformalInstrumenterInterface):
-#     # Find the names of all the smali files in the target folder
-#     cmd = "find {} -iname *.smali ".format(target_folder_path)
-#     smali_paths = os.popen(cmd).readlines()
-#     # print(str(len(smali_paths)) + " smali files found!")
-#
-#     for smali_path in smali_paths:
-#         smali_path = smali_path.strip()
-#
-#         with open(smali_path, "r") as f:
-#             contents = f.readlines()
-#
-#         # contents.insert(index, value)
-#         # instrumenter.instrument(contents)
-#
-#         with open(smali_path, "w") as f:
-#             contents = "".join(instrumenter.instrument(contents))
-#             f.write(contents)
-
+### Begin Model Classes ###
+# Model classes store lexing and parsing logic. The constructors should leave the model
+# ready for instrumentation by any of the instrumentation strategies.
 
 class DecodedApkModel:
     """
@@ -75,14 +67,21 @@ class DecodedApkModel:
     project_smali_directory_names: List[str]
     smali_directories: List[List['SmaliFile']]
 
-    def __init__(self, decoded_apk_root_path):
+    def __init__(self, decoded_apk_root_path: str):
+        """
+        Parse all the smali directories and files for later instrumentation.
+        :param decoded_apk_root_path: Path to the root directory of a single apk
+        decoded by apktool.
+        """
         self.apk_root_path = decoded_apk_root_path
 
         self.project_smali_directory_names = []
         for item in os.listdir(self.apk_root_path):
             if (os.path.isdir(os.path.join(self.apk_root_path, item)) and
                     item.startswith("smali")):
-                assert item == "smali" or item.startswith("smali_classes")
+                assert (item == "smali"
+                        or item.startswith("smali_classes")
+                        or item.startswith("smali_assets"))
                 self.project_smali_directory_names.append(item)
 
         # Sort the folder names so indexing into the list is consistent with
@@ -101,13 +100,11 @@ class DecodedApkModel:
             self.smali_directories.append(
                 self.scan_for_smali_files(path, ""))
 
-    def scan_for_smali_files(self, project_smali_folder_path,
-                             class_path):
+    def scan_for_smali_files(self, project_smali_folder_path: str,
+                             class_path: str):
         """
         Recursively traverse the subdirectories of
         project_smali_folder_path, getting the methods in each smali file.
-        :type class_path: str
-        :type project_smali_folder_path: str
         :param project_smali_folder_path: path to the "smali" or
         "smali_classes[n]" directory.
         :param class_path: relative path referring to the subdirectories
@@ -130,7 +127,7 @@ class DecodedApkModel:
 
         return result_smali_files
 
-    def instrument(self, instrumenter: InformalInstrumenterInterface):
+    def instrument(self, instrumenter: InformalInstrumentationStrategyInterface):
         if instrumenter.needs_to_insert_directory():
             self.insert_smali_directory(instrumenter.path_to_directory())
 
@@ -158,6 +155,13 @@ class DecodedApkModel:
 
 
 class SmaliFile:
+    """
+    Class representing a single smali text file.
+
+    Most parsing and modification logic for smali files should be contained in this
+    class. Contained classes should focus on being model classes, and should have
+    limited parsing/update logic.
+    """
     file_path: str
     methods: List['SmaliMethod']
 
@@ -190,7 +194,7 @@ class SmaliFile:
                 # Line will be of form
                 # .locals [n]
                 # where n is the number of locals used in the method
-                result_method.locals_line_number = i 
+                result_method.locals_line_number = i
                 result_method.number_of_locals = int(line.split(" ")[1])
             elif line.startswith("return"):
                 result_method.return_line_numbers.append(i)
@@ -198,14 +202,22 @@ class SmaliFile:
                     # if not void return, line is expected to be
                     # "return v[n]" where n is the number of the return register
                     result_method.return_registers.append(line.split(" ")[1])
+            elif SmaliMethodInvocation.is_invocation(line):
+                result_method.invocation_statements.append(
+                    self.parse_invocation_line(i, line))
+            elif SmaliMethodInvocation.is_move_result(line):
+                self.parse_move_result(
+                    result_method.invocation_statements[-1], i, line)
 
+        # debug
         assert result_method.start_line_number < result_method.end_line_number
+        # end debug
 
         return result_method
 
     def parse_method_signature(self, method, signature):
         # Signature should be of the form
-        # .method <keywords> <function_name>(<type>)<return_type>
+        # .method <keywords> <function_name>(<types>)<return_type>
         #
         # Notably, keywords preceding the name and args of the function are
         # all separated by spaces.
@@ -271,6 +283,57 @@ class SmaliFile:
 
         return args
 
+    def parse_invocation_line(self, line_number: int,
+                              line: str) -> 'SmaliMethodInvocation':
+        result_invocation = SmaliMethodInvocation()
+
+        result_invocation.invoke_line_number = line_number
+
+        # First word is invoke-[kind]
+        result_invocation.invoke_kind = line.split()[0]
+
+        # find and capture the contents of matched curly braces
+        arg_registers_string = re.search(r"\{(.*)\}", line).group(1)
+        result_invocation.arg_registers = arg_registers_string.split(", ")
+
+        # find and capture the class name and method name which are between "},
+        # " and "->"; and "->" and "(", respectively
+        match = re.search(r"\}, (.*)->(.*)\(", line)
+        result_invocation.class_name = match.group(1)
+        result_invocation.method_name = match.group(2)
+
+        # find and capture the arg types, which consist of a comma separated list
+        # between a left and right paren
+        arg_types_str = re.search(r"\((.*)\)", line).group(1)
+        result_invocation.arg_types = arg_types_str.strip().split(", ")
+        # empty out arg_types list if it only contains an empty string
+        if len(result_invocation.arg_types) == 1 and result_invocation.arg_types[
+            0] == '':
+            result_invocation.arg_types = []
+
+        # find and capture the return type, between a right paren and the end of the
+        # string.
+        result_invocation.return_type = re.search("\)(.*)$", line).group(1).strip()
+
+        return result_invocation
+
+    def parse_move_result(self, prev_method_invocation: 'SmaliMethodInvocation',
+                          line_number: int, move_result_line: str):
+        """
+        Parse a statement containing a move-result instruction and update the
+        associated SmaliMethodInvocation with the parsed information.
+
+        Note that move-result instructions must/will always have an associated invoke
+        statement.
+        :return: Void. Fields of passed prev_method_invocation are modified.
+        """
+
+        prev_method_invocation.move_result_line_number = line_number
+        # line is expected to of the form "[move-result-[kind]] [register]"
+        split_line = move_result_line.strip().split()
+        prev_method_invocation.move_result_kind = split_line[0]
+        prev_method_invocation.move_result_register = split_line[1]
+
     def get_registers(self, method_number, requested_register_count: int) -> \
             List[str]:
         """
@@ -295,6 +358,8 @@ class SmaliFile:
 
         if requested_register_count == 1:
             return ["v" + str(method.number_of_locals)]
+        elif requested_register_count == 2:
+            return ["v" + str(method.number_of_locals), "v" + str(method.number_of_locals+1)]
         else:
             raise NotImplementedError()
 
@@ -310,9 +375,12 @@ class SmaliFile:
         temp = len(contents)
         # end debugging
 
-        # adjust # of locals
-        if len(used_registers) > 0:
-            contents[self.methods[method_number].locals_line_number] = f".locals {self.methods[method_number].number_of_locals + len(used_registers)}\n"
+        # # adjust # of locals
+        # if not self.methods[method_number].num_locals_updated:
+        #     if len(used_registers) > 0:
+        #         contents[self.methods[
+        #             method_number].locals_line_number] = f".locals {self.methods[method_number].number_of_locals + len(used_registers)}\n"
+        #         self.methods[method_number].num_locals_updated = True
 
         # insert code
         code_lines = code.splitlines(keepends=True)
@@ -337,15 +405,30 @@ class SmaliFile:
         # update model of code
         # Parse the modified method again
         self.methods[method_number] = self.parse_smali_method(contents,
-                                                              self.methods[method_number].start_line_number)
+                                                              self.methods[
+                                                                  method_number].start_line_number)
         # increment line numbers in all the methods after the modified method
-        for method in self.methods[method_number+1:]:
+        for method in self.methods[method_number + 1:]:
             method.increment_line_numbers(len(code_lines))
 
         # Debugging
         for method in self.methods:
             assert contents[method.start_line_number].strip().startswith(".method")
         # end debugging
+
+    def update_method_preamble(self, method_number, used_registers):
+        if len(used_registers) > 0:
+            with open(self.file_path, 'r') as file:
+                contents = file.readlines()
+
+            # adjust # of locals
+            contents[self.methods[
+                method_number].locals_line_number] = f"    .locals {self.methods[method_number].number_of_locals + len(used_registers)}\n"
+
+            # Write changes
+            with open(self.file_path, 'w') as file:
+                file.writelines(contents)
+
 
 class SmaliMethod:
     """
@@ -360,6 +443,7 @@ class SmaliMethod:
     is_static: bool
     start_line_number: int
     locals_line_number: int
+    invocation_statements: List['SmaliMethodInvocation']
     return_line_numbers: List[int]
     end_line_number: int
     name: str
@@ -370,11 +454,13 @@ class SmaliMethod:
 
 
     def __init__(self):
-        self.args = []
+        self.invocation_statements = []
         self.return_line_numbers = []
+        self.args = []
         self.return_registers = []
 
         self.locals_line_number = -1
+
 
     def register_count(self):
         if self.is_static:
@@ -393,6 +479,53 @@ class SmaliMethod:
             self.return_line_numbers[i] += increment
         self.end_line_number += increment
 
+        for invocation_statement in self.invocation_statements:
+            invocation_statement.increment_line_number(increment)
+
+
+class SmaliMethodInvocation:
+    """
+    Class representing a single line of smali code containing a method invocation.
+
+    This class is intended to capture information that needs to
+    be referenced and modified during instrumentation. It is the user's
+    responsibility to ensure that modifications to the file are updated in
+    this object and vice versa.
+    """
+    invoke_line_number: int
+    invoke_kind: str  # could be an enum
+    is_range_kind: bool
+    arg_registers: List[str]
+    class_name: str
+    method_name: str
+    arg_types: List[str]
+    return_type: str
+
+    move_result_line_number: int
+    move_result_kind: str
+    move_result_register: str
+
+    def __init__(self):
+        self.move_result_line_number = -1
+
+    @staticmethod
+    def is_invocation(line: str) -> bool:
+        return line.strip().startswith("invoke")
+
+    @staticmethod
+    def is_move_result(line):
+        return line.strip().startswith("move-result")
+
+    def increment_line_number(self, increment: int):
+        self.invoke_line_number += increment
+
+        if self.move_result_line_number != -1:
+            self.move_result_line_number += increment
+
+    def __str__(self):
+        return f"<{self.class_name}: {self.return_type} {self.method_name}({','.join(self.arg_types)})>"
+
+
 
 def instrument_decoded_apks(decoded_apks_path):
     decoded_apks_list = []
@@ -402,7 +535,7 @@ def instrument_decoded_apks(decoded_apks_path):
                                                                   item)))
 
 
-class StringReturnInstrumenter(InformalInstrumenterInterface):
+class StringReturnInstrumentationStrategy(InformalInstrumentationStrategyInterface):
     def instrument(self, contents: List[str]) -> List[str]:
         """Print out stack traces right before
         the return statement of all functions that return strings"""
@@ -505,9 +638,9 @@ class StringReturnInstrumenter(InformalInstrumenterInterface):
             if "return-object" in line:
                 # line will be "return-object v[#]"
                 returnVar = line.split()[1]
-                text_to_insert = [log_stacktrace(returnVar, v1,
-                                                 method_number,
-                                                 return_statement_number)]
+                text_to_insert = [log_string_value_with_stacktrace(returnVar, v1,
+                                                                   method_number,
+                                                                   return_statement_number)]
 
                 # insert text_to_insert before the "return-object" line
                 return_statement_number += 1
@@ -522,39 +655,48 @@ class StringReturnInstrumenter(InformalInstrumenterInterface):
 
         return contents
 
-class LogStringReturnInstrumenter(InformalInstrumenterInterface):
+
+class LogStringReturnInstrumentationStrategy(InformalInstrumentationStrategyInterface):
 
     def instrument_file(self, smali_file: 'SmaliFile'):
-        # TODO: should return list of strings, calling function should
         SMALI_STRING_CLASS_NAME = "Ljava/lang/String;"
 
         # Note: the smali file object and the text it models will be changing
         # between iterations in these loops
         # Number of methods is not expected to change.
         for method_number in range(len(smali_file.methods)):
+            registers = []
+
             if smali_file.methods[method_number].return_type == \
                     SMALI_STRING_CLASS_NAME:
                 # Number of return registers is not expected to change
                 for i in range(len(smali_file.methods[method_number].return_registers)):
-                    assert len(smali_file.methods[method_number].return_registers) == len(smali_file.methods[method_number].return_line_numbers)
+                    assert len(
+                        smali_file.methods[method_number].return_registers) == len(
+                        smali_file.methods[method_number].return_line_numbers)
 
-                    return_register = smali_file.methods[method_number].return_registers[i]
+                    return_register = \
+                        smali_file.methods[method_number].return_registers[i]
 
-                    try:
-                        registers = smali_file.get_registers(method_number, 1)
-                    except ValueError:
-                        # If the method has too many registers used,
-                        # don't instrument it
-                        continue
+                    if registers is not []:
+                        try:
+                            registers = smali_file.get_registers(method_number, 1)
+                        except ValueError:
+                            # If the method has too many registers used,
+                            # don't instrument it
+                            continue
 
-                    code = log_stacktrace(return_register, registers[0],
-                                          method_number, i)
+                    code = log_string_value_with_stacktrace(return_register,
+                                                            registers[0],
+                                                            method_number, i)
 
                     # This value will be change for future iterations after
                     # the current iteration makes its changes. The fields of
                     # smali_file should already be updated, and method_number
                     # and i will still be valid.
-                    destination_line_number = smali_file.methods[method_number].return_line_numbers[i]
+                    destination_line_number = \
+                        smali_file.methods[method_number].return_line_numbers[i]
+
 
                     smali_file.insert_code_into_method(code, method_number,
                                                        destination_line_number,
@@ -564,10 +706,86 @@ class LogStringReturnInstrumenter(InformalInstrumenterInterface):
                     with open(smali_file.file_path, 'r') as file:
                         contents = file.readlines()
                     for count, method in enumerate(smali_file.methods):
-
                         assert contents[method.start_line_number].strip().startswith(
                             ".method")
                     # end debugging
+            smali_file.update_method_preamble(method_number, registers)
+
+    def needs_to_insert_directory(self) -> bool:
+        return False
+
+    def path_to_directory(self) -> str:
+        raise AssertionError("Instrumenter does not need to insert any "
+                             "directories.")
+
+
+class StringReturnValuesInstrumentationStrategy(
+    InformalInstrumentationStrategyInterface):
+
+    def instrument_file(self, smali_file: 'SmaliFile'):
+        SMALI_STRING_CLASS_NAME = "Ljava/lang/String;"
+
+        # Scan through the file and note all of the code that must be inserted. Then,
+        # back to front (so the line numbers stay valid), insert each code snippet.
+        # Finally, re-parse the file so the
+        # model object matches up. Note that this only works because each bit of
+        # inserted code is independent of other bits of inserted code.
+        # TODO: re-parse logic is in insert_code_into_method, yet this method depends
+        #  on that internal logic. Need to change approach.
+
+        # Make a list of [code to insert, method index, line number, registers] tuples
+        # TODO: This is not a good way to do this. Need to change how code insertion
+        #  works with the insert_code_into_method function
+        code_insertions: List[Tuple[str, int, int, List[str]]] = []
+
+        instrumentation_id = 0
+        for method_index, method in enumerate(smali_file.methods):
+
+            # Debug
+            # if method.method_name == "dump" and smali_file.file_path.endswith(
+            #         "FragmentManagerImpl.smali"):
+            #     print(1)
+            # End Debug
+
+            method_instr_registers = []
+
+            for invocation_statement in method.invocation_statements:
+
+                # if a method is invoked that returns a string and the result is saved
+                # to a register
+                if invocation_statement.return_type == SMALI_STRING_CLASS_NAME and \
+                        invocation_statement.move_result_line_number != -1:
+                    # Insert code just after move-result statement
+                    target_line_number = invocation_statement.move_result_line_number + 1
+
+                    if method_instr_registers == []:
+                        try:
+                            method_instr_registers = smali_file.get_registers(
+                                method_index, 2)
+                        except ValueError:
+                            # If the method has too many registers used,
+                            # don't instrument it
+                            continue
+
+                    target_code = log_invocation_string_return_with_stacktrace(
+                        invocation_statement.move_result_register,
+                        method_instr_registers[0],
+                        method_instr_registers[1],
+                        method_index,
+                        invocation_statement,
+                        instrumentation_id)
+                    instrumentation_id += 1
+
+                    code_insertions.append((target_code, method_index,
+                                            target_line_number,
+                                            [method_instr_registers[0]]))
+
+            smali_file.update_method_preamble(method_index, method_instr_registers)
+
+        for code, method_index, line_number, registers in code_insertions.__reversed__():
+            smali_file.insert_code_into_method(code, method_index,
+                                               line_number,
+                                               registers)
 
     def needs_to_insert_directory(self) -> bool:
         return False
@@ -672,7 +890,7 @@ class LogStringReturnInstrumenter(InformalInstrumenterInterface):
 #             #  register
 #             return contents
 #
-#         return_statement_number = 1
+#         instrumentation_id = 1
 #
 #         i = method_start_index
 #         while i < method_end_index:
@@ -684,10 +902,10 @@ class LogStringReturnInstrumenter(InformalInstrumenterInterface):
 #                 returnVar = line.split()[1]
 #                 text_to_insert = [log_stacktrace(returnVar, v1,
 #                                                  method_number,
-#                                                  return_statement_number)]
+#                                                  instrumentation_id)]
 #
 #                 # insert text_to_insert before the "return-object" line
-#                 return_statement_number += 1
+#                 instrumentation_id += 1
 #
 #                 contents[i:i] = text_to_insert
 #
@@ -730,18 +948,51 @@ class LogStringReturnInstrumenter(InformalInstrumenterInterface):
 #         os.system(cmd)
 
 
-def log_stacktrace(return_register, empty_register_1,
-                   method_number, return_statement_number):
+def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,
+                                     method_number: int, instrumentation_id: int):
     v1 = empty_register_1
+
+    # Debug
+    if v1 == "v16":
+        raise AssertionError()
+    # End Debug
+
     return f"""
-if-eqz {return_register}, :cond_returnStringDetection{str(method_number)}_{
-    str(return_statement_number)}
+if-eqz {string_value_register}, :cond_returnStringDetection{str(method_number)}_{
+    str(instrumentation_id)}
     new-instance {v1}, Ljava/lang/Exception;
-    invoke-direct {{{v1}, {return_register}}}, Ljava/lang/Exception;-><init>(Ljava/lang/String;)V
+    invoke-direct {{{v1}, {string_value_register}}}, Ljava/lang/Exception;-><init>(Ljava/lang/String;)V
     invoke-virtual {{{v1}}}, Ljava/lang/Exception;->printStackTrace()V
-:cond_returnStringDetection{str(method_number)}_{str(return_statement_number)}
+:cond_returnStringDetection{str(method_number)}_{str(instrumentation_id)}
 
 """
+
+def log_invocation_string_return_with_stacktrace(string_value_register: str,
+                                                 empty_register_1: str,
+                                                 empty_register_2: str,
+                                                 method_number: int,
+                                                 invocation_model: SmaliMethodInvocation,
+                                                 instrumentation_id: int):
+
+    v1 = empty_register_1
+    v2 = empty_register_2
+
+    return f"""
+if-eqz {string_value_register}, :cond_returnStringDetection{str(method_number)}_{str(instrumentation_id)}
+    new-instance {v2} ,Ljava/lang/StringBuilder;
+    invoke-direct {{{v2}}}, Ljava/lang/StringBuilder;-><init>()V
+    const-string {v1}, "At method {str(invocation_model)} value returned: "
+    invoke-virtual {{{v2},{v1}}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {{{v2}, {string_value_register}}}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {{{v2}}}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    move-result-object {v2}
+    new-instance {v1}, Ljava/lang/Exception;
+    invoke-direct {{{v1}, {v2}}}, Ljava/lang/Exception;-><init>(Ljava/lang/String;)V
+    invoke-virtual {{{v1}}}, Ljava/lang/Exception;->printStackTrace()V
+:cond_returnStringDetection{str(method_number)}_{str(instrumentation_id)}
+
+"""
+
 
 
 def log_string_return_and_stacktrace(return_register, empty_register_1,
@@ -795,7 +1046,24 @@ invoke-virtual {{{v2}}}, Ljava/lang/Exception;->printStackTrace()V
 """
 
 
+def instrStrategyFromInterceptConfig(
+        intercept_config: intercept_config.InterceptConfig) -> \
+        'InformalInstrumentationStrategyInterface':
+    if intercept_config.instrumentation_strategy == \
+            "LogStringReturnInstrumentationStrategy":
+        return LogStringReturnInstrumentationStrategy()
+    elif intercept_config.instrumentation_strategy == \
+            "StringReturnInstrumentationStrategy":
+        return StringReturnInstrumentationStrategy()
+    elif intercept_config.instrumentation_strategy == \
+            "StringReturnValuesInstrumentationStrategy":
+        return StringReturnValuesInstrumentationStrategy()
+    else:
+        raise ValueError(f"Invalid instrumentation strategy:"
+                         f" {intercept_config.instrumentation_strategy}")
+
+
 if __name__ == '__main__':
     config = intercept_config.get_default_intercept_config()
 
-    stringReturnDetection(config)
+    instrument_main(config)

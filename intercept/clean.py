@@ -3,8 +3,12 @@ import os
 from intercept import intercept_config
 from intercept.intercept_config import InterceptConfig
 
+from util import logger
+logger = logger.get_logger('intercept', 'clean')
 
 def clean(config: InterceptConfig):
+    logger.info("Cleaning intercept files")
+
     decoded_apks_path = config.decoded_apks_path
     rebuilt_apks_path = config.rebuilt_apks_path
     key_path = config.key_path
@@ -13,33 +17,32 @@ def clean(config: InterceptConfig):
 
     for folder in [rebuilt_apks_path, signed_apks_path]:
         cmd = f'rm {os.path.join(folder, "*.apk")}'
-        print(cmd)
+        logger.debug(cmd)
         os.system(cmd)
     
     cmd = f'rm {os.path.join(key_path, "*.keystore")}'
-    print(cmd)
+    logger.debug(cmd)
     os.system(cmd)
 
     cmd = f'rm {os.path.join(signed_apks_path, "*.idsig")}'
-    print(cmd)
+    logger.debug(cmd)
     os.system(cmd)
 
     cmd = f'rm {os.path.join(logs_path, "*.log")}'
-    print(cmd)
+    logger.debug(cmd)
     os.system(cmd)
 
     # For the smali code,
     # remove the whole directory and replace the root in order to avoid a
     # confirmation prompt.
     cmd = 'rm -rf {}'.format(decoded_apks_path)
-    print(cmd)
+    logger.debug(cmd)
     os.system(cmd)
 
     cmd = 'mkdir {}'.format(decoded_apks_path)
-    print(cmd)
+    logger.debug(cmd)
     os.system(cmd)
 
-    # Todo: uninstall apks off connected device
 
 def setup_folders(config):
     input_apks_path = config.input_apks_path

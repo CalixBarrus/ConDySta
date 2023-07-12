@@ -2,6 +2,9 @@ import os
 import intercept.intercept_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 
+from util import logger
+logger = logger.get_logger('hybrid', 'flowdroid')
+
 
 def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: str,
                        apk_name: str,
@@ -26,8 +29,7 @@ def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: s
           os.path.join(
               output_log_path,
               log_name) + ' 2>&1'
-    if hybrid_analysis_config.verbose:
-        print(cmd)
+    logger.debug(cmd)
 
     os.system(cmd)
 

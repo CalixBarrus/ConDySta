@@ -5,16 +5,16 @@ __pycache__
 *.xml
 *.log
 
-intercept/apk-keys
-intercept/decoded-apks
-input-apks
-intercept/rebuilt-apks
-signed-apks
-logs
-test-apks
-input-smali-directories
-results
+data/intercept/apk-keys
+data/intercept/decoded-apks
+data/input-apks
+data/intercept/rebuilt-apks
+data/signed-apks
+data/logs
+data/test-apks
+data/input-smali-directories
+data/results
 
 
-/signed-apks/
-/intercept/manual-smali-files/
+/data/signed-apks/
+/data/intercept/manual-smali-files/
