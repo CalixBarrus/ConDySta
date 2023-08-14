@@ -16,6 +16,7 @@ def get_default_hybrid_analysis_config(
     # flowdroid_snapshot_jar_path = "/Users/calix/Documents/programming/research-programming/soot-infoflow-cmd-jar-with-dependencies.jar"
     flowdroid_compiled_jar_path = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
     target_PII = get_target_PII()
+    dynamic_log_processing_strategy = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
 
 
     config = HybridAnalysisConfig(unmodified_source_sink_list_path,
@@ -28,6 +29,7 @@ def get_default_hybrid_analysis_config(
                                   android_platform_path,
                                   flowdroid_compiled_jar_path,
                                   target_PII,
+                                  dynamic_log_processing_strategy,
                                   )
     return config
 
@@ -44,6 +46,7 @@ class HybridAnalysisConfig:
     android_platform_path: str
     flowdroid_jar_path: str
     target_PII: List[str]
+    dynamic_log_processing_strategy: str
 
     # For use by results.py
     results_dict: Dict
@@ -59,6 +62,7 @@ class HybridAnalysisConfig:
                  android_platform_path,
                  flowdroid_jar_path,
                  target_PII,
+                 dynamic_log_processing_strategy,
                  ):
         self.unmodified_source_sink_list_path = unmodified_source_sink_list_path
         self.modified_source_sink_directory = modified_source_sink_directory
@@ -70,6 +74,7 @@ class HybridAnalysisConfig:
         self.android_platform_path = android_platform_path
         self.flowdroid_jar_path = flowdroid_jar_path
         self.target_PII = target_PII
+        self.dynamic_log_processing_strategy = dynamic_log_processing_strategy
 
 def get_target_PII() -> List[str]:
     # Return list of strings that should be considered Personally Identifiable

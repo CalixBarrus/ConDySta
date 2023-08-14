@@ -48,6 +48,7 @@ def rebuild_smali_code(config: InterceptConfig):
     sign.assign_key(config)
 
 
+
 def instrument_apps(config: InterceptConfig, do_clean=True):
     logger.info("Start code instrumentation")
 

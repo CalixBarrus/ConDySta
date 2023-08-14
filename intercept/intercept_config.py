@@ -8,7 +8,7 @@ def get_default_intercept_config():
 
     config = InterceptConfig(input_apks=input_apks,
                              decoded_apks_path="data/intercept/decoded-apks/",
-                             instrumentation_strategy="StringReturnValuesInstrumentationStrategy",
+                             instrumentation_strategy="StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy",
                              rebuilt_apks_path="data/intercept/rebuilt-apks/",
                              key_path="data/intercept/apk-keys/",
                              signed_apks_path="data/signed-apks/",

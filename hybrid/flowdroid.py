@@ -40,6 +40,13 @@ def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: s
        Compute the taint propagation paths and not just source-to-sink connections.
 """
 
+def flowdroid_help():
+
+    flowdroid_jar = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
+    cmd = "java -jar " + flowdroid_jar + " -h"
+    logger.debug(cmd)
+    os.system(cmd)
+
 
 # def run_flowdroid_batch(input_apks_path, source_and_sink_path,
 #                         output_log_path, recursive=False):
@@ -60,15 +67,17 @@ def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: s
 
 
 if __name__ == '__main__':
-    apk_name = "FieldSensitivity3.apk"
-    apk_path = intercept.intercept_config.get_default_intercept_config().input_apks_path
-    output_path = os.path.join(
-        intercept.intercept_config.get_default_intercept_config().logs_path,
-        "droidbench-settings-experiments")
-    sources_and_sinks = "SourcesAndSinks.txt"  # The flowdroid default is in
-    # the root of this project
+    # apk_name = "FieldSensitivity3.apk"
+    # apk_path = intercept.intercept_config.get_default_intercept_config().input_apks_path
+    # output_path = os.path.join(
+    #     intercept.intercept_config.get_default_intercept_config().logs_path,
+    #     "droidbench-settings-experiments")
+    # sources_and_sinks = "SourcesAndSinks.txt"  # The flowdroid default is in
+    # # the root of this project
+    #
+    # activate_flowdroid(apk_path, apk_name, sources_and_sinks, output_path)
 
-    activate_flowdroid(apk_path, apk_name, sources_and_sinks, output_path)
+    flowdroid_help()
 
 # #
 # cmd_install = 'adb install ' + apk_signedPath + apk + '.apk'

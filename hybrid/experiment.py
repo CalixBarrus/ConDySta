@@ -3,6 +3,7 @@ from hybrid import hybrid_main, hybrid_config, results
 # from flowdroid import run_flowdroid_batch
 from hybrid.flowdroid import activate_flowdroid
 from intercept import intercept_config, intercept_main, monkey
+from intercept.instrument import extract_decompiled_smali_code
 from util import input
 
 # def flowdroid_on_droidbench():
@@ -42,11 +43,26 @@ def decompile_android_studio_apk():
     Decompile an apk from android studio.
     """
     configuration = intercept_config.get_default_intercept_config()
-    configuration.input_apks_path = \
-        "/Users/calix/Documents/programming/AndroidStudio/SmaliLearning/app/build" \
-        "/outputs/apk/debug"
+
+    configuration.input_apks = input.input_apks_from_dir("/Users/calix/Documents/programming/AndroidStudio/HeapSnapshot/app/build/outputs/apk/debug")
+
 
     intercept_main.generate_smali_code(configuration)
+
+def update_heap_snapshot_smali_files():
+    """
+    Decompile an apk from android studio and place some targeted smali files into
+    intercept/smali-files/heap-snapshot. Replace existing files if necessary
+    """
+    configuration = intercept_config.get_default_intercept_config()
+    configuration.input_apks = input.input_apks_from_dir("/Users/calix/Documents/programming/AndroidStudio/HeapSnapshot/app/build/outputs/apk/debug")
+
+    intercept_main.generate_smali_code(configuration)
+
+    extract_decompiled_smali_code(configuration)
+
+
+
 
 def decompile_input_apks():
     configuration = intercept_config.get_default_intercept_config()
@@ -111,10 +127,10 @@ def dysta_on_droidbench():
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
         intercept_configuration)
 
-    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
-                      "/DroidBench/apk-pared"
-    intercept_configuration.input_apks_path = input_apks_path
-    intercept_configuration.is_recursive_on_input_apks_path = True
+
+    intercept_configuration.input_apks = input.input_apks_from_dir("/Users/calix/Documents/programming/research-programming" \
+                      "/DroidBench/apk-pared")
+
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=False)
 
@@ -126,10 +142,8 @@ def dysta_on_droidbench_folder():
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
         intercept_configuration)
 
-    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
-                      "/DroidBench/apk/Callbacks"
-    intercept_configuration.input_apks_path = input_apks_path
-    intercept_configuration.is_recursive_on_input_apks_path = True
+    intercept_configuration.input_apks = input.input_apks_from_dir("/Users/calix/Documents/programming/research-programming/DroidBench/apk/Callbacks")
+
     intercept_configuration.use_monkey = False
 
     hybrid_main.main(hybrid_analysis_configuration)
@@ -142,10 +156,7 @@ def dysta_on_successful_condysta_apps():
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
         intercept_configuration)
 
-    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
-                      "/benchmarks/condysta-apps"
-    intercept_configuration.input_apks_path = input_apks_path
-    intercept_configuration.is_recursive_on_input_apks_path = True
+    intercept_configuration.input_apks = input.input_apks_from_dir("/Users/calix/Documents/programming/research-programming/benchmarks/condysta-apps")
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
 
@@ -161,10 +172,7 @@ def dysta_simple_test():
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
         intercept_configuration)
 
-    input_apks_path = "/Users/calix/Documents/programming/research-programming" \
-                      "/ConDySta/data/test-apks"
-    intercept_configuration.input_apks_path = input_apks_path
-    intercept_configuration.is_recursive_on_input_apks_path = True
+    intercept_configuration.input_apks = input.input_apks_from_dir("/Users/calix/Documents/programming/research-programming/ConDySta/data/test-apks")
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
     results.print_results_to_terminal(hybrid_analysis_configuration)
@@ -250,6 +258,18 @@ def flowdroid_on_full_benchmark():
         "data/input-apk-lists/DroidBenchExtended-and-ICCBench-pared.txt")
     flowdroid_on_apks(input_apks, False)
 
+def flowdroid_on_OnlyTelephony_with_testXML():
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    use_individual_source_sink_file = False
+    hybrid_analysis_configuration.unmodified_source_sink_list_path = \
+        "data/sources-and-sinks/OnlyTelephony-xml-format-test.xml"
+
+    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks, use_individual_source_sink_file)
+
+
 def flowdroid_on_apks(input_apks, use_individual_source_sink_file):
     intercept_configuration = intercept_config.get_default_intercept_config()
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
@@ -259,6 +279,8 @@ def flowdroid_on_apks(input_apks, use_individual_source_sink_file):
 
 
 if __name__ == '__main__':
-    dysta_on_pared_flowdroid_false_neg_apks()
-
-
+    # decompile_android_studio_apk()
+    # instrument_input_apks()
+    # update_heap_snapshot_smali_files()
+    # flowdroid_on_OnlyTelephony_with_testXML()
+    dysta_on_input_apks()

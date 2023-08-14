@@ -10,6 +10,8 @@ from typing import List
 from intercept import intercept_config
 
 from util import logger
+from util.subprocess import run_command
+
 logger = logger.get_logger('intercept', 'install')
 
 
@@ -76,14 +78,6 @@ def check_device_is_ready():
     result = run_command(cmd.split())
     return result.splitlines()[1].__contains__("device")
 
-def run_command(args: List['str']) -> str:
-    completed_process: subprocess.CompletedProcess = subprocess.run(args,
-                                                                    capture_output=True,
-                                                                    check=True, # Raise a python exception if the process exits with exit code != 0
-                                                                    text=True # Have output be captured as a string (not bytes)
-                                                                    )
-
-    return completed_process.stdout
 
 # def batch(apkNameList,index):
 #     packageNameList=[]
