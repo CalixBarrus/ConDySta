@@ -5,7 +5,8 @@ from intercept.intercept_config import InterceptConfig, get_default_intercept_co
 
 def get_default_hybrid_analysis_config(
         intercept_config: InterceptConfig) -> "HybridAnalysisConfig":
-    unmodified_source_sink_list_path = "data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
+    # unmodified_source_sink_list_path = "data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
+    unmodified_source_sink_list_path = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-android/SourcesAndSinks.txt"
     modified_source_sink_directory = "data/sources-and-sinks/modified"
     dynamic_pass_logs_path = "data/logs/instrumentation-run"
     flowdroid_first_pass_logs_path = "data/logs/flowdroid-first-run"
@@ -35,7 +36,7 @@ def get_default_hybrid_analysis_config(
 
 
 class HybridAnalysisConfig:
-    # input_apks are in intercept_config
+    # input-apks are in intercept_config
     unmodified_source_sink_list_path: str
     modified_source_sink_directory: str
     dynamic_pass_logs_path: str

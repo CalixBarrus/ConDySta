@@ -25,36 +25,31 @@ class SourceSinkXML:
     def add_return_source(self, signature: 'MethodSignature'):
         method_element = self._get_matching_method(signature)
 
-        return_element = ET.Element("return",
-                                    attrib={"type": signature.return_type})
-        method_element.append(return_element)
+        return_element = self._get_return_child(signature, method_element)
 
         self._add_starred_access_path(return_element, is_source=True)
-        self.source_count += 1
-
 
     def add_arg_source(self, signature: 'MethodSignature', arg_index: int):
         method_element = self._get_matching_method(signature)
 
-        return_element = ET.Element("return",
-                                    attrib={"type": signature.return_type})
-        method_element.append(return_element)
-
-        param_element = self._get_matching_param(signature, method_element, arg_index)
+        param_element = self._get_param_child(signature, method_element, arg_index)
 
         self._add_starred_access_path(param_element, is_source=True)
-        self.source_count += 1
 
+    def add_base_source(self, signature: 'MethodSignature'):
+        method_element = self._get_matching_method(signature)
 
+        base_element = self._get_base_child(signature, method_element)
+
+        self._add_starred_access_path(base_element, is_source=True)
 
     def add_arg_sink(self, signature: 'MethodSignature', arg_index: int):
         method_element = self._get_matching_method(signature)
 
-        param_element = self._get_matching_param(signature, method_element, arg_index)
+        param_element = self._get_param_child(signature, method_element, arg_index)
 
         self._add_starred_access_path(param_element, is_sink=True)
         self.sink_count += 1
-
 
     def remove_return_sources(self, signatures: List['MethodSignature']):
         for signature in signatures:
@@ -65,10 +60,10 @@ class SourceSinkXML:
             return
 
         method_element = self._get_matching_method(signature)
-        if not self._has_return(method_element):
+        if not self._has_return_child(method_element):
             return
 
-        return_element = self._get_return(signature, method_element)
+        return_element = self._get_return_child(signature, method_element)
 
         access_paths = self._get_access_paths(return_element)
         for access_path in access_paths:
@@ -90,7 +85,6 @@ class SourceSinkXML:
         children = method_element.findall("./*")
         if len(children) is None:
             self.category_element.remove(method_element)
-
 
     def add_sinks_from_file(self, file_path):
 
@@ -121,8 +115,13 @@ class SourceSinkXML:
         self.tree.write(target_file_path)
 
     def _has_matching_method(self, signature: 'MethodSignature') -> bool:
+        # Sometimes signatures include single quotes, which messes up the query system.
+        signature_string = signature.signature
+        if signature_string.__contains__("'"):
+            signature_string.replace("'", "")
+
         method_element = self.category_element.find(
-            f"./method[@signature='{signature.signature}']")
+            f"./method[@signature='{signature_string}']")
         return method_element is not None
 
     def _get_matching_method(self, signature: 'MethodSignature') -> ET.Element:
@@ -131,16 +130,29 @@ class SourceSinkXML:
         matches the input exactly. If no such child exists, create and add one.
         """
 
+        # Sometimes signatures include single quotes, which messes up the query system.
+        signature_string = signature.signature
+        if signature_string.__contains__("'"):
+            signature_string.replace("'", "")
+
         method_element = self.category_element.find(
-            f"./method[@signature='{signature.signature}']")
+            f"./method[@signature='{signature_string}']")
         if method_element is None:
             method_element = ET.Element("method",
-                                        attrib={"signature": signature.signature})
+                                        attrib={"signature": signature_string})
             self.category_element.append(method_element)
 
         return method_element
 
-    def _get_return(self, signature: 'MethodSignature', method_element: ET.Element) -> 'ET.Element':
+    def _has_return_child(self, method_element: ET.Element):
+        return_element = method_element.find("./return")
+        return not return_element is None
+
+    def _get_return_child(self, signature: 'MethodSignature', method_element: ET.Element) -> 'ET.Element':
+        """
+        Find the return Element from the direct children of the method_element input.
+        If no such child exists, create one and add it as a child.
+        """
         return_element = method_element.find("./return")
         if return_element is None:
             return_element = ET.Element("return", attrib={"type": signature.return_type})
@@ -148,21 +160,32 @@ class SourceSinkXML:
 
         return return_element
 
-    def _has_return(self, method_element: ET.Element):
-        return_element = method_element.find("./return")
-        return not return_element is None
-
-    def _get_matching_param(self, signature: 'MethodSignature',
-                            method_element: ET.Element, arg_index: int) -> ET.Element:
+    def _get_base_child(self, signature: 'MethodSignature',
+                        method_element: ET.Element) -> ET.Element:
         """
-        Find a param Element from the direct children of category_element whose index
-        matches the input. If no such child exists, create one.
+        Find the base Element from the direct children of the method_element input.
+        If no such child exists, create one and add it as a child.
+        """
+        base_element = method_element.find("./base")
+        if base_element is None:
+            base_element = ET.Element("base", attrib={"type": signature.base_type})
+            method_element.append(base_element)
+
+        return base_element
+
+    def _get_param_child(self, signature: 'MethodSignature',
+                         method_element: ET.Element, arg_index: int) -> ET.Element:
+        """
+        Find a param Element from the direct children of the method_element input whose index
+        matches the input. If no such child exists, create one and add it as a child.
         """
         param_element = method_element.find(f"./param[@index='{str(arg_index)}']")
         if param_element is None:
             param_element = ET.Element("param",
                                        attrib={"index": str(arg_index),
                                                "type": signature.arg_types[arg_index]})
+            method_element.append(param_element)
+
         return param_element
 
     def _get_access_paths(self, element: ET.Element) -> List[ET.Element]:
@@ -183,7 +206,8 @@ class SourceSinkXML:
             return
 
         # todo: when there are actual access paths with path elements, this should
-        #  remove any access_paths that are subsumed by the one being added.
+        #  remove any access_paths that are subsumed by the one being added. This should update the # of
+        #  sources/sinks as well
 
         access_path_elements = element.findall("./accessPath")
         if len(access_path_elements) > 1:
@@ -191,7 +215,7 @@ class SourceSinkXML:
                                  "yet.")
         elif len(access_path_elements) == 1:
             access_path_element = access_path_elements[0]
-        else:
+        else:  # there are no access path element children
             access_path_element = ET.Element("accessPath",
                                              attrib={"isSource": "false",
                                                      "isSink": "false"})
@@ -200,9 +224,12 @@ class SourceSinkXML:
         if is_source:
             if access_path_element.attrib['isSource'] != "true":
                 access_path_element.attrib['isSource'] = "true"
+                self.source_count += 1
+
         if is_sink:
             if access_path_element.attrib['isSink'] != "true":
                 access_path_element.attrib['isSink'] = "true"
+                self.sink_count += 1
 
 
 # class MethodSignature:

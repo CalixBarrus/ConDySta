@@ -5,16 +5,18 @@ __pycache__
 *.xml
 *.log
 
+data/input-apks/*
 data/intercept/apk-keys
 data/intercept/decoded-apks
-data/input-apks
 data/intercept/rebuilt-apks
+data/intercept/manual-smali-files/
 data/signed-apks
-data/logs
+data/logs/*
 data/test-apks
 data/input-smali-directories
 data/results
 
 
-/data/signed-apks/
-/data/intercept/manual-smali-files/
+data/signed-apks/
+
+.DS_Store

@@ -4,7 +4,9 @@ from intercept import intercept_config
 from intercept.intercept_config import InterceptConfig
 
 from util import logger
+
 logger = logger.get_logger('intercept', 'clean')
+
 
 def clean(config: InterceptConfig):
     logger.info("Cleaning intercept files")
@@ -19,7 +21,7 @@ def clean(config: InterceptConfig):
         cmd = f'rm {os.path.join(folder, "*.apk")}'
         logger.debug(cmd)
         os.system(cmd)
-    
+
     cmd = f'rm {os.path.join(key_path, "*.keystore")}'
     logger.debug(cmd)
     os.system(cmd)
@@ -45,20 +47,20 @@ def clean(config: InterceptConfig):
 
 
 def setup_folders(config):
-    input_apks_path = config.input_apks_path
     decoded_apks_path = config.decoded_apks_path
     rebuilt_apks_path = config.rebuilt_apks_path
     key_path = config.key_path
     signed_apks_path = config.signed_apks_path
     logs_path = config.logs_path
 
-    directory_list = [input_apks_path, decoded_apks_path, rebuilt_apks_path, key_path,
+    directory_list = [decoded_apks_path, rebuilt_apks_path, key_path,
                       signed_apks_path, logs_path]
     for directory in directory_list:
         if not os.path.exists(directory):
             cmd = "mkdir {}".format(directory)
             print(cmd)
             os.system(cmd)
+
 
 if __name__ == '__main__':
     configuration = intercept_config.get_default_intercept_config()

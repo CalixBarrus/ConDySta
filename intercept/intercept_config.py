@@ -3,7 +3,7 @@ from typing import List
 from util import input
 
 def get_default_intercept_config():
-    input_apks_path: str = "data/input-apks/"
+    input_apks_path: str = "data/input-apks"
     input_apks: List[input.InputApkModel] = input.input_apks_from_dir(input_apks_path)
 
     config = InterceptConfig(input_apks=input_apks,

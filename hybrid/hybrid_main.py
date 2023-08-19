@@ -65,6 +65,7 @@ def dysta(hybrid_config: HybridAnalysisConfig, do_clean):
 
         new_sources = strategy.sources_from_log(hybrid_config, dynamic_log_path,
                                                 apk_name)
+
         new_source_sink_path = strategy.source_sink_file_from_sources(
             hybrid_config, new_sources, apk_name)
 
