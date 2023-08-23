@@ -203,12 +203,13 @@ def dysta_on_input_apks():
 
 def dysta_on_common_false_neg_apks():
     dysta_on_list("data/input-apk-lists/common-false-neg-RP-v2.txt",
-                  "data/results/dysta-on-common-false-neg-RP-v2.csv")
+                  "data/results/InstrReportReturnAndArgsDynamicLogProcessingStrategy/dysta-on-common-false-neg-RP-v2.csv")
 
 
 def dysta_on_pared_flowdroid_false_neg_apks():
     dysta_on_list("data/input-apk-lists/flowdroid-false-neg-RP-v2-pared.txt",
-                  "data/results/dysta-on-flowdroid-false-neg-RP-pared-with-monkey-v3.csv", True)
+                  "data/results/InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+                  "/dysta-on-flowdroid-false-neg-RP-pared-no-monkey-v3.csv", False)
 
 
 def dysta_on_full_benchmark():
@@ -309,6 +310,6 @@ if __name__ == '__main__':
     # instrument_input_apks()
     # update_heap_snapshot_smali_files()
     # flowdroid_on_OnlyTelephony_with_testXML()
-    dysta_on_common_false_neg_apks()
+    dysta_on_pared_flowdroid_false_neg_apks()
 
     # setup_folders()
