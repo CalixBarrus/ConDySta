@@ -239,6 +239,10 @@ class SmaliFile:
         else:
             method.is_abstract = False
 
+        if "native" in split_signature:
+            # Treat the method as abstract if it is marked as native
+            method.is_abstract = True
+
         # The last entry should be the identifier, formals, and return type
         signature_end = split_signature[-1]
 
@@ -1064,18 +1068,29 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
             arg_registers = invocation_statement.arg_registers
         else:
             # "v0 .. v9"
-            regex_result = re.search(r"v(\d+) \.\. v(\d+)",
-                                     invocation_statement.arg_registers[0])
+            if invocation_statement.arg_registers[0].startswith("v"):
+                prefix = "v"
+                regex_result = re.search(r"v(\d+) \.\. v(\d+)",
+                                         invocation_statement.arg_registers[0])
+            elif invocation_statement.arg_registers[0].startswith("p"):
+                prefix = "p"
+                regex_result = re.search(r"p(\d+) \.\. p(\d+)",
+                                         invocation_statement.arg_registers[0])
+            else:
+                raise AssertionError(
+                    "Range registers did not parse as expected: " +
+                    invocation_statement.arg_registers[0])
+
             if regex_result is None:
                 raise AssertionError(
                     "Range registers did not parse as expected: " +
                     invocation_statement.arg_registers[0])
+            
             arg_start = int(regex_result.group(1))
             arg_end = int(regex_result.group(2))
-            arg_registers = ["v" + str(i) for i in
+            arg_registers = [prefix + str(i) for i in
                              range(arg_start, arg_end + 1)]
 
-        # TODO: what about return register (that may or may not be included)
         registers = arg_registers.copy()
         if invocation_statement.move_result_register != "" and not invocation_statement.move_result_register in arg_registers:
             registers.append(invocation_statement.move_result_register)
