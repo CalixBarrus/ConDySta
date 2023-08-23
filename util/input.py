@@ -50,10 +50,12 @@ def input_apks_from_list(list_path: str) -> List[InputApkModel]:
 if __name__ == '__main__':
     # create list of flowdroid apps
     input_apks = input_apks_from_dir(
-        "/Users/calix/Documents/programming/research-programming/benchmarks/ICCBench20")
+        "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended")
 
-    with open('data/input-apk-lists/ICCBench20-list.txt', 'w') as file:
+    with open('data/input-apk-lists/DroidBenchExtended-apk-name-list.csv', 'w') as file:
         for input_apk in input_apks:
-            file.write(input_apk.apk_path + "\n")
+            # input_apk.
+
+            file.write(input_apk.apk_name + "\n")
 
 
