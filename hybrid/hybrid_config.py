@@ -84,5 +84,7 @@ def get_target_PII() -> List[str]:
 
     mint_mobile_SIM_id = "8901240197155182897"
     nexus_6_IMEI = "355458061189396"
+    fake_gps_lat = "-3.144000"
+    fake_gps_long = "-60.020000"
     target_PII = [mint_mobile_SIM_id, nexus_6_IMEI]
     return target_PII

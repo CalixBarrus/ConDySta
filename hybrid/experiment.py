@@ -58,8 +58,7 @@ def update_heap_snapshot_smali_files():
     intercept/smali-files/heap-snapshot. Replace existing files if necessary
     """
     configuration = intercept_config.get_default_intercept_config()
-    configuration.input_apks = input.input_apks_from_dir(
-        "/Users/calix/Documents/programming/AndroidStudio/HeapSnapshot/app/build/outputs/apk/debug")
+    configuration.input_apks = input.input_apks_from_dir("HeapSnapshot/app/build/outputs/apk/debug")
 
     intercept_main.generate_smali_code(configuration)
 
@@ -195,7 +194,7 @@ def dysta_on_input_apks():
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
         intercept_configuration)
 
-    intercept_configuration.use_monkey = True
+    intercept_configuration.use_monkey = False
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
     results.print_results_to_terminal(hybrid_analysis_configuration)
@@ -229,6 +228,10 @@ def dysta_on_list(list_path: str, results_path: str, use_monkey: bool = False):
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
     results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
+
+def dysta_on_input_apks_with_collector():
+    raise NotImplementedError()
+    # apps in DroidBenchExtended/InterAppCommunication only leak when the "Collector" apk is also running
 
 
 # def dysta_on_full_benchmark_rerun():
@@ -288,6 +291,33 @@ def flowdroid_on_OnlyTelephony_with_testXML():
     hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks,
                                   use_individual_source_sink_file)
 
+def flowdroid_on_input_apks():
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    use_individual_source_sink_file = False
+
+    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks,
+                                  use_individual_source_sink_file)
+
+def flowdroid_on_apk_with_source_sink(apk_dir_path, source_sink_path):
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    use_individual_source_sink_file = False
+    hybrid_analysis_configuration.unmodified_source_sink_list_path = source_sink_path
+
+    intercept_configuration.input_apks = input.input_apks_from_dir(apk_dir_path)
+
+    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks,
+                                  use_individual_source_sink_file)
+
+def flowdroid_on_android_studio_apk_with_testXML():
+    apk_dir_path = "/Users/calix/Documents/programming/research-programming/flowdroid-sourcesink-tests/flowdroid-sourcesink-tests-inner-class/app/build/outputs/apk/debug"
+    source_sink_path = "/Users/calix/Documents/programming/research-programming/ConDySta/data/sources-and-sinks/test-source-sink.xml"
+    flowdroid_on_apk_with_source_sink(apk_dir_path, source_sink_path)
 
 def flowdroid_on_apks(input_apks, use_individual_source_sink_file):
     intercept_configuration = intercept_config.get_default_intercept_config()
@@ -296,6 +326,8 @@ def flowdroid_on_apks(input_apks, use_individual_source_sink_file):
 
     hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, input_apks, use_individual_source_sink_file)
 
+def export_flowdroid_callgraph_for_input_apks():
+    pass
 
 def setup_folders():
     intercept_configuration = intercept_config.get_default_intercept_config()
@@ -310,6 +342,10 @@ if __name__ == '__main__':
     # instrument_input_apks()
     # update_heap_snapshot_smali_files()
     # flowdroid_on_OnlyTelephony_with_testXML()
-    dysta_on_pared_flowdroid_false_neg_apks()
+    # flowdroid_on_android_studio_apk_with_testXML()
+    update_heap_snapshot_smali_files()
+    dysta_on_input_apks()
+    # decompile_input_apks()
+    # flowdroid_on_input_apks()
 
     # setup_folders()
