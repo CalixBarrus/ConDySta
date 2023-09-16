@@ -1,7 +1,6 @@
 .idea/
 __pycache__
 
-*.xml
 *.log
 
 data/input-apks/*
@@ -15,6 +14,7 @@ data/test-apks
 data/input-smali-directories
 data/results
 data/signed-apks/
+data/sources-and-sinks/modified/*
 
 .DS_Store
 

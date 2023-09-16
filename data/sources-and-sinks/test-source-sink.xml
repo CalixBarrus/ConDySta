@@ -1,0 +1,36 @@
+<sinkSources>
+	<category id="NO_CATEGORY">
+		<method signature="&lt;com.example.flowdroidsourcesinktestbase.MainActivity: java.lang.String sourceTest()&gt;">
+			<return type="java.lang.String">
+				<accessPath isSource="true" isSink="false" />
+			</return>
+		</method>
+		<method signature="&lt;com.example.flowdroidsourcesinktestbase.MainActivity: void sinkTest(java.lang.String)&gt;">
+			<param index="0" type="java.lang.String">
+				<accessPath isSource="false" isSink="true" />
+			</param>
+		</method>
+		<method signature="&lt;com.example.flowdroidsourcesinktestbase.MainActivity: java.lang.String zot(java.lang.String)&gt;">
+			<return type="java.lang.String">
+				<accessPath isSource="true" isSink="false" />
+			</return>
+<!--			<param index="0" type="java.lang.String">-->
+<!--				<accessPath isSource="true" isSink="false" />-->
+<!--			</param>-->
+			<base type="com.example.flowdroidsourcesinktestbase.MainActivity">
+				<accessPath isSource="true" isSink="false">
+<!--					<pathElement type="java.lang.String" field="outerField" />-->
+				</accessPath>
+			</base>
+		</method>
+
+<!--		<method signature="&lt;com.example.flowdroidsourcesinktestbase.MainActivity$InnerTestClass: void bar(java.lang.String)&gt;">-->
+<!--			<param index="0" type="java.lang.String">-->
+<!--				<accessPath isSource="false" isSink="true" />-->
+<!--			</param>-->
+<!--		</method>-->
+<!--		<method signature="&lt;com.example.flowdroidsourcesinktestbase.MainActivity: String zot(java.lang.String)&gt;">-->
+
+<!--		</method>-->
+	</category>
+</sinkSources>
