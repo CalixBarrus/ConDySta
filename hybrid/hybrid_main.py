@@ -40,7 +40,11 @@ def dysta(hybrid_config: HybridAnalysisConfig, do_clean):
     # TODO: Should be able to skip specific APKs if there's already a result for them.
     intercept_main.main(hybrid_config.intercept_config, do_clean=do_clean)
 
-    input_apks: List[input.InputApkModel] = hybrid_config.intercept_config.input_apks
+    if hybrid_config.intercept_config.input_apks.input_apks is None:
+        # TODO: need to handle either list of input_apks, or apk_groups
+        raise NotImplementedError
+
+    input_apks: List[input.InputApkModel] = hybrid_config.intercept_config.input_apks.input_apks
 
     for input_apk in input_apks:
 
@@ -76,10 +80,12 @@ def dysta(hybrid_config: HybridAnalysisConfig, do_clean):
                            flowdroid_second_pass_logs_path)
 
 
-def flowdroid_on_apks(hybrid_config: HybridAnalysisConfig, input_apks: List[
-    input.InputApkModel], use_individual_source_sink_file=False):
+def flowdroid_on_apks(hybrid_config: HybridAnalysisConfig, input_apks: input.InputApksModel, use_individual_source_sink_file=False):
 
-    for input_apk in input_apks:
+    if input_apks.input_apks is None:
+        raise NotImplementedError()
+
+    for input_apk in input_apks.input_apks:
         if use_individual_source_sink_file:
             source_and_sink_path = os.path.join(
                 hybrid_config.modified_source_sink_directory,
