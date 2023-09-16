@@ -1039,10 +1039,12 @@ class StringReturnValuesInstrumentationStrategy(
 class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
     InformalInstrumentationStrategyInterface):
 
+    def __init__(self):
+        self.invocation_id = -1
+
     def instrument_file(self, smali_file: 'SmaliFile'):
         code_insertions: List[CodeInsertionModel] = []
 
-        invocation_id = -1
         for method_index, method in enumerate(smali_file.methods):
 
             # Skip abstract methods
@@ -1058,9 +1060,9 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
                 continue
 
             for invocation_statement in method.invocation_statements:
-                invocation_id += 1
+                self.invocation_id += 1
 
-                code_insertions += self._instrument_invocation_statement(method_index, method_instr_registers, invocation_statement, invocation_id)
+                code_insertions += self._instrument_invocation_statement(method_index, method_instr_registers, invocation_statement, self.invocation_id)
 
         smali_file.insert_code(code_insertions)
 

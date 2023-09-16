@@ -17,7 +17,9 @@ def print_results_to_terminal(hybrid_config: HybridAnalysisConfig):
               f"{result_model.dysta_leaks}")
 
 
-def print_csv_results_to_file(hybrid_config: HybridAnalysisConfig, outfile_path: str):
+def print_csv_results_to_file(hybrid_config: HybridAnalysisConfig, outfile_path : str):
+    # Todo: include today's date in the outfile name
+
     with open(outfile_path, 'w') as file:
 
         col_headers = ["APK Name", "Flowdroid Leaks", "Sources Added", "DySTa Leaks",
