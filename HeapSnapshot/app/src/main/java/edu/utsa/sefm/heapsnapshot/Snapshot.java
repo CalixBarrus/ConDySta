@@ -1,0 +1,300 @@
+package edu.utsa.sefm.heapsnapshot;
+
+import android.util.Log;
+
+import androidx.annotation.NonNull;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+//import org.openjdk.jol.vm.VM;
+
+import java.lang.reflect.Field;
+//import java.lang.reflect.InaccessibleObjectException;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class Snapshot {
+    private static final int INSPECTION_DEPTH = 3;
+    private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396"); // mint_mobile_SIM_id, nexus_6_IMEI
+    private static final List<Class<?>> EXCLUDED_CLASSES = Arrays.asList(Integer.class, Long.class, Double.class, Boolean.class);
+    private static final String TAG = "Snapshot";
+    private static int callID = 0;
+
+    public static JSONObject takeSnapshot(Object obj, int inspectionDepth) throws JSONException {
+        JSONObject resultJson = new JSONObject();
+
+        Class<?> objClass = obj.getClass();
+        resultJson.put("class_name", objClass.getName());
+        resultJson.put("modifiers", objClass.getModifiers());
+//        resultJson.put("current_address", VM.current().addressOf(obj));
+        resultJson.put("hash_code", obj.hashCode());
+//        System.out.println(objClass.toString());
+
+        Field[] fields = objClass.getDeclaredFields();
+
+        // No String Class cache
+
+        for (Field field :
+                fields) {
+            String fieldName = field.getName();
+//            System.out.println(field.toString());
+
+            // Dangerous command!! Prone to causing Exceptions!
+            field.setAccessible(true);
+//            try {
+//                field.setAccessible(true);
+//            }
+//            catch (InaccessibleObjectException e) {
+//                // Error message looks like:
+//                // Unable to make field private static boolean jdk.internal.reflect.ReflectionFactory.initted accessible: module java.base does not "opens jdk.internal.reflect" to unnamed module @1d251891
+//                Pattern pattern = Pattern.compile("opens ([\\w.]+)", Pattern.CASE_INSENSITIVE);
+//                Matcher matcher = pattern.matcher(e.getMessage());
+//                if (matcher.find()) {
+//                    String closedPackageName = matcher.group(1);
+//                    resultJson.put(fieldName, String.format("Closed Package %s in Field %s", closedPackageName, field));
+//                    System.out.printf("Closed Package in obj Class %s, Field %s. Package name is %s%n",
+//                            objClass, field, closedPackageName);
+//                }
+//                else {
+//                    System.out.println("Some unrecognized Closed Package! " + e.getMessage());
+//                }
+//            }
+            // Danger!
+
+//            boolean canAccess = (Modifier.isStatic(field.getModifiers()) && field.canAccess(null))
+//                    || (!Modifier.isStatic(field.getModifiers()) && field.canAccess(obj));
+            boolean canAccess = true;
+            if (canAccess) {
+                try {
+
+                    Object child = null;
+                    if (Modifier.isStatic(field.getModifiers())) {
+                        child = field.get(null);
+                    }
+                    else {
+                        child = field.get(obj);
+                    }
+
+                    // TODO: save result as value
+                    if (child == null) {
+                        resultJson.put(fieldName, (Map<?, ?>) null);
+                    }
+                    else {
+                        if (inspectionDepth > 1) {
+                            resultJson.put(fieldName, takeSnapshot(child, inspectionDepth-1));
+                        }
+                        else {
+                            resultJson.put(fieldName, "*");
+                        }
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            // Failure to access already recorded in the InaccessibleObjectException catch block
+        }
+        return resultJson;
+    }
+
+    public static int checkObjectForPII(Object instance, String invocationDescription) {
+        /*
+        Recursively traverse the provided instance checking fields and subfields for PII.
+
+        Returns an ID number associated with the logged message or -1 if no PII was found.
+         */
+        int currentInspectionDepth = 0;
+        List<FieldInfo> accessPath = new ArrayList<>();
+        callID += 1;
+
+        if (instance == null) {
+            return -1;
+        }
+
+        return checkObjectForPIIRecursive(instance, ".", currentInspectionDepth, accessPath, invocationDescription);
+
+        // Can't get the address of an object in Dalvik using this function
+//        resultJson.put("current_address", VM.current().addressOf(obj));
+    }
+
+    private static int checkObjectForPIIRecursive(Object instance,
+                                                  String instanceName,
+                                                  int curDepth,
+                                                  List<FieldInfo> accessPath,
+                                                  String invocationDescription) {
+        if (instance == null) {
+            return -1;
+        }
+        Class<?> objClass = instance.getClass();
+        accessPath.add(new FieldInfo(objClass.getName(), instanceName));
+        boolean childFoundLeak = false;
+
+//         Debug
+//        Log.d(TAG, "checkObjectForPIIRecursive: inspecting object " + (new FieldInfo(objClass.getName(), instanceName)));
+//         End Debug
+
+        // Is the instance a tainted String?
+        if (objClass.equals(String.class)) {
+            // Access contents of object
+            String stringInstance = (String) instance;
+
+            for (String piiString: PII) {
+                if (stringInstance.contains(piiString)) {
+                    // Tainted String found!
+                    Log.d(TAG, invocationDescription + ";" + accessPath + ";" + stringInstance);
+                    childFoundLeak = true;
+                }
+            }
+
+        }
+
+        // Halt recursion if curDepth has the max depth
+        if (!(curDepth < INSPECTION_DEPTH)) {
+            accessPath.remove(accessPath.size()-1);
+            if (childFoundLeak) {
+                return callID;
+            }
+            else {
+                return -1;
+            }
+        }
+
+        // Does the instance have any children (that we should check?)
+        // Are any of it's children a tainted String?
+        Field[] fields = objClass.getDeclaredFields();
+        for (Field field : fields) {
+
+
+            boolean canAccess = false;
+            try {
+                // Dangerous command!! Prone to causing Exceptions!
+                field.setAccessible(true);
+                canAccess = true;
+            }
+            catch (SecurityException e) {
+                // Error message looks like:
+                // Unable to make field private static boolean jdk.internal.reflect.ReflectionFactory.initted accessible: module java.base does not "opens jdk.internal.reflect" to unnamed module @1d251891
+                Pattern pattern = Pattern.compile("opens ([\\w.]+)", Pattern.CASE_INSENSITIVE);
+                Matcher matcher = pattern.matcher(e.getMessage());
+                if (matcher.find()) {
+                    String closedPackageName = matcher.group(1);
+                    Log.d("Snapshot", String.format("Closed Package %s in Field %s", closedPackageName, field));
+                }
+                else {
+                    Log.d("Snapshot", "Some unrecognized Closed Package! " + e.getMessage());
+                }
+            }
+
+            if (canAccess) {
+                try {
+                    Object fieldInstance = null;
+                    if (Modifier.isStatic(field.getModifiers())) {
+                        fieldInstance = field.get(null);
+                    }
+                    else {
+                        fieldInstance = field.get(instance);
+                    }
+
+                    if (fieldInstance == null) {
+                        continue;
+                    }
+
+                    Class<?> fieldClass = fieldInstance.getClass();
+
+                    // Debug
+//                    Log.d(TAG, "checkObjectForPIIRecursive: " + fieldClass.getName() + ", " + field.getName());
+//                    Log.d(TAG, "checkObjectForPIIRecursive: " + Collection.class.isAssignableFrom(fieldClass));
+                    // End Debug
+
+                    // Shall we recur on this field?
+                    if (fieldClass.isPrimitive()) {
+                        // Primitives cannot contain strings
+                        continue;
+                    }
+                    else if (EXCLUDED_CLASSES.contains(fieldClass)) {
+                        // Skip certain well known classes
+                        continue;
+                    }
+                    else if (Collection.class.isAssignableFrom(fieldClass)) {
+                        Collection<?> collectionInstance = (Collection<?>) fieldInstance;
+                        accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
+
+                        for (Object o : collectionInstance) {
+                            int result = checkObjectForPIIRecursive(o, "collectionElement", curDepth+1, accessPath, invocationDescription);
+                            if (result != -1) {
+                                childFoundLeak = true;
+                            }
+                        }
+                        accessPath.remove(accessPath.size()-1);
+                    }
+                    else if (Map.class.isAssignableFrom(fieldClass)) {
+                        Map<?, ?> mapInstance = (Map<?, ?>) fieldInstance;
+                        accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
+                        for (Object o : mapInstance.keySet()) {
+                            int result = checkObjectForPIIRecursive(o, "mapKey", curDepth+1, accessPath, invocationDescription);
+                            if (result != -1) {
+                                childFoundLeak = true;
+                            }
+                        }
+                        for (Object o : mapInstance.values()) {
+                            int result = checkObjectForPIIRecursive(o, "mapValue", curDepth+1, accessPath, invocationDescription);
+                            if (result != -1) {
+                                childFoundLeak = true;
+                            }
+                        }
+                        accessPath.remove(accessPath.size()-1);
+                    }
+                    else {
+                        int result = checkObjectForPIIRecursive(fieldInstance, field.getName(), curDepth+1, accessPath, invocationDescription);
+                        if (result != -1) {
+                            childFoundLeak = true;
+                        }
+                    }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        // Pop off most recent accessPath entry
+        accessPath.remove(accessPath.size()-1);
+        if (childFoundLeak) {
+            return callID;
+        }
+        else {
+            return -1;
+        }
+    }
+
+    private static class FieldInfo {
+        public final String fieldClassName;
+        public final String fieldName;
+
+        public FieldInfo(String fieldClassName, String fieldName) {
+            this.fieldClassName = fieldClassName;
+            this.fieldName = fieldName;
+        }
+
+        @NonNull
+        @Override
+        public String toString() {
+            return "<" + fieldClassName + " " + fieldName + ">";
+        }
+    }
+
+    public static void largeLog(String tag, String content) {
+        if (content.length() > 4000) {
+            Log.d(tag, content.substring(0, 4000));
+            largeLog(tag, content.substring(4000));
+        } else {
+            Log.d(tag, content);
+        }
+    }
+
+
+}

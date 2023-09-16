@@ -14,8 +14,24 @@ data/logs/*
 data/test-apks
 data/input-smali-directories
 data/results
-
-
 data/signed-apks/
 
 .DS_Store
+
+
+
+HeapSnapshot/*.iml
+HeapSnapshot/.gradle
+/local.properties
+HeapSnapshot/.idea/caches
+HeapSnapshot/.idea/libraries
+HeapSnapshot/.idea/modules.xml
+HeapSnapshot/.idea/workspace.xml
+HeapSnapshot/.idea/navEditor.xml
+HeapSnapshot/.idea/assetWizardSettings.xml
+HeapSnapshot/.DS_Store
+HeapSnapshot/build
+HeapSnapshot/captures
+HeapSnapshot/.externalNativeBuild
+HeapSnapshot/.cxx
+HeapSnapshot/local.properties

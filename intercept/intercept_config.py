@@ -14,7 +14,7 @@ def get_default_intercept_config():
                              signed_apks_path="data/signed-apks/",
                              logs_path="data/logs/",
                              use_monkey=True,
-                             seconds_to_test_each_app=2,
+                             seconds_to_test_each_app=10,
                              monkey_rng_seed=42,
                              )
     return config

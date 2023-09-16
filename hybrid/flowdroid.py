@@ -3,6 +3,8 @@ import intercept.intercept_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 
 from util import logger
+from util.subprocess import run_command
+
 logger = logger.get_logger('hybrid', 'flowdroid')
 
 
@@ -46,6 +48,22 @@ def flowdroid_help():
     cmd = "java -jar " + flowdroid_jar + " -h"
     logger.debug(cmd)
     os.system(cmd)
+
+
+
+def get_flowdroid_callgraph(hybrid_analysis_config: HybridAnalysisConfig,
+                            apk_path: str,
+                            output_path: str
+                            ) -> str:
+    flowdroid_jar = hybrid_analysis_config.flowdroid_jar_path
+    android_platform_path = hybrid_analysis_config.android_platform_path
+    source_and_sink_path = hybrid_analysis_config.unmodified_source_sink_list_path
+
+    cmd = ["java", "-jar", flowdroid_jar, ' -a ', apk_path, ' -p ', android_platform_path, ' -s ', source_and_sink_path, "--callgraphonly"]
+
+    run_command(cmd)
+    pass
+
 
 
 # def run_flowdroid_batch(input_apks_path, source_and_sink_path,
