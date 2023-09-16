@@ -1,3 +1,5 @@
+import os
+
 import hybrid.clean
 import util
 from hybrid import hybrid_main, hybrid_config, results
@@ -20,6 +22,8 @@ from util import input
 #     run_flowdroid_batch(droidbench_path, source_and_sink_path,
 #                         experiment_output,
 #                         recursive=True)
+from util.zip import zip_dir
+
 
 def instrument_and_run_droidbench():
     """
@@ -304,12 +308,51 @@ def setup_folders():
 
     hybrid.clean.setup_folders(hybrid_analysis_configuration)
 
+def improved_dysta_on_recent_FD_fewer_leaks():
+
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    intercept_configuration.input_apks = input.input_apks_from_list(
+        "data/input-apk-lists/recent_FD_fewer_leaks.txt")
+
+
+    # intercept_configuration.use_monkey = True
+    #
+    # hybrid_main.main(hybrid_analysis_configuration)
+    results_path_prefix = \
+        "data/results/InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+    # results_path = os.path.join(results_path_prefix,
+    #                             "improved-dysta-on-recent-FD-fewer-leaks-with-monkey"
+    #                             ".csv")
+    # results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
+    #
+    #
+    # zip_dir("data/", ".",
+    #         "improved-dysta-on-recent-FD-fewer-leaks-with-monkey-raw-data.zip")
+
+    intercept_configuration.use_monkey = False
+
+    hybrid_main.main(hybrid_analysis_configuration)
+    results_path = os.path.join(results_path_prefix,
+                                "improved-dysta-on-recent-FD-fewer-leaks-no-monkey"
+                                ".csv")
+    results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
+
+    zip_dir("data/", ".",
+            "improved-dysta-on-recent-FD-fewer-leaks-no-monkey-raw-data.zip")
+
+
+
+
+
 
 if __name__ == '__main__':
     # decompile_android_studio_apk()
     # instrument_input_apks()
     # update_heap_snapshot_smali_files()
     # flowdroid_on_OnlyTelephony_with_testXML()
-    dysta_on_pared_flowdroid_false_neg_apks()
+    improved_dysta_on_recent_FD_fewer_leaks()
 
     # setup_folders()

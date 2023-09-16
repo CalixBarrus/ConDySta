@@ -84,5 +84,6 @@ def get_target_PII() -> List[str]:
 
     mint_mobile_SIM_id = "8901240197155182897"
     nexus_6_IMEI = "355458061189396"
+
     target_PII = [mint_mobile_SIM_id, nexus_6_IMEI]
     return target_PII
