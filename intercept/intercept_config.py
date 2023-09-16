@@ -4,7 +4,7 @@ from util import input
 
 def get_default_intercept_config():
     input_apks_path: str = "data/input-apks"
-    input_apks: List[input.InputApkModel] = input.input_apks_from_dir(input_apks_path)
+    input_apks: input.InputApksModel = input.input_apks_from_dir(input_apks_path)
 
     config = InterceptConfig(input_apks=input_apks,
                              decoded_apks_path="data/intercept/decoded-apks/",
@@ -21,7 +21,7 @@ def get_default_intercept_config():
 
 
 class InterceptConfig:
-    input_apks: List[input.InputApkModel]
+    input_apks: input.InputApksModel
     decoded_apks_path: str
     instrumentation_strategy: str
     rebuilt_apks_path: str
@@ -34,16 +34,16 @@ class InterceptConfig:
 
 
     def __init__(self,
-                 input_apks,
-                 decoded_apks_path,
-                 instrumentation_strategy,
-                 rebuilt_apks_path,
-                 key_path,
-                 signed_apks_path,
-                 logs_path,
-                 use_monkey,
-                 seconds_to_test_each_app,
-                 monkey_rng_seed,
+                 input_apks: input.InputApksModel,
+                 decoded_apks_path: str,
+                 instrumentation_strategy: str,
+                 rebuilt_apks_path: str,
+                 key_path: str,
+                 signed_apks_path: str,
+                 logs_path: str,
+                 use_monkey: bool,
+                 seconds_to_test_each_app: int,
+                 monkey_rng_seed: int,
                  ):
         self.input_apks = input_apks
         self.decoded_apks_path = decoded_apks_path
