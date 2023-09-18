@@ -11,7 +11,7 @@ from intercept.intercept_config import InterceptConfig
 from util import logger
 logger = logger.get_logger('intercept', 'monkey')
 
-def run_apk(config: InterceptConfig):
+def run_apks(config: InterceptConfig):
     target_apks_path = config.signed_apks_path
 
     use_monkey = config.use_monkey
@@ -108,5 +108,5 @@ def test_apk_monkey(target_apks_path, apkName: str, seconds_to_test, seed=-1):
 if __name__ == '__main__':
     configuration = intercept_config.get_default_intercept_config()
 
-    run_apk(configuration)
+    run_apks(configuration)
     pass

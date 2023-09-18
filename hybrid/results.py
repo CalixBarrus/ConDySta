@@ -1,7 +1,9 @@
 import os
 import re
+from typing import List, Union
 
 from hybrid.hybrid_config import HybridAnalysisConfig
+from util.input import InputApkModel
 
 from util.logger import get_logger
 logger = get_logger("hybrid", "results")
@@ -40,10 +42,13 @@ def print_csv_results_to_file(hybrid_config: HybridAnalysisConfig, outfile_path 
 
 
 class HybridAnalysisResult:
-    apk_name: str
-    number_added_sources: int
-    flowdroid_leaks: int
-    dysta_leaks: int
+    input_name: str
+    single_apk_model: Union[InputApkModel, None]
+    group_id: Union[int, None]
+    group_apk_models: Union[List[InputApkModel], None]
+    number_added_sources_total: int
+    flowdroid_leaks_total: int
+    dysta_leaks_total: int
     error_msg: str
 
     def __init__(self, apk_name):
@@ -58,7 +63,11 @@ class HybridAnalysisResult:
         hybrid_config.results_dict = dict()
 
         # Initialize result model objects in dictionary
-        for input_apk in hybrid_config.intercept_config.input_apks:
+        if hybrid_config.intercept_config.input_apks.input_apks is None:
+            raise NotImplementedError()
+
+        input_apks: List[InputApkModel] = hybrid_config.intercept_config.input_apks.input_apks
+        for input_apk in input_apks:
             hybrid_config.results_dict[input_apk.apk_name] = HybridAnalysisResult(
                 input_apk.apk_name)
 

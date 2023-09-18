@@ -103,7 +103,7 @@ def manually_run_app():
     #     "/Users/calix/Documents/programming/research-programming/ConDySta" \
     #     "/input-apks"
 
-    monkey.run_apk(configuration)
+    monkey.run_apks(configuration)
 
 
 def instrument_and_run_apps_manually():
@@ -128,7 +128,7 @@ def recompile_and_run_with_no_instrumentation():
     intercept_main.generate_smali_code(configuration, do_clean=False)
     intercept_main.rebuild_smali_code(configuration)
 
-    monkey.run_apk(configuration)
+    monkey.run_apks(configuration)
 
 
 def dysta_on_droidbench():
@@ -220,6 +220,16 @@ def dysta_on_full_benchmark():
                   "data/results/dysta-on-DroidBenchExtended-and-ICCBench-pared-with"
                   "-monkey.csv",
                   True)
+
+def dysta_on_location_group():
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    location_service_path = "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location_Service1.apk"
+    collector_path = "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk"
+
+
 
 
 def dysta_on_list(list_path: str, results_path: str, use_monkey: bool = False):
@@ -340,14 +350,49 @@ def setup_folders():
 
     hybrid.clean.setup_folders(hybrid_analysis_configuration)
 
-def improved_dysta_on_recent_FD_fewer_leaks():
+def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks():
 
     intercept_configuration = intercept_config.get_default_intercept_config()
     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
         intercept_configuration)
 
     intercept_configuration.input_apks = input.input_apks_from_list(
-        "data/input-apk-lists/recent_FD_fewer_leaks.txt")
+        "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt")
+
+
+    # intercept_configuration.use_monkey = True
+    #
+    # hybrid_main.main(hybrid_analysis_configuration)
+    results_path_prefix = \
+        "data/results/InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+    # results_path = os.path.join(results_path_prefix,
+    #                             "improved-dysta-on-recent-FD-fewer-leaks-with-monkey"
+    #                             ".csv")
+    # results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
+    #
+    #
+    # zip_dir("data/", ".",
+    #         "improved-dysta-on-recent-FD-fewer-leaks-with-monkey-raw-data.zip")
+
+    intercept_configuration.use_monkey = False
+
+    hybrid_main.main(hybrid_analysis_configuration)
+    results_path = os.path.join(results_path_prefix,
+                                "improved-dysta-on-recent-FD-fewer-leaks-no-monkey"
+                                ".csv")
+    results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
+
+    zip_dir("data/", ".",
+            "improved-dysta-on-recent-FD-fewer-leaks-no-monkey-raw-data.zip")
+
+def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks_with_groups():
+
+    intercept_configuration = intercept_config.get_default_intercept_config()
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
+        intercept_configuration)
+
+    intercept_configuration.input_apks = input.input_apks_from_list(
+        "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt")
 
 
     # intercept_configuration.use_monkey = True
@@ -378,8 +423,6 @@ def improved_dysta_on_recent_FD_fewer_leaks():
 
 
 
-
-
 if __name__ == '__main__':
     # decompile_android_studio_apk()
     # instrument_input_apks()
@@ -387,7 +430,8 @@ if __name__ == '__main__':
     # flowdroid_on_OnlyTelephony_with_testXML()
     # flowdroid_on_android_studio_apk_with_testXML()
     # update_heap_snapshot_smali_files()
-    dysta_on_input_apks()
+    # dysta_on_input_apks()
+    improved_dysta_on_recent_FD_and_RD_common_fewer_leaks()
     # decompile_input_apks()
     # flowdroid_on_input_apks()
 

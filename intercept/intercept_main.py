@@ -13,6 +13,13 @@ def main(config: InterceptConfig, do_clean=True):
     if do_clean:
         clean.clean(config)
 
+    instrument_code(config)
+
+    run_apks(config)
+
+    pass
+
+def instrument_code(config: InterceptConfig):
     logger.info("Starting code instrumentation...")
     decode.decode(config)
     instrument.instrument_main(config)
@@ -21,11 +28,11 @@ def main(config: InterceptConfig, do_clean=True):
     sign.assign_key(config)
     logger.info("Code instrumentation finished.")
 
+def run_apks(config: InterceptConfig):
     logger.info("Running APKs...")
-    monkey.run_apk(config)
+    monkey.run_apks(config)
     logger.info("Finished running APKs.")
 
-    pass
 
 def generate_smali_code(config: InterceptConfig, do_clean=True):
     if do_clean:

@@ -3,11 +3,14 @@ import copy
 import os
 # import commands
 import subprocess
+from typing import List
 
 import intercept.intercept_config
 from intercept import intercept_main, intercept_config
 
 from util import logger
+from util.input import InputApkModel
+
 logger = logger.get_logger('intercept', 'decode')
 
 # apkNameList = []
@@ -15,7 +18,10 @@ logger = logger.get_logger('intercept', 'decode')
 def decode(config: intercept_config.InterceptConfig):
     logger.info("Decoding input APKs...")
 
-    input_apks = config.input_apks
+    if config.input_apks.input_apks is None:
+        raise NotImplementedError()
+
+    input_apks: List[InputApkModel] = config.input_apks.input_apks
     decoded_apks_path = config.decoded_apks_path
     output_files = os.listdir(decoded_apks_path)
 
