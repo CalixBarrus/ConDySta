@@ -4,7 +4,7 @@ import shutil
 from typing import Set, List, Optional, Dict
 
 from hybrid import results
-from hybrid.hybrid_config import HybridAnalysisConfig
+from hybrid.hybrid_config import HybridAnalysisConfig, modified_source_sink_path
 from hybrid.source_sink import MethodSignature, SourceSinkXML
 from intercept.instrument import InstrumentationReport, SmaliMethodInvocation
 
@@ -14,11 +14,13 @@ logger = logger.get_logger('hybrid', 'dynamic')
 
 
 class AbstractDynamicLogProcessingStrategy:
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str):
+
+    # TODO: add support for processing sources in batches
+    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str, group_id: int=-1):
         raise NotImplementedError("Interface not implemented")
 
     def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sources, apk_name: str) -> str:
+                                      sources, apk_name: str, group_id: int=-1) -> str:
         """
         Create a new source sink file using the given sources. Returns a path to the
         created file. `
@@ -67,8 +69,7 @@ def dynamic_log_processing_strategy_factory(
 
 
 class StringReturnDynamicLogProcessingStrategy(AbstractDynamicLogProcessingStrategy):
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str) -> Set[
-        'MethodSignature']:
+    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str, group_id: int=-1) -> Set[MethodSignature]:
         unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
         target_PII = hybrid_config.target_PII
 
@@ -83,19 +84,17 @@ class StringReturnDynamicLogProcessingStrategy(AbstractDynamicLogProcessingStrat
 
         # Report new sources
         results.HybridAnalysisResult.report_new_sources_count(hybrid_config, apk_name,
-                                                              len(new_sources))
+                                                              len(new_sources), group_id)
         logger.info(f"Discovered {len(new_sources)} new source(s) "
                     f"from {apk_name}.")
 
         return new_sources
 
     def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sources: Set['MethodSignature'], apk_name: str) -> str:
+                                      sources: Set[MethodSignature], apk_name: str, group_id: int=-1) -> str:
         unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
 
-        modified_source_and_sink_path = os.path.join(
-            hybrid_config.modified_source_sink_directory,
-            apk_name + "source-and-sinks.txt")
+        modified_source_and_sink_path = modified_source_sink_path(hybrid_config, apk_name, group_id)
 
         shutil.copyfile(unmodified_source_and_sink_path, modified_source_and_sink_path)
         with open(modified_source_and_sink_path, 'a') as result_file:
@@ -132,8 +131,8 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProces
     Only create sources from function returns.
     """
 
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str) -> Set[
-        'MethodSignature']:
+    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str, group_id: int=-1) -> Set[
+        MethodSignature]:
 
         log = LogcatLogFileModel(log_path)
 
@@ -149,20 +148,18 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProces
 
         # Report new sources
         results.HybridAnalysisResult.report_new_sources_count(hybrid_config, apk_name,
-                                                              len(new_sources))
+                                                              len(new_sources), group_id)
         logger.info(f"Discovered {len(new_sources)} new source(s) "
                     f"from {apk_name}.")
 
         return new_sources
 
     def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sources: Set['MethodSignature'], apk_name: str):
+                                      sources: Set[MethodSignature], apk_name: str, group_id: int=-1):
 
         unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
 
-        modified_source_and_sink_path = os.path.join(
-            hybrid_config.modified_source_sink_directory,
-            apk_name + "source-and-sinks.txt")
+        modified_source_and_sink_path = modified_source_sink_path(hybrid_config, apk_name, group_id)
 
         shutil.copyfile(unmodified_source_and_sink_path, modified_source_and_sink_path)
         with open(modified_source_and_sink_path, 'a') as result_file:
@@ -173,8 +170,7 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProces
 
         # raise NotImplementedError("Interface not implemented")
 
-    def _instr_reports_to_sources(self, instr_reports: List[InstrumentationReport]) -> Set[
-        'MethodSignature']:
+    def _instr_reports_to_sources(self, instr_reports: List[InstrumentationReport]) -> Set[MethodSignature]:
         post_invoke_arg_masks = dict()
         pre_invoke_arg_masks = dict()
         signatures_by_id = dict()
@@ -245,14 +241,14 @@ class InstrReportReturnAndArgsDynamicLogProcessingStrategy(AbstractDynamicLogPro
     """
 
     def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str,
-                         apk_name: str) -> SourceSinkXML:
+                         apk_name: str, group_id: int=-1) -> SourceSinkXML:
 
-        log = LogcatLogFileModel(log_path)
+        log: LogcatLogFileModel = LogcatLogFileModel(log_path)
 
-        instr_reports = log.scan_log_for_instrumentation_reports()
+        instr_reports: List[InstrumentationReport] = log.scan_log_for_instrumentation_reports()
 
-        source_sink_xml = self._instr_reports_to_source_sink(instr_reports)
-        discovered_sources_count = source_sink_xml.source_count
+        source_sink_xml: SourceSinkXML = self._instr_reports_to_source_sink(instr_reports)
+        discovered_sources_count: int = source_sink_xml.source_count
 
         existing_sources: Set[MethodSignature] = set(self._get_sources_from_file(
             hybrid_config.unmodified_source_sink_list_path))
@@ -263,20 +259,18 @@ class InstrReportReturnAndArgsDynamicLogProcessingStrategy(AbstractDynamicLogPro
 
         # Report new sources
         results.HybridAnalysisResult.report_new_sources_count(hybrid_config, apk_name,
-                                                              source_sink_xml.source_count)
+                                                              source_sink_xml.source_count, group_id)
         logger.info(f"Discovered {str(source_sink_xml.source_count)} new source(s) "
                     f"from {apk_name}.")
 
         return source_sink_xml
 
     def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sourceSinks: SourceSinkXML, apk_name: str):
+                                      sourceSinks: SourceSinkXML, apk_name: str, group_id: int=-1) -> str:
 
         unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
 
-        modified_source_and_sink_path = os.path.join(
-            hybrid_config.modified_source_sink_directory,
-            apk_name + "source-and-sinks.xml")
+        modified_source_and_sink_path = modified_source_sink_path(hybrid_config, apk_name, group_id, is_xml=True)
 
         sourceSinks.add_sinks_from_file(unmodified_source_and_sink_path)
 

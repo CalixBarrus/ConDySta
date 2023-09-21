@@ -4,7 +4,6 @@ import hybrid.clean
 import util
 from hybrid import hybrid_main, hybrid_config, results
 # from flowdroid import run_flowdroid_batch
-from hybrid.flowdroid import activate_flowdroid
 from intercept import intercept_config, intercept_main, monkey
 from intercept.instrument import extract_decompiled_smali_code
 from util import input

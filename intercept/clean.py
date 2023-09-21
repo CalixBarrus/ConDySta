@@ -1,19 +1,19 @@
 import os
 
 from intercept import intercept_config
-from intercept.intercept_config import InterceptConfig
+from intercept.intercept_config import HybridAnalysisConfig
 
 from util import logger
 
 logger = logger.get_logger('intercept', 'clean')
 
 
-def clean(config: InterceptConfig):
+def clean(config: HybridAnalysisConfig):
     logger.info("Cleaning intercept files")
 
     decoded_apks_path = config.decoded_apks_path
     rebuilt_apks_path = config.rebuilt_apks_path
-    key_path = config.key_path
+    key_path = config.keys_dir_path
     signed_apks_path = config.signed_apks_path
     logs_path = config.logs_path
 
@@ -49,7 +49,7 @@ def clean(config: InterceptConfig):
 def setup_folders(config):
     decoded_apks_path = config.decoded_apks_path
     rebuilt_apks_path = config.rebuilt_apks_path
-    key_path = config.key_path
+    key_path = config.keys_dir_path
     signed_apks_path = config.signed_apks_path
     logs_path = config.logs_path
 

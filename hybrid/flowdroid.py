@@ -7,35 +7,32 @@ from util.subprocess import run_command
 
 logger = logger.get_logger('hybrid', 'flowdroid')
 
-
-def activate_flowdroid(hybrid_analysis_config: HybridAnalysisConfig, apk_path: str,
-                       apk_name: str,
+def activate_flowdroid(config: HybridAnalysisConfig, apk_path: str,
                        source_and_sink_path: str,
                        output_log_path: str,
-                       ) -> str:
+                       ):
     # Use the compiled version of flowdroid at the specified jar on the specified apk.
     # Write the logged results to the specified file.
     # Returns the name of the file (not the path) of the log file.
 
-    if not apk_name.endswith(".apk"):
-        raise ValueError(f"Input apk_name {apk_name} needs to end with \".apk\"")
+    if not apk_path.endswith(".apk"):
+        raise ValueError(f"Input apk_name {apk_path} needs to end with \".apk\"")
 
-    flowdroid_jar = hybrid_analysis_config.flowdroid_jar_path
-    android_platform_path = hybrid_analysis_config.android_platform_path
+    flowdroid_jar = config.flowdroid_jar_path
+    android_platform_path = config.android_platform_path
 
-    log_name = apk_name + ".log"
+    # log_name = apk_name + ".log"
 
-    cmd = 'java -jar ' + flowdroid_jar + ' -a ' + apk_path + ' -p ' + android_platform_path + ' -s ' + \
-          source_and_sink_path + ' --paths --pathspecificresults ' \
-                                 '--outputlinenumbers > ' + \
-          os.path.join(
-              output_log_path,
-              log_name) + ' 2>&1'
-    logger.debug(cmd)
+    cmd = ["java", "-jar", flowdroid_jar,
+           "-a", apk_path,
+           "-p", android_platform_path,
+           "-s", source_and_sink_path,
+           "--paths", "--pathspecificresults", "--outputlinenumbers",
+           ">", output_log_path,
+           "2>&1"]
 
-    os.system(cmd)
-
-    return log_name
+    logger.debug(" ".join(cmd))
+    run_command(cmd)
 
 """
        -cp,--paths                              

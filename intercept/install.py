@@ -10,6 +10,7 @@ from typing import List
 from intercept import intercept_config
 
 from util import logger
+from util.input import InputApkModel
 from util.subprocess import run_command
 
 logger = logger.get_logger('intercept', 'install')
@@ -26,20 +27,25 @@ def getCmdExecuteResult(cmd):
     return tmp
 
 
-def getPackageName(apk_name, signed_apk_path):
-    install_name = os.path.join(signed_apk_path, apk_name)
-    cmd = 'aapt dump badging "{}" '.format(install_name)
-    logger.debug(cmd)
-    str= getCmdExecuteResult(cmd)[0].split(" ")[1]
-    return str[6:-1]
+def get_package_name(apk_path):
+    cmd = ["aapt", "dump", "badging", apk_path]
+    logger.debug(" ".join(cmd))
+    result = run_command(cmd)
+
+    result = result[0].split(" ")[1]
+
+    # str= getCmdExecuteResult(cmd)[0].split(" ")[1]
+    return result[6:-1]
 
 
 def getApkMainIntent(packageName):
+    # TODO: refactor function
     """
     :param packageName: packageName resulting from getPackageName call.
     :return: String that can be used as an Intent to launch the main activity of
     the apk.
     """
+
     cmd='adb shell dumpsys package {}'.format(packageName)
     logger.debug(cmd)
     exeResult= getCmdExecuteResult(cmd)
@@ -64,14 +70,14 @@ def startApk(packageName):
     logger.debug(getCmdExecuteResult(cmd))
 
 
-def installApk(apkName, signed_apk_path):
-    apkName = os.path.join(signed_apk_path, apkName)
+def installApk(apk_path: str):
+
     # -r, replace the app if already installed
     # -t, allows test packages
 
-    cmd='adb  install "{}"'.format(apkName)
-    logger.debug(cmd)
-    return os.system(cmd)
+    cmd = ["adb", "install", apk_path]
+    logger.debug(" ".join(cmd))
+    run_command(cmd)
 
 def check_device_is_ready():
     cmd = 'adb devices'
@@ -179,7 +185,7 @@ if __name__ == '__main__':
 
     # installAndStart()
 
-    apkPackageName = getPackageName(apkName, configuration.signed_apks_path)
+    apkPackageName = get_package_name(apkName, configuration.signed_apks_path)
     uninstall_apk(apkPackageName)
 
     # installApk(apkName, configuration.signed_apks_path)

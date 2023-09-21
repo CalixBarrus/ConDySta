@@ -12,8 +12,7 @@ def run_command(args: List['str']) -> str:
 
     completed_process: subprocess.CompletedProcess = subprocess.run(args,
                                                                     capture_output=True,
-                                                                    check=True,
-                                                                    # Raise a python exception if the process exits with exit code != 0
+                                                                    check=True, # Raise a python exception if the process exits with exit code != 0
                                                                     text=True # Have output be captured as a string (not bytes)
                                                                     )
 

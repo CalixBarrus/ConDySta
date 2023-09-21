@@ -1,69 +1,60 @@
+from typing import List
 
 import pexpect
 import sys
 import os
 
-from intercept import intercept_config
-
+from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, rebuilt_apk_path, apk_key_path
 from util import logger
+from util.input import InputApkModel
+
 logger = logger.get_logger('intercept', 'sign')
 
-def assign_key(config):
-    logger.info("Signing APKs...")
+def assign_key_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+    for apk in apks:
+        assign_key_single(config, apk)
 
-    key_path = config.key_path
-    signed_apks_path = config.signed_apks_path
-    rebuilt_apks_path = config.rebuilt_apks_path
+def assign_key_single(config: HybridAnalysisConfig, apk: InputApkModel):
+    # If the apk is already signed, don't sign it again.
+    if os.path.exists(signed_apk_path(config, apk)):
+        logger.debug(f"APK {apk.apk_name} already signed, skipping.")
+        return
 
-    apk_name_list = []
-    for apk_name in os.listdir(rebuilt_apks_path):
-        apk_name = apk_name.strip()
-        apk_name_list.append(apk_name)
+    # Make sure the apk being signed exists
+    if not os.path.exists(rebuilt_apk_path(config, apk)):
+        logger.error(f"Rebuilt APK {apk.apk_name} is not found at {rebuilt_apk_path(config, apk)}")
+        return
 
-    i = 1
-    # for line in apkNameList:
-    for apkName in os.listdir(rebuilt_apks_path):
+    # cmd = "jarsigner -verbose -keystore {}{} -storepass 123456 -signedjar {}{} {}{} abc.keystore".format(keyPath, apkKeyName, signedApksPath, apkName, rebuiltApksPath, apkName)
+    # In theory, this should be "zipalign"ed and verified before signing. It seems to work OK without that step though.
+    cmd = ["apksigner", "sign",
+           "--ks", apk_key_path(config, apk),
+           "--ks-pass", "pass:123456",
+           "--in", rebuilt_apk_path(config, apk),
+           "--out", signed_apk_path(config, apk)]
+    logger.debug(" ".join(cmd))
 
-        # If the apk is already signed, don't sign it again.
-        if os.path.exists(os.path.join(signed_apks_path, apkName)):
-            logger.debug("APK {} already signed, skipping.".format(apkName))
-            continue
+    # Use the first line if you want to see the output of the signing process
+    # child = pexpect.spawn(cmd, logfile=sys.stdout, encoding='utf-8')
+    child = pexpect.spawn(" ".join(cmd), encoding='utf-8')
 
-        # Make sure the apk being signed exists
-        if os.path.isfile(os.path.join(rebuilt_apks_path, apkName)):
-            apkKeyName = apkName + ".keystore"
-            # cmd = "jarsigner -verbose -keystore {}{} -storepass 123456 -signedjar {}{} {}{} abc.keystore".format(keyPath, apkKeyName, signedApksPath, apkName, rebuiltApksPath, apkName)
-            # In theory, this should be "zipalign"ed and verified before signing. It seems to work OK without that step though.
-            cmd = "apksigner sign --ks {}{} --ks-pass pass:123456 --in {}{} --out {}{}".format(key_path, apkKeyName, rebuilt_apks_path, apkName, signed_apks_path, apkName)
-            logger.debug(cmd)
-
-            # Use the first line if you want to see the output of the signing process
-            # child = pexpect.spawn(cmd, logfile=sys.stdout, encoding='utf-8')
-            child = pexpect.spawn(cmd, encoding='utf-8')
-
-            #password
-            try:
-                result = child.expect([pexpect.EOF, 'password', pexpect.TIMEOUT])
-                if result == 0:
-                    # Expected result, do nothing.
-                    pass
-                elif result == 1:
-                    # It might be asking for a password?
-                    child.sendline('123456')
-                    child.expect(pexpect.EOF)
-                else:
-                    raise NotImplementedError("Unexpected result from jarsigner")
-            except Exception as e:
-                logger.error(str(child))
+    # password
+    try:
+        result = child.expect([pexpect.EOF, 'password', pexpect.TIMEOUT])
+        if result == 0:
+            # Expected result, do nothing.
+            pass
+        elif result == 1:
+            # It might be asking for a password?
+            child.sendline('123456')
+            child.expect(pexpect.EOF)
         else:
-            logger.error("Apk {} isn't recognized as a file?".format(os.path.join(
-                rebuilt_apks_path, apkName)))
-
+            raise NotImplementedError("Unexpected result from jarsigner")
+    except Exception as e:
+        logger.error(str(child))
 
 if __name__ == '__main__':
-    configuration = intercept_config.get_default_intercept_config()
-
-    assign_key(configuration)
+    pass
 
 
 

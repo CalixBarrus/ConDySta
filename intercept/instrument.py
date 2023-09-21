@@ -1,41 +1,35 @@
-import math
 import os
 import re
 import shutil
-from typing import List, Tuple, Dict
+from typing import List
 
-from intercept import intercept_config
-
+from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from util import logger
+from util.input import InputApkModel
 from util.subprocess import run_command
 
 logger = logger.get_logger('intercept', 'instrument')
 
 
-def instrument_main(config: intercept_config.InterceptConfig):
-    logger.info("Instrumenting smali code...")
+def instrument_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
 
-    instrumentation_strategy: InformalInstrumentationStrategyInterface = \
-        instrStrategyFromInterceptConfig(config)
+    # Read in and parse decoded apks
+    decoded_apk_models: List[DecodedApkModel] = []
+    for apk in apks:
+        decoded_apk_models.append(instrument_apk(config, apk))
 
-    apk_models: List[DecodedApkModel] = []
-    for item in os.listdir(config.decoded_apks_path):
-        apk_path = os.path.join(config.decoded_apks_path, item)
-        if os.path.isdir(apk_path):
-            # Parse each apk into a model class
-            apk_models.append(DecodedApkModel(apk_path))
+    # We may later decide to save the decoded_apk_models for use in interpreting dynamic analysis results
 
-    for apk_model in apk_models:
-        # Pass the instrumentation_strategy to each apk
-        apk_model.instrument(instrumentation_strategy)
+def instrument_apk(config: HybridAnalysisConfig, apk: InputApkModel) -> 'DecodedApkModel':
+    instrumentation_strategy: InformalInstrumentationStrategyInterface = instr_strategy_from_config(config)
 
+    decoded_apk_model = DecodedApkModel(decoded_apk_path(config, apk))
+
+    decoded_apk_model.instrument(instrumentation_strategy)
+
+    return decoded_apk_model
 
 class InformalInstrumentationStrategyInterface:
-    # def instrument(self, contents: List[str]) -> List[str]:
-    #     """Scan through contents of smali file and return the instrumented
-    #     smali code"""
-    #     raise NotImplementedError("Interface not implemented")
-
     def instrument_file(self, smali_file: 'SmaliFile'):
         """Hook gets called on each SmaliFile model in a given DecodedApkModel"""
         raise NotImplementedError("Interface not implemented")
@@ -68,6 +62,7 @@ class DecodedApkModel:
     apk_root_path: str
     project_smali_directory_names: List[str]
     smali_directories: List[List['SmaliFile']]
+    # is_instrumented: bool TODO: this is a good idea, but right now DecodedApkModels are constructed when they are needed and then deleted; this kind of state wouldn't get cached anywhwere
 
     def __init__(self, decoded_apk_root_path: str):
         """
@@ -75,6 +70,9 @@ class DecodedApkModel:
         :param decoded_apk_root_path: Path to the root directory of a single apk
         decoded by apktool.
         """
+        if not os.path.isdir(decoded_apk_root_path):
+            raise AssertionError(f"Path {decoded_apk_root_path} expected to be directory")
+
         self.apk_root_path = decoded_apk_root_path
 
         self.project_smali_directory_names = []
@@ -101,6 +99,8 @@ class DecodedApkModel:
         for path in project_smali_directory_paths:
             self.smali_directories.append(
                 self.scan_for_smali_files(path, ""))
+
+        # self.is_instrumented = False
 
     def scan_for_smali_files(self, project_smali_folder_path: str,
                              class_path: str):
@@ -136,6 +136,8 @@ class DecodedApkModel:
         for smali_directory in self.smali_directories:
             for smali_file in smali_directory:
                 instrumenter.instrument_file(smali_file)
+
+        self.is_instrumented = True
 
     def insert_smali_directory(self, smali_source_directory_path):
         """
@@ -1205,7 +1207,7 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
         dest = os.path.join("data/intercept/smali-files/heap-snapshot")
         return dest
 
-def extract_decompiled_smali_code(config: intercept_config.InterceptConfig):
+def extract_decompiled_smali_code(config: HybridAnalysisConfig):
     config.decoded_apks_path
     target_directory_prefix = "app-debug/smali_classes3"
     target_directory_suffix = "edu/utsa/sefm/heapsnapshot"
@@ -1326,24 +1328,24 @@ def invoke_static_heapsnapshot_function(report: InstrumentationReport,
 """
 
 
-def instrStrategyFromInterceptConfig(
-        intercept_config: intercept_config.InterceptConfig) -> \
+def instr_strategy_from_config(
+        config: HybridAnalysisConfig) -> \
         'InformalInstrumentationStrategyInterface':
-    if intercept_config.instrumentation_strategy == \
+    if config.instrumentation_strategy == \
             "LogStringReturnInstrumentationStrategy":
         return LogStringReturnInstrumentationStrategy()
-    elif intercept_config.instrumentation_strategy == \
+    elif config.instrumentation_strategy == \
             "StringReturnInstrumentationStrategy":
         return StringReturnInstrumentationStrategy()
-    elif intercept_config.instrumentation_strategy == \
+    elif config.instrumentation_strategy == \
             "StringReturnValuesInstrumentationStrategy":
         return StringReturnValuesInstrumentationStrategy()
-    elif intercept_config.instrumentation_strategy == \
+    elif config.instrumentation_strategy == \
             "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy":
         return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy()
     else:
         raise ValueError(f"Invalid instrumentation strategy:"
-                         f" {intercept_config.instrumentation_strategy}")
+                         f" {config.instrumentation_strategy}")
 
 def smali_parse_test():
 
@@ -1351,10 +1353,4 @@ def smali_parse_test():
     print(result)
 
 if __name__ == '__main__':
-    # config = intercept_config.get_default_intercept_config()
-    #
-    # # instrument_main(config)
-    #
-    # extract_decompiled_smali_code(config)
-
     smali_parse_test()

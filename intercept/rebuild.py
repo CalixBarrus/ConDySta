@@ -1,9 +1,11 @@
 
 import os
+from typing import List
+
 import pexpect
 import sys
 
-
+from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path, rebuilt_apk_path
 # for line in open("/home/xueling/apkAnalysis/invokeDetection/apkName_1007").readlines():
 #     line = line.strip() + ".apk"
 #     apkNameList.append(line)
@@ -11,30 +13,29 @@ import sys
 from intercept import intercept_config
 
 from util import logger
+from util.input import InputApkModel
+from util.subprocess import run_command
+
 logger = logger.get_logger('intercept', 'rebuild')
 
-def rebuild(config):
+def rebuild_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
     logger.info("Rebuilding instrumented smali code...")
 
-    decoded_apks_path = config.decoded_apks_path
-    rebuilt_apks_path = config.rebuilt_apks_path
+    for apk in apks:
+        rebuild_apk(config, apk)
 
-    for apkName in os.listdir(decoded_apks_path):
-        apk_name_with_suffix = apkName + ".apk"
+def rebuild_apk(config: HybridAnalysisConfig, apk: InputApkModel):
+    if apk.apk_name in os.listdir(config.rebuilt_apks_path):
+        logger.debug(f"Instrumented APK {apk.apk_name} already in {config.rebuilt_apks_path}, skipping.")
+        return
 
-        if apk_name_with_suffix in os.listdir(rebuilt_apks_path):
-            logger.debug(f"Instrumented APK {apk_name_with_suffix} already in "
-                  f"{rebuilt_apks_path}, skipping.")
-            continue
+    cmd = ["apktool", "--quiet",
+           "b", os.path.join(decoded_apk_path(config, apk), apk.apk_name),
+           "-o", os.path.join(rebuilt_apk_path(config, apk), apk.apk_name),
+           "--use-aapt2"]
 
-        else:
-            cmd = "apktool --quiet b '{}' -o '{}' --use-aapt2".format(
-                os.path.join(decoded_apks_path, apkName),
-                os.path.join(rebuilt_apks_path, apk_name_with_suffix))
-            logger.debug(cmd)
-            os.system(cmd)
+    logger.debug(" ".join(cmd))
+    run_command(cmd)
 
 if __name__ == '__main__':
-    configuration = intercept_config.get_default_intercept_config()
-
-    rebuild(configuration)
+    pass

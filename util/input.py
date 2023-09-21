@@ -5,10 +5,24 @@ from typing import List, Union, Dict
 class InputApksModel:
     ungrouped_apks: List["InputApkModel"]
     input_apk_groups: List["InputApkGroup"]
+    unique_apks: List["InputApkModel"]
 
-    def __init__(self, input_apks, input_apk_groups):
+    def __init__(self, input_apks: List["InputApkModel"], input_apk_groups: List["InputApkGroup"]):
         self.input_apks = input_apks
-        self.grouped_apks_lists = input_apk_groups
+        self.input_apk_groups = input_apk_groups
+        self.unique_apks = self._collect_unique_apks(input_apks, input_apk_groups)
+
+    def _collect_unique_apks(self, input_apks: List["InputApkModel"], input_apk_groups: List["InputApkGroup"]) -> List["InputApkModel"]:
+        unique_apks: List["InputApkModel"] = []
+        for apk in input_apks:
+            if apk not in unique_apks:
+                unique_apks.append(apk)
+
+        for group in input_apk_groups:
+            for apk in group.apks:
+                if apk not in unique_apks:
+                    unique_apks.append(apk)
+        return unique_apks
 
 class InputApkGroup:
     apks: List["InputApkModel"]
@@ -29,6 +43,13 @@ class InputApkModel:
 
         if not os.path.isfile(self.apk_path) or not self.apk_path.endswith(".apk"):
             raise ValueError(f"The path {self.apk_path} isn't an apk.")
+
+    def apk_name_no_suffix(self):
+        # Drop the ".apk" on the end
+        return self.apk_name[:-4]
+
+    def apk_key_name(self):
+        return self.apk_name + ".keystore"
 
 def input_apks_from_dir(dir_path: str) -> 'InputApksModel':
     """ Recursively traverse the target directory and it's children. Return all apks
