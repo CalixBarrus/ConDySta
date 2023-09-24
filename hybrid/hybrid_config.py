@@ -3,6 +3,8 @@ from typing import List, Dict
 
 from util.input import InputApksModel, input_apks_from_dir, InputApkModel
 
+# TODO: I'm trying to move all assumptions about internal project directory structure
+#  into this file (see the mess of functions at the end)
 
 class HybridAnalysisConfig:
     input_apks: InputApksModel
@@ -29,11 +31,14 @@ class HybridAnalysisConfig:
     monkey_rng_seed: int
     # End fields for intercept package
 
+    results_dir_path: str
+    data_dir_path: str
+
     # For use by results.py
     results_dict: Dict
 
     def __init__(self,
-                 input_apks,
+                 input_apks: InputApksModel,
                  unmodified_source_sink_list_path,
                  modified_source_sink_directory,
                  logcat_dump_dir_path,
@@ -54,6 +59,9 @@ class HybridAnalysisConfig:
                  use_monkey: bool,
                  seconds_to_test_each_app: int,
                  monkey_rng_seed: int,
+
+                 results_dir_path: str,
+                 data_dir_path: str,
                  ):
         self.input_apks = input_apks
         self.unmodified_source_sink_list_path = unmodified_source_sink_list_path
@@ -80,8 +88,10 @@ class HybridAnalysisConfig:
         self.seconds_to_test_each_app = seconds_to_test_each_app
         self.monkey_rng_seed = monkey_rng_seed
 
-def get_default_hybrid_analysis_config(
-        intercept_config: HybridAnalysisConfig) -> "HybridAnalysisConfig":
+        self.results_dir_path = results_dir_path
+        self.data_dir_path = data_dir_path
+
+def get_default_hybrid_analysis_config() -> "HybridAnalysisConfig":
 
     # unmodified_source_sink_list_path = "data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
     unmodified_source_sink_list_path = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-android/SourcesAndSinks.txt"
@@ -110,8 +120,10 @@ def get_default_hybrid_analysis_config(
         signed_apks_path="data/signed-apks/",
         logs_path="data/logs/",
         use_monkey=True,
-        seconds_to_test_each_app=10,
+        seconds_to_test_each_app=5,
         monkey_rng_seed=42,
+        results_dir_path="data/results",
+        data_dir_path="data",
     )
     return config
 
@@ -186,3 +198,10 @@ def modified_source_sink_path(config: HybridAnalysisConfig, apk_name: str, group
         return os.path.join(
             config.modified_source_sink_directory,
             _group_prefix(group_id) + apk_name + "source-and-sinks.txt")
+
+
+def data_dir_path(config: HybridAnalysisConfig):
+    return config.data_dir_path
+
+def results_csv_path(config: HybridAnalysisConfig, experiment_name: str):
+    return os.path.join(config.results_dir_path, experiment_name + ".csv")

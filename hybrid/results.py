@@ -3,7 +3,7 @@ import re
 from typing import List, Union, Dict
 
 from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_first_pass_logs_path, flowdroid_second_pass_logs_path
-from util.input import InputApkModel, InputApkGroup
+from util.input import InputApkModel, InputApkGroup, InputApksModel
 
 from util.logger import get_logger
 logger = get_logger("hybrid", "results")
@@ -24,21 +24,11 @@ def print_csv_results_to_file(hybrid_config: HybridAnalysisConfig, outfile_path 
 
     with open(outfile_path, 'w') as file:
 
-        col_headers = ["APK Name", "Flowdroid Leaks", "Sources Added", "DySTa Leaks",
-                       "Error Message"]
-        file.write(",".join(col_headers) + "\n")
-
         results_dict = hybrid_config.results_dict
+        file.write(HybridAnalysisResult.label_row())
         for result in results_dict.values():
-            file.write(",".join([result.apk_name,
-                                 str(result.flowdroid_leaks if
-                                     result.flowdroid_leaks is not None else ""),
-                                 str(result.number_added_sources if
-                                     result.number_added_sources is not None else ""),
-                                 str(result.dysta_leaks if
-                                     result.dysta_leaks is not None else ""),
-                                 str(result.error_msg),
-                                 ]) + "\n")
+            file.write(result.as_row())
+            file.write("\n")
 
 
 class HybridAnalysisResult:
@@ -196,10 +186,10 @@ class HybridAnalysisResult:
 
     @classmethod
     def experiment_end(cls, hybrid_config: HybridAnalysisConfig):
-        cls._parse_leak_counts(hybrid_config)
+        cls._parse_leak_counts(hybrid_config, hybrid_config.input_apks)
 
     @classmethod
-    def _parse_leak_counts(cls, hybrid_config: HybridAnalysisConfig) -> None:
+    def _parse_leak_counts(cls, hybrid_config: HybridAnalysisConfig, input_apks: InputApksModel) -> None:
         # TODO: this method should get called at the tail end of all flowdroid invocations, then the flowdroid
         #  invocation should just return the result info (# of leaks or a result object of some kind)
 
@@ -207,52 +197,105 @@ class HybridAnalysisResult:
         # to the results dictionary.
         # results_dict should already be filled out with result models that will be mutated.
 
-        # flowdroid_first_pass_logs_path = hybrid_config.flowdroid_first_pass_logs_path
-        # flowdroid_second_pass_logs_path = hybrid_config.flowdroid_second_pass_logs_path
         results_dict = hybrid_config.results_dict
+
+        for ungrouped_apk in input_apks.ungrouped_apks:
+            try:
+                first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, ungrouped_apk))
+
+                results_dict[cls._input_key(ungrouped_apk.apk_name, -1)].flowdroid_leaks = first_pass_leaks_count
+            except FlowdroidLogException as e:
+                results_dict[cls._input_key(ungrouped_apk.apk_name, -1)].error_msg += str(e)
+
+            try:
+                second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, ungrouped_apk))
+
+                results_dict[cls._input_key(ungrouped_apk.apk_name, -1)].dysta_leaks = \
+                    second_pass_leaks_count
+            except FlowdroidLogException as e:
+                results_dict[
+                    cls._input_key(ungrouped_apk.apk_name, -1)].error_msg += str(e)
+
+        for apk_group in input_apks.input_apk_groups:
+            for grouped_apk in apk_group.apks:
+                try:
+                    first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
+                        flowdroid_first_pass_logs_path(hybrid_config, grouped_apk,
+                                                       apk_group.group_id))
+
+                    result_instance: HybridAnalysisResult = results_dict[cls._input_key(grouped_apk.apk_name, apk_group.group_id)]
+                    result_instance.group_flowdroid_leaks[
+                        result_instance.group_apk_name_index[grouped_apk.apk_name]] =first_pass_leaks_count
+
+                except FlowdroidLogException as e:
+                    result_instance: HybridAnalysisResult = results_dict[
+                        cls._input_key(grouped_apk.apk_name,
+                                       apk_group.group_id)]
+                    result_instance.group_error_msg[
+                        result_instance.group_apk_name_index[grouped_apk.apk_name]] =\
+                        e.msg
+
+                try:
+                    second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
+                        flowdroid_second_pass_logs_path(hybrid_config, grouped_apk,
+                                                       apk_group.group_id))
+
+                    result_instance: HybridAnalysisResult = results_dict[
+                        cls._input_key(grouped_apk.apk_name, apk_group.group_id)]
+                    result_instance.group_dysta_leaks[
+                        result_instance.group_apk_name_index[
+                            grouped_apk.apk_name]] = second_pass_leaks_count
+
+                except FlowdroidLogException as e:
+                    result_instance: HybridAnalysisResult = results_dict[
+                        cls._input_key(grouped_apk.apk_name,
+                                       apk_group.group_id)]
+                    result_instance.group_error_msg[
+                        result_instance.group_apk_name_index[grouped_apk.apk_name]] = \
+                        e.msg
 
         # Files in these directories should have path names matching hybrid_config.flowdroid_first_pass_logs_path()
         #   or hybrid_config.flowdroid_second_pass_logs_path()
         # That is, file names will be of the form [apk_name].log or group[id]_[apk_name].log
-        for item in os.listdir(hybrid_config.flowdroid_first_pass_logs_path):
-            if item.endswith(".log"):
-
-                if item.startswith("group"):
-                    regex_result = re.search(r"group(\d+)_(.+).log", item)
-                    group_id = regex_result.group(1)
-                    apk_name = regex_result.group(2)
-                else:
-                    regex_result = re.search(r"(.+).log", item)
-                    group_id = -1 # ungrouped
-                    apk_name = regex_result.group(1)
-
-                try:
-                    first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, apk_name, group_id))
-                    if group_id == -1:
-                        results_dict[apk_name].flowdroid_leaks = first_pass_leaks_count
-                    else:
-                        result: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
-                        result.group_flowdroid_leaks[result.group_apk_name_index[apk_name]] = first_pass_leaks_count
-                except FlowdroidLogException as e:
-                    if group_id == -1:
-                        results_dict[apk_name].error_msg += str(e)
-                    else:
-                        result_entry: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
-                        result_entry.group_error_msg[result_entry.group_apk_name_index[apk_name]] = str(e)
-
-                try:
-                    second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, apk_name, group_id))
-                    if group_id == -1:
-                        results_dict[apk_name].dysta_leaks = second_pass_leaks_count
-                    else:
-                        result: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
-                        result.group_dysta_leaks[result.group_apk_name_index[apk_name]] = second_pass_leaks_count
-                except FlowdroidLogException as e:
-                    if group_id == -1:
-                        results_dict[apk_name].error_msg += str(e)
-                    else:
-                        result_entry: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
-                        result_entry.group_error_msg[result_entry.group_apk_name_index[apk_name]] += str(e)
+        # for item in os.listdir(hybrid_config.flowdroid_first_pass_logs_path):
+        #     if item.endswith(".log"):
+        #
+        #         if item.startswith("group"):
+        #             regex_result = re.search(r"group(\d+)_(.+).log", item)
+        #             group_id = regex_result.group(1)
+        #             apk_name = regex_result.group(2)
+        #         else:
+        #             regex_result = re.search(r"(.+).log", item)
+        #             group_id = -1 # ungrouped
+        #             apk_name = regex_result.group(1)
+        #
+        #         try:
+        #             first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, apk_name, group_id))
+        #             if group_id == -1:
+        #                 results_dict[apk_name].flowdroid_leaks = first_pass_leaks_count
+        #             else:
+        #                 result: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
+        #                 result.group_flowdroid_leaks[result.group_apk_name_index[apk_name]] = first_pass_leaks_count
+        #         except FlowdroidLogException as e:
+        #             if group_id == -1:
+        #                 results_dict[apk_name].error_msg += str(e)
+        #             else:
+        #                 result_entry: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
+        #                 result_entry.group_error_msg[result_entry.group_apk_name_index[apk_name]] = str(e)
+        #
+        #         try:
+        #             second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, apk_name, group_id))
+        #             if group_id == -1:
+        #                 results_dict[apk_name].dysta_leaks = second_pass_leaks_count
+        #             else:
+        #                 result: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
+        #                 result.group_dysta_leaks[result.group_apk_name_index[apk_name]] = second_pass_leaks_count
+        #         except FlowdroidLogException as e:
+        #             if group_id == -1:
+        #                 results_dict[apk_name].error_msg += str(e)
+        #             else:
+        #                 result_entry: HybridAnalysisResult = results_dict[cls._input_key(apk_name, group_id)]
+        #                 result_entry.group_error_msg[result_entry.group_apk_name_index[apk_name]] += str(e)
 
 
     @classmethod
@@ -301,7 +344,9 @@ def test_initialize_results_dict_entries_works_recursively():
     assert len(hybrid_analysis_configuration.results_dict) == 118
 
 class FlowdroidLogException(Exception):
-    pass
+    msg: str
+    def __init__(self, msg):
+        self.msg = msg
 
 if __name__ == '__main__':
     test_initialize_results_dict_entries_works_recursively()

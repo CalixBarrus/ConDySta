@@ -1,9 +1,11 @@
 import os
+from typing import List
 
 import hybrid.clean
 import util
 from hybrid import hybrid_main, hybrid_config, results
 # from flowdroid import run_flowdroid_batch
+from hybrid.hybrid_config import HybridAnalysisConfig
 from intercept import intercept_config, intercept_main, monkey
 from intercept.instrument import extract_decompiled_smali_code
 from util import input
@@ -131,11 +133,9 @@ def recompile_and_run_with_no_instrumentation():
 
 
 def dysta_on_droidbench():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
-    intercept_configuration.input_apks = input.input_apks_from_dir(
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_dir(
         "/Users/calix/Documents/programming/research-programming" \
         "/DroidBench/apk-pared")
 
@@ -146,14 +146,12 @@ def dysta_on_droidbench():
 
 
 def dysta_on_droidbench_folder():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
-    intercept_configuration.input_apks = input.input_apks_from_dir(
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_dir(
         "/Users/calix/Documents/programming/research-programming/DroidBench/apk/Callbacks")
 
-    intercept_configuration.use_monkey = False
+    hybrid_analysis_configuration.use_monkey = False
 
     hybrid_main.main(hybrid_analysis_configuration)
 
@@ -162,11 +160,9 @@ def dysta_on_droidbench_folder():
 
 
 def dysta_on_successful_condysta_apps():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
-    intercept_configuration.input_apks = input.input_apks_from_dir(
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_dir(
         "/Users/calix/Documents/programming/research-programming/benchmarks/condysta-apps")
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
@@ -181,11 +177,9 @@ def dysta_on_successful_condysta_apps_list():
 
 
 def dysta_simple_test():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
-    intercept_configuration.input_apks = input.input_apks_from_dir(
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_dir(
         "/Users/calix/Documents/programming/research-programming/ConDySta/data/test-apks")
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
@@ -193,11 +187,9 @@ def dysta_simple_test():
 
 
 def dysta_on_input_apks():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
-    intercept_configuration.use_monkey = False
+    hybrid_analysis_configuration.use_monkey = False
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
     results.print_results_to_terminal(hybrid_analysis_configuration)
@@ -221,9 +213,7 @@ def dysta_on_full_benchmark():
                   True)
 
 def dysta_on_location_group():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
     location_service_path = "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location_Service1.apk"
     collector_path = "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk"
@@ -232,12 +222,10 @@ def dysta_on_location_group():
 
 
 def dysta_on_list(list_path: str, results_path: str, use_monkey: bool = False):
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
-    intercept_configuration.use_monkey = use_monkey
-    intercept_configuration.input_apks = input.input_apks_from_list(list_path)
+    hybrid_analysis_configuration.use_monkey = use_monkey
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_list(list_path)
 
     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
     results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
@@ -245,27 +233,6 @@ def dysta_on_list(list_path: str, results_path: str, use_monkey: bool = False):
 def dysta_on_input_apks_with_collector():
     raise NotImplementedError()
     # apps in DroidBenchExtended/InterAppCommunication only leak when the "Collector" apk is also running
-
-
-# def dysta_on_full_benchmark_rerun():
-#     list_path = "data/input-apk-lists/DroidBenchExtended-and-ICCBench-pared.txt"
-#     results_path = "data/results/dysta-on-DroidBenchExtended-and-ICCBench-pared-no" \
-#                    "-monkey.csv"
-#
-#     intercept_configuration = intercept_config.get_default_intercept_config()
-#     hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-#         intercept_configuration)
-#
-#     intercept_configuration.use_monkey = False
-#     intercept_configuration.input-apks = input.input_apks_from_list(list_path)
-#
-#     hybrid_main.main(hybrid_analysis_configuration, do_clean=True)
-#     results.print_csv_results_to_file(hybrid_analysis_configuration, results_path)
-
-
-def flowdroid_on_instrumented_apks():
-    input_apks = input.input_apks_from_dir(intercept_config.get_default_intercept_config().signed_apks_path)
-    flowdroid_on_apks(input_apks, True)
 
 
 def flowdroid_on_RP_common_false_negs():
@@ -293,38 +260,32 @@ def flowdroid_on_full_benchmark():
 
 
 def flowdroid_on_OnlyTelephony_with_testXML():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
     use_individual_source_sink_file = False
     hybrid_analysis_configuration.unmodified_source_sink_list_path = \
         "data/sources-and-sinks/OnlyTelephony-xml-format-test.xml"
 
-    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks,
+    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, hybrid_analysis_configuration.input_apks,
                                   use_individual_source_sink_file)
 
 def flowdroid_on_input_apks():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
     use_individual_source_sink_file = False
 
-    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks,
+    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, hybrid_analysis_configuration.input_apks,
                                   use_individual_source_sink_file)
 
 def flowdroid_on_apk_with_source_sink(apk_dir_path, source_sink_path):
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
     use_individual_source_sink_file = False
     hybrid_analysis_configuration.unmodified_source_sink_list_path = source_sink_path
 
-    intercept_configuration.input_apks = input.input_apks_from_dir(apk_dir_path)
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_dir(apk_dir_path)
 
-    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, intercept_configuration.input_apks,
+    hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, hybrid_analysis_configuration.input_apks,
                                   use_individual_source_sink_file)
 
 def flowdroid_on_android_studio_apk_with_testXML():
@@ -333,9 +294,8 @@ def flowdroid_on_android_studio_apk_with_testXML():
     flowdroid_on_apk_with_source_sink(apk_dir_path, source_sink_path)
 
 def flowdroid_on_apks(input_apks, use_individual_source_sink_file):
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
     hybrid_main.flowdroid_on_apks(hybrid_analysis_configuration, input_apks, use_individual_source_sink_file)
 
@@ -343,23 +303,21 @@ def export_flowdroid_callgraph_for_input_apks():
     pass
 
 def setup_folders():
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
+
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
 
     hybrid.clean.setup_folders(hybrid_analysis_configuration)
 
 def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks():
 
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
 
-    intercept_configuration.input_apks = input.input_apks_from_list(
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
+
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_list(
         "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt")
 
 
-    # intercept_configuration.use_monkey = True
+    # hybrid_analysis_configuration.use_monkey = True
     #
     # hybrid_main.main(hybrid_analysis_configuration)
     results_path_prefix = \
@@ -373,7 +331,7 @@ def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks():
     # zip_dir("data/", ".",
     #         "improved-dysta-on-recent-FD-fewer-leaks-with-monkey-raw-data.zip")
 
-    intercept_configuration.use_monkey = False
+    hybrid_analysis_configuration.use_monkey = False
 
     hybrid_main.main(hybrid_analysis_configuration)
     results_path = os.path.join(results_path_prefix,
@@ -386,15 +344,14 @@ def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks():
 
 def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks_with_groups():
 
-    intercept_configuration = intercept_config.get_default_intercept_config()
-    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config(
-        intercept_configuration)
 
-    intercept_configuration.input_apks = input.input_apks_from_list(
+    hybrid_analysis_configuration = hybrid_config.get_default_hybrid_analysis_config()
+
+    hybrid_analysis_configuration.input_apks = input.input_apks_from_list(
         "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt")
 
 
-    # intercept_configuration.use_monkey = True
+    # hybrid_analysis_configuration.use_monkey = True
     #
     # hybrid_main.main(hybrid_analysis_configuration)
     results_path_prefix = \
@@ -408,7 +365,7 @@ def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks_with_groups():
     # zip_dir("data/", ".",
     #         "improved-dysta-on-recent-FD-fewer-leaks-with-monkey-raw-data.zip")
 
-    intercept_configuration.use_monkey = False
+    hybrid_analysis_configuration.use_monkey = False
 
     hybrid_main.main(hybrid_analysis_configuration)
     results_path = os.path.join(results_path_prefix,
@@ -419,19 +376,74 @@ def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks_with_groups():
     zip_dir("data/", ".",
             "improved-dysta-on-recent-FD-fewer-leaks-no-monkey-raw-data.zip")
 
+def improved_dysta_on_common_leaks_with_groups():
+    list_path: str = "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt"
+    groups_list_path: str = "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks_groups.txt"
+    experiment_name: str = "improved_dysta_on_common_leaks_with_groups"
+
+    dysta_with_groups(list_path, groups_list_path, experiment_name)
 
 
+def improved_dysta_on_recent_FD_leaks_with_groups():
+    list_path: str = "data/input-apk-lists/recent_FD_fewer_leaks.txt"
+    groups_list_path: str = "data/input-apk-lists/recent_FD_fewer_leaks_groups.txt"
+    experiment_name: str = "improved_dysta_recent_FD_leaks_with_groups"
+
+    dysta_with_groups(list_path, groups_list_path, experiment_name)
+
+def improved_dysta_test_list_with_groups():
+    list_path: str = "data/input-apk-lists/test_list.txt"
+    groups_list_path: str = "data/input-apk-lists/test_list_groups.txt"
+    experiment_name: str = "test_list"
+
+    dysta_with_groups(list_path, groups_list_path, experiment_name)
+
+
+def dysta_with_groups(list_path: str, groups_list_path: str, experiment_name: str):
+    # list_path: str = "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt"
+    # list_path: str = "data/input-apk-lists/test_list.txt"
+    # groups_list_path: str = "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks_groups.txt"
+
+    groups_lists: List[List[str]] = input.list_of_lists_from_file(groups_list_path)
+
+    config: HybridAnalysisConfig = hybrid_config.get_default_hybrid_analysis_config()
+
+    config.input_apks = input.input_apks_from_list_with_groups(list_path, groups_lists)
+
+    config.use_monkey = False
+
+    hybrid_main.main(config)
+
+    date = "9-22-23"
+    full_experiment_name = date + "-" + experiment_name + "_no_monkey"
+    results.print_csv_results_to_file(config, hybrid_config.results_csv_path(config,
+                                                                          full_experiment_name))
+    zip_data_directory(config, full_experiment_name)
+
+
+    config.use_monkey = True
+    # hybrid_main.main(config, do_clean=False)
+    # TODO: fix do_clean=False so it
+    #  actually works
+    hybrid_main.main(config)
+
+    full_experiment_name = date + "-" + experiment_name + \
+                      "_w_monkey"
+    results.print_csv_results_to_file(config, hybrid_config.results_csv_path(config,
+                                                                          full_experiment_name))
+    zip_data_directory(config, full_experiment_name)
+
+    # TODO: should figure out how to get everything to log properly, then dump log
+    #  file with the zip
+
+
+def zip_data_directory(config: HybridAnalysisConfig, experiment_name: str):
+    downloads_dir_path = "/Users/calix/Downloads"
+    zip_file_name = experiment_name + ".zip"
+
+    data_dir_path = hybrid_config.data_dir_path(config)
+    zip_dir(data_dir_path, downloads_dir_path, zip_file_name)
 
 if __name__ == '__main__':
-    # decompile_android_studio_apk()
-    # instrument_input_apks()
-    # update_heap_snapshot_smali_files()
-    # flowdroid_on_OnlyTelephony_with_testXML()
-    # flowdroid_on_android_studio_apk_with_testXML()
-    # update_heap_snapshot_smali_files()
-    # dysta_on_input_apks()
-    improved_dysta_on_recent_FD_and_RD_common_fewer_leaks()
-    # decompile_input_apks()
-    # flowdroid_on_input_apks()
-
-    # setup_folders()
+    # improved_dysta_on_recent_FD_leaks_with_groups()
+    improved_dysta_test_list_with_groups()

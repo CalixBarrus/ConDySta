@@ -13,6 +13,8 @@ from util import logger
 from util.input import InputApkModel
 from util.subprocess import run_command
 
+from subprocess import CalledProcessError
+
 logger = logger.get_logger('intercept', 'install')
 
 
@@ -32,7 +34,34 @@ def get_package_name(apk_path):
     logger.debug(" ".join(cmd))
     result = run_command(cmd)
 
-    result = result[0].split(" ")[1]
+    # Example output:
+    """
+package: name='de.ecspride' versionCode='1' versionName='1.0' platformBuildVersionName='6.0-2438415' compileSdkVersion='23' compileSdkVersionCodename='6.0-2438415'
+sdkVersion:'8'
+targetSdkVersion:'17'
+uses-permission: name='android.permission.READ_PHONE_STATE'
+uses-permission: name='android.permission.SEND_SMS'
+application-label:'StaticInitialization1'
+application-icon-160:'res/drawable-mdpi-v4/ic_launcher.png'
+application-icon-240:'res/drawable-hdpi-v4/ic_launcher.png'
+application-icon-320:'res/drawable-xhdpi-v4/ic_launcher.png'
+application-icon-480:'res/drawable-xxhdpi-v4/ic_launcher.png'
+application: label='StaticInitialization1' icon='res/drawable-mdpi-v4/ic_launcher.png'
+application-debuggable
+launchable-activity: name='de.ecspride.MainActivity'  label='StaticInitialization1' icon=''
+feature-group: label=''
+  uses-feature: name='android.hardware.faketouch'
+  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
+  uses-feature: name='android.hardware.telephony'
+  uses-implied-feature: name='android.hardware.telephony' reason='requested a telephony permission'
+main
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+supports-any-density: 'true'
+locales: '--_--'
+densities: '160' '240' '320' '480'
+    """
+
+    result = result.split('\n')[0].split(" ")[1]
 
     # str= getCmdExecuteResult(cmd)[0].split(" ")[1]
     return result[6:-1]
@@ -49,11 +78,76 @@ def getApkMainIntent(packageName):
     cmd='adb shell dumpsys package {}'.format(packageName)
     logger.debug(cmd)
     exeResult= getCmdExecuteResult(cmd)
+
+    temp = "".join(exeResult)
+
+    # Example Output:
+    """
+Activity Resolver Table:
+  Non-Data Actions:
+      android.intent.action.MAIN:
+        40355f5 de.ecspride/.MainActivity filter 5381d72
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+          AutoVerify=false
+
+Key Set Manager:
+  [de.ecspride]
+      Signing KeySets: 4380
+
+Packages:
+  Package [de.ecspride] (a1a6f8a):
+    userId=13009
+    pkg=Package{9f9b9fb de.ecspride}
+    codePath=/data/app/de.ecspride-1
+    resourcePath=/data/app/de.ecspride-1
+    legacyNativeLibraryDir=/data/app/de.ecspride-1/lib
+    primaryCpuAbi=null
+    secondaryCpuAbi=null
+    versionCode=1 minSdk=8 targetSdk=17
+    versionName=1.0
+    splits=[base]
+    apkSigningVersion=2
+    applicationInfo=ApplicationInfo{920da18 de.ecspride}
+    flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    dataDir=/data/user/0/de.ecspride
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    timeStamp=2023-09-21 16:02:40
+    firstInstallTime=2023-09-21 16:02:41
+    lastUpdateTime=2023-09-21 16:02:41
+    signatures=PackageSignatures{c005c71 [69b8f03]}
+    installPermissionsFixed=true installStatus=1
+    pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    requested permissions:
+      android.permission.READ_PHONE_STATE
+      android.permission.SEND_SMS
+    install permissions:
+      android.permission.READ_PHONE_STATE: granted=true
+      android.permission.SEND_SMS: granted=true
+    User 0: ceDataInode=432967 installed=true hidden=false suspended=false stopped=true notLaunched=true enabled=0
+      runtime permissions:
+
+
+Dexopt state:
+  [de.ecspride]
+    Instruction Set: arm
+      path: /data/app/de.ecspride-1/base.apk
+      status: /data/app/de.ecspride-1/oat/arm/base.odex [compilation_filter=interpret-only, status=kOatUpToDate]
+
+
+Compiler stats:
+  [de.ecspride]
+     base.apk - 578
+    """
+
+
     #print exeResult
     for index, val in enumerate(exeResult):
         #print index ,val
         if val.strip("\r\n").strip()=='Action: "android.intent.action.MAIN"':
             return exeResult[index-1].strip().split(" ")[1]
+
+    raise AssertionError("Unable to find main intent!")
 
 
 def startApk(packageName):
@@ -75,9 +169,21 @@ def installApk(apk_path: str):
     # -r, replace the app if already installed
     # -t, allows test packages
 
-    cmd = ["adb", "install", apk_path]
-    logger.debug(" ".join(cmd))
-    run_command(cmd)
+    try:
+        cmd = ["adb", "install", apk_path]
+        logger.debug(" ".join(cmd))
+        run_command(cmd)
+    except CalledProcessError as e:
+        logger.error("Install failed with stderr report: " + e.stderr)
+        logger.error("Attempting to uninstall and reinstall")
+
+        # Uninstall the apk
+        uninstall_apk(get_package_name(apk_path))
+
+        # Try again
+        cmd = ["adb", "install", apk_path]
+        logger.debug(" ".join(cmd))
+        run_command(cmd)
 
 def check_device_is_ready():
     cmd = 'adb devices'

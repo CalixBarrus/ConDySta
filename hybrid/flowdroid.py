@@ -2,9 +2,10 @@ import os
 import intercept.intercept_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 
-from util import logger
 from util.subprocess import run_command
+from subprocess import CalledProcessError
 
+from util import logger
 logger = logger.get_logger('hybrid', 'flowdroid')
 
 def activate_flowdroid(config: HybridAnalysisConfig, apk_path: str,
@@ -27,12 +28,13 @@ def activate_flowdroid(config: HybridAnalysisConfig, apk_path: str,
            "-a", apk_path,
            "-p", android_platform_path,
            "-s", source_and_sink_path,
+           # "2>&1",
            "--paths", "--pathspecificresults", "--outputlinenumbers",
-           ">", output_log_path,
-           "2>&1"]
+           # ">", output_log_path,
+           ]
 
     logger.debug(" ".join(cmd))
-    run_command(cmd)
+    run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True)
 
 """
        -cp,--paths                              

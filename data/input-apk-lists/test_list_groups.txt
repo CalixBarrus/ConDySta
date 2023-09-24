@@ -1,0 +1,8 @@
+/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location1.apk
+/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk
+
+/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location_Service1.apk
+/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk
+
+/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Device_Id_leakage/DeviceId_contentProvider1.apk
+/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk

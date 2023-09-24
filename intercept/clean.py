@@ -1,7 +1,6 @@
 import os
 
-from intercept import intercept_config
-from intercept.intercept_config import HybridAnalysisConfig
+from hybrid.hybrid_config import HybridAnalysisConfig
 
 from util import logger
 
@@ -63,8 +62,4 @@ def setup_folders(config):
 
 
 if __name__ == '__main__':
-    configuration = intercept_config.get_default_intercept_config()
-
-    clean(configuration)
-
-    # setup_folders()
+    pass

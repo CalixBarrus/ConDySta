@@ -3,9 +3,11 @@ import importlib
 
 # from "6_install" import getPackageName
 import time
+from subprocess import CalledProcessError
 from typing import List
 
 from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, apk_logcat_dump_path
+from hybrid.results import HybridAnalysisResult
 from intercept import install
 from intercept.install import get_package_name, getApkMainIntent
 
@@ -38,7 +40,7 @@ def run_ungrouped_instrumented_apk(config: HybridAnalysisConfig, apk: InputApkMo
         test_apk_manual(signed_apk_path(config, apk), seconds_to_test)
     else:
         monkey_rng_seed = config.monkey_rng_seed
-        test_apk_monkey(signed_apk_path(config, apk), seconds_to_test,
+        test_apk_monkey(config, signed_apk_path(config, apk), seconds_to_test,
                         monkey_rng_seed)
 
     _dump_logcat(config, apk_logcat_dump_path(config, apk))
@@ -66,7 +68,7 @@ def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List
                 test_apk_manual(signed_apk_path(config, apk), seconds_to_test)
             else:
                 monkey_rng_seed = config.monkey_rng_seed
-                test_apk_monkey(signed_apk_path(config, apk), seconds_to_test,
+                test_apk_monkey(config, signed_apk_path(config, apk), seconds_to_test,
                                 monkey_rng_seed)
 
             _dump_logcat(config, apk_logcat_dump_path(config, apk, apk_group.group_id))
@@ -84,9 +86,11 @@ def _dump_logcat(config: HybridAnalysisConfig, output_path: str):
     # dump logcat to a text file on the host machine
     # cmd = "adb logcat -d \"DySta-Instrumentation:I System.err:W *:S\" > {}" \
     #       "".format(log_file_name)
-    cmd = "adb logcat -d > '{}'".format(output_path)
-    logger.debug(cmd)
-    os.system(cmd)
+    cmd = ["adb", "logcat", "-d",
+           # ">", output_path,
+           ]
+    logger.debug(" ".join(cmd))
+    run_command(cmd, redirect_stdout=output_path)
 
     # simple dump to sout
     "adb logcat -d"
@@ -116,7 +120,7 @@ def test_apk_manual(apk_path: str, block_duration: int):
 
     # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
     cmd = "adb shell am start {}".format(apk_main_intent)
-    cmd = ["adb", "shell", "am", "start", "apk_main_intent"]
+    cmd = ["adb", "shell", "am", "start", apk_main_intent]
     logger.debug(" ".join(cmd))
     run_command(cmd)
 
@@ -124,7 +128,8 @@ def test_apk_manual(apk_path: str, block_duration: int):
         time.sleep(block_duration)
 
 
-def test_apk_monkey(apk_path, seconds_to_test, seed=-1):
+def test_apk_monkey(config: HybridAnalysisConfig, apk_path: str, seconds_to_test: int,
+                    seed: int=-1):
     # There is not explicit option to run monkey for n seconds, but a time delay
     # between events can be used.
     # As fast as possible on a toy app, monkey generated an event ~once every
@@ -143,10 +148,20 @@ def test_apk_monkey(apk_path, seconds_to_test, seed=-1):
     else:
         cmd = ["adb", "shell", "monkey",
                "-p", apk_package_name,
-               "-s", seed,
+               "-s", str(seed),
                "--throttle", str(throttle_ms), str(num_events)]
     logger.debug(" ".join(cmd))
-    run_command(cmd)
+
+    try:
+        run_command(cmd)
+    except CalledProcessError as e:
+        error_msg = f"Error when running {apk_path}, check logcat dump"
+
+        logger.error(error_msg)
+        HybridAnalysisResult.report_error(config, apk_path.split("/")[-1], error_msg)
+
 
 if __name__ == '__main__':
-    pass
+    # install.installApk("data/signed-apks/StaticInitialization1.apk")
+    # test_apk_manual("data/signed-apks/StaticInitialization1.apk", 10)
+    _uninstall_apk("data/signed-apks/StaticInitialization1.apk")

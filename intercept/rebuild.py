@@ -1,5 +1,6 @@
 
 import os
+import subprocess
 from typing import List
 
 import pexpect
@@ -22,7 +23,10 @@ def rebuild_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
     logger.info("Rebuilding instrumented smali code...")
 
     for apk in apks:
-        rebuild_apk(config, apk)
+        try:
+            rebuild_apk(config, apk)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error rebuilding apk {apk.apk_name} with message: " + e.stderr)
 
 def rebuild_apk(config: HybridAnalysisConfig, apk: InputApkModel):
     if apk.apk_name in os.listdir(config.rebuilt_apks_path):
@@ -30,8 +34,8 @@ def rebuild_apk(config: HybridAnalysisConfig, apk: InputApkModel):
         return
 
     cmd = ["apktool", "--quiet",
-           "b", os.path.join(decoded_apk_path(config, apk), apk.apk_name),
-           "-o", os.path.join(rebuilt_apk_path(config, apk), apk.apk_name),
+           "b", decoded_apk_path(config, apk),
+           "-o", rebuilt_apk_path(config, apk),
            "--use-aapt2"]
 
     logger.debug(" ".join(cmd))

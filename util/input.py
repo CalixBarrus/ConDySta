@@ -7,10 +7,10 @@ class InputApksModel:
     input_apk_groups: List["InputApkGroup"]
     unique_apks: List["InputApkModel"]
 
-    def __init__(self, input_apks: List["InputApkModel"], input_apk_groups: List["InputApkGroup"]):
-        self.input_apks = input_apks
+    def __init__(self, ungrouped_apks: List["InputApkModel"], input_apk_groups: List["InputApkGroup"]):
+        self.ungrouped_apks = ungrouped_apks
         self.input_apk_groups = input_apk_groups
-        self.unique_apks = self._collect_unique_apks(input_apks, input_apk_groups)
+        self.unique_apks = self._collect_unique_apks(ungrouped_apks, input_apk_groups)
 
     def _collect_unique_apks(self, input_apks: List["InputApkModel"], input_apk_groups: List["InputApkGroup"]) -> List["InputApkModel"]:
         unique_apks: List["InputApkModel"] = []
@@ -31,8 +31,8 @@ class InputApkGroup:
 
     def __init__(self, apks):
         self.apks = apks
-        self.group_id = self._group_counter
-        self._group_counter += 1
+        self.group_id = InputApkGroup._group_counter
+        InputApkGroup._group_counter += 1
 
 class InputApkModel:
     apk_name: str
@@ -107,7 +107,7 @@ def input_apks_from_dir_with_groups(dir_path: str, apk_groups_paths: List[List[s
 def input_apks_from_list_with_groups(list_path: str, apk_groups_paths: List[List[
     str]], apk_ungrouped_paths: Union[List[str],None]=None) -> InputApksModel:
 
-    input_apks = input_apks_from_list(list_path).input_apks
+    input_apks = input_apks_from_list(list_path).ungrouped_apks
     if apk_ungrouped_paths is None:
         apk_ungrouped_paths = []
 
@@ -156,17 +156,28 @@ def _input_apks_from_list_with_groups(apks_list: List[InputApkModel], apk_groups
 
     return InputApksModel(ungrouped_apks, apk_groups)
 
+def list_of_lists_from_file(file_path: str) -> List[List[str]]:
+    """
+    Read in the lines of a file into a list of strings.
+    Sets of lines in the file separated by a line of whitespace will be grouped in
+    separate, inner lists.
+    """
+    result = []
+    with open(file_path, 'r') as file:
+        inner_list = []
+        for line in file.readlines():
+            if line.strip() == "":
+                if len(inner_list) > 0:
+                    result.append(inner_list)
+                    inner_list = []
+            else:
+                inner_list.append(line.strip())
+
+    if len(inner_list) > 0:
+        result.append(inner_list)
+    return result
 
 if __name__ == '__main__':
-    # create list of flowdroid apps
-    input_apks = input_apks_from_dir(
-        "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended")
-
-    input_apks_model = input_apks_from_list_with_groups(
-        "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks.txt",
-        [["/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk",
-          "/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location_Service1.apk"]])
-
-    print(input_apks_model)
+    pass
 
 
