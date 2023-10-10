@@ -1347,10 +1347,5 @@ def instr_strategy_from_config(
         raise ValueError(f"Invalid instrumentation strategy:"
                          f" {config.instrumentation_strategy}")
 
-def smali_parse_test():
-
-    result = SmaliFile("/Users/calix/Documents/programming/research-programming/ConDySta/data/intercept/decoded-apks/ReflectiveClass1/smali", "android/support/constraint", "ConstraintLayout.smali")
-    print(result)
-
 if __name__ == '__main__':
-    smali_parse_test()
+    pass

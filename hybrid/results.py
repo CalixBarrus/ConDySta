@@ -335,7 +335,8 @@ def test_initialize_results_dict_entries_works_recursively():
     hybrid_analysis_configuration = get_default_hybrid_analysis_config(
         intercept_configuration)
 
-    hybrid_analysis_configuration.input_apks_path = "/Users/calix/Documents/programming/research-programming/DroidBench/apk"
+    # TODO: set this to the droidbench directory. Should probably figure out a better testing infrastructure in general
+    # hybrid_analysis_configuration.input_apks_path = ""
     hybrid_analysis_configuration.is_recursive_on_input_apks_path = True
 
     HybridAnalysisResult.experiment_start(hybrid_analysis_configuration)

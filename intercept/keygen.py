@@ -28,6 +28,18 @@ def generate_keys_single(config: HybridAnalysisConfig, apk: InputApkModel):
     # child = pexpect.spawn(cmd, logfile=sys.stdout, encoding='utf-8')
     child = pexpect.spawn(cmd, encoding='utf-8')
 
+
+    # Details that will be used for signing the apk
+    name = ""  # First and last name
+    unit = ""  # I used the university acronym
+    organization = ""  # I used the same value as unit
+    city = ""
+    state = ""
+    country_code = "01"  # United States
+    if any([detail == "" for detail in [name, unit, organization, city, state, country_code]]):
+        raise NotImplementedError("Please fill out details for key signing")
+
+
     # password
     try:
         if (child.expect('password') == 0):  # Enter keystore password:
@@ -45,42 +57,42 @@ def generate_keys_single(config: HybridAnalysisConfig, apk: InputApkModel):
     # first and last name
     try:
         if (child.expect([pexpect.TIMEOUT, 'last'])):  # What is you first and last name?\n  [Unknown]:
-            child.sendline('Calix Barrus')
+            child.sendline(name)
     except Exception as e:
         logger.error(str(child))
 
     # unit
     try:
         if (child.expect([pexpect.TIMEOUT, 'unit'])):  # What is the name of your organizational unit?
-            child.sendline('UTSA')
+            child.sendline(unit)
     except Exception as e:
         logger.error(str(child))
 
     # organization
     try:
         if (child.expect([pexpect.TIMEOUT, 'organization'])):
-            child.sendline('UTSA')
+            child.sendline(organization)
     except Exception as e:
         logger.error(str(child))
 
     # city
     try:
         if (child.expect([pexpect.TIMEOUT, 'City'])):
-            child.sendline('San Antonio')
+            child.sendline(city)
     except Exception as e:
         logger.error(str(child))
 
     # state
     try:
         if (child.expect([pexpect.TIMEOUT, 'State'])):
-            child.sendline('TX')
+            child.sendline(state)
     except Exception as e:
         logger.error(str(child))
 
     # country code
     try:
         if (child.expect([pexpect.TIMEOUT, 'country code'])):
-            child.sendline('01')
+            child.sendline(country_code)
     except Exception as e:
         logger.error(str(child))
 

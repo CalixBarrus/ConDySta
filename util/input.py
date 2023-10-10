@@ -83,6 +83,10 @@ def input_apks_from_list(list_path: str) -> 'InputApksModel':
         for line in lines:
             line = line.strip()
             if line != "":
+
+                benchmarks_dir_prefix = "~/Documents/programming/benchmarks"
+                line = os.path.join(benchmarks_dir_prefix, line)
+
                 result.append(InputApkModel(line))
 
     return InputApksModel(result, [])

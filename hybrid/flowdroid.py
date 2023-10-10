@@ -41,15 +41,6 @@ def activate_flowdroid(config: HybridAnalysisConfig, apk_path: str,
        Compute the taint propagation paths and not just source-to-sink connections.
 """
 
-def flowdroid_help():
-
-    flowdroid_jar = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
-    cmd = "java -jar " + flowdroid_jar + " -h"
-    logger.debug(cmd)
-    os.system(cmd)
-
-
-
 def get_flowdroid_callgraph(hybrid_analysis_config: HybridAnalysisConfig,
                             apk_path: str,
                             output_path: str

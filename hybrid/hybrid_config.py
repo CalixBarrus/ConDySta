@@ -94,22 +94,27 @@ class HybridAnalysisConfig:
 def get_default_hybrid_analysis_config() -> "HybridAnalysisConfig":
 
     # unmodified_source_sink_list_path = "data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
-    unmodified_source_sink_list_path = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-android/SourcesAndSinks.txt"
+    # unmodified_source_sink_list_path = "FlowDroid/soot-infoflow-android/SourcesAndSinks.txt"
+    unmodified_source_sink_list_path = ""
 
-    # flowdroid_snapshot_jar_path = "/Users/calix/Documents/programming/research-programming/soot-infoflow-cmd-jar-with-dependencies.jar"
-    flowdroid_compiled_jar_path = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
+    flowdroid_compiled_jar_path = "FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
+    flowdroid_compiled_jar_path = ""
+
+    # android_platform_path = "~/Library/Android/sdk/platforms/"
+    android_platform_path = ""
 
     config = HybridAnalysisConfig(
         input_apks=input_apks_from_dir("data/input-apks"),
+
         unmodified_source_sink_list_path=unmodified_source_sink_list_path,
         modified_source_sink_directory="data/sources-and-sinks/modified",
         logcat_dump_dir_path="data/logs/logcat-dump",
         flowdroid_first_pass_logs_path="data/logs/flowdroid-first-run",
         flowdroid_second_pass_logs_path="data/logs/flowdroid-second-run",
         flowdroid_misc_logs_path="data/logs/flowdroid-misc-run",
-        # intercept_config,
-        android_platform_path="/Users/calix/Library/Android/sdk/platforms/",
+        android_platform_path=android_platform_path,
         flowdroid_jar_path=flowdroid_compiled_jar_path,
+
         target_PII=get_target_PII(),
         dynamic_log_processing_strategy="InstrReportReturnAndArgsDynamicLogProcessingStrategy",
 
