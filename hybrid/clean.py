@@ -1,7 +1,7 @@
 import os
 
 import intercept.clean
-from hybrid.hybrid_config import HybridAnalysisConfig
+from hybrid.hybrid_config import HybridAnalysisConfig, get_default_hybrid_analysis_config
 
 from util import logger
 
@@ -16,12 +16,16 @@ def clean(config: HybridAnalysisConfig):
 
     modified_source_sink_directory = config.modified_source_sink_directory
 
-    for folder in [flowdroid_first_pass_logs_path, flowdroid_second_pass_logs_path]:
+    for folder in [flowdroid_first_pass_logs_path, flowdroid_second_pass_logs_path, config.flowdroid_misc_logs_path]:
         cmd = f'rm {os.path.join(folder, "*.log")}'
         logger.debug(cmd)
         os.system(cmd)
 
     cmd = f'rm {os.path.join(modified_source_sink_directory, "*.txt")}'
+    logger.debug(cmd)
+    os.system(cmd)
+
+    cmd = f'rm {os.path.join(modified_source_sink_directory, "*.xml")}'
     logger.debug(cmd)
     os.system(cmd)
 
@@ -51,3 +55,7 @@ def setup_folders(config: HybridAnalysisConfig):
 
     intercept.clean.setup_folders(config.intercept_config)
 
+if __name__ == '__main__':
+    config = get_default_hybrid_analysis_config()
+    clean(config)
+    intercept.clean.clean(config)
