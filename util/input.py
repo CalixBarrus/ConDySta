@@ -26,13 +26,13 @@ class InputApksModel:
 
 class InputApkGroup:
     apks: List["InputApkModel"]
-    _group_counter: int = 0
+    _next_group_id: int = 0
     group_id: int
 
     def __init__(self, apks):
         self.apks = apks
-        self.group_id = InputApkGroup._group_counter
-        InputApkGroup._group_counter += 1
+        self.group_id = InputApkGroup._next_group_id
+        InputApkGroup._next_group_id += 1
 
 class InputApkModel:
     apk_name: str

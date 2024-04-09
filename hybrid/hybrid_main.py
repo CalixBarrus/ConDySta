@@ -66,6 +66,8 @@ def dysta(config: HybridAnalysisConfig):
                            new_source_sink_path,
                            flowdroid_second_pass_logs_path(config, apk))
 
+
+    # Now, handle grouped apks
     for apk_group in config.input_apks.input_apk_groups:
 
         # flowdroid 1st pass, use original apk and original source sink file

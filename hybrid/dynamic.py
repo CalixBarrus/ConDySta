@@ -14,9 +14,16 @@ logger = logger.get_logger('hybrid', 'dynamic')
 
 
 class AbstractDynamicLogProcessingStrategy:
+    """
+    Class encapsulates different strategies for processing the logs produced by an instrumented dynamic run of an app.
 
-    # TODO: add support for processing sources in batches
+    Different strategies correspond with different instrumentation schemes.
+    """
+
     def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, apk_name: str, group_id: int=-1):
+        """
+        Produce sources that have been identified as sensitive methods based on reports in the logs provided by log_path.
+        """
         raise NotImplementedError("Interface not implemented")
 
     def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
@@ -29,6 +36,9 @@ class AbstractDynamicLogProcessingStrategy:
 
     def _get_sources_from_file(self, source_and_sink_path: str) -> List[
         "MethodSignature"]:
+        """
+        Read in the source/sink text file, and produce a list of MethodSignatures.
+        """
         # Open the file at the given path.
         # Iterate through each line. If a line ends with "-> _SOURCE_", it should
         # be a source.
@@ -56,6 +66,11 @@ class AbstractDynamicLogProcessingStrategy:
 
 def dynamic_log_processing_strategy_factory(
         hybrid_config: HybridAnalysisConfig) -> AbstractDynamicLogProcessingStrategy:
+    """
+    Return the correct instantiation of an AbstractDynamicLogProcessingStrategy based on the
+    dynamic_log_processing_strategy field of the provided config.
+    """
+
     if hybrid_config.dynamic_log_processing_strategy == \
             "StringReturnDynamicLogProcessingStrategy":
         return StringReturnDynamicLogProcessingStrategy()
