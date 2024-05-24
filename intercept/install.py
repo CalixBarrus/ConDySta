@@ -10,7 +10,7 @@ from typing import List
 from intercept import intercept_config
 
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 from util.subprocess import run_command
 
 from subprocess import CalledProcessError

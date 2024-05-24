@@ -403,11 +403,11 @@ def dysta_with_groups(list_path: str, groups_list_path: str, experiment_name: st
     # list_path: str = "data/input-apk-lists/test_list.txt"
     # groups_list_path: str = "data/input-apk-lists/recent_FD_and_RD_common_fewer_leaks_groups.txt"
 
-    groups_lists: List[List[str]] = input.list_of_lists_from_file(groups_list_path)
+
 
     config: HybridAnalysisConfig = hybrid_config.get_default_hybrid_analysis_config()
 
-    config.input_apks = input.input_apks_from_list_with_groups(list_path, groups_lists)
+    config.input_apks = input.input_apks_from_list_with_groups(list_path, groups_list_path)
 
     config.use_monkey = False
 

@@ -1,3 +1,4 @@
+import os
 import subprocess
 from typing import List
 
@@ -45,3 +46,10 @@ def run_command(args: List['str'], redirect_stdout: str = "",
                                                    check=True,
                                                    )
             return ""
+
+def run_command_direct(args: List['str']) -> None:
+    """
+    Run the command, but just in whatever current shell is running
+    """
+
+    os.system(" ".join(args))

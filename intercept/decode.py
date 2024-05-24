@@ -5,12 +5,12 @@ from typing import List
 
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 from util.subprocess import run_command
 
 logger = logger.get_logger('intercept', 'decode')
 
-def decode_apk(config: HybridAnalysisConfig, apk:InputApkModel):
+def decode_apk(config: HybridAnalysisConfig, apk:ApkModel):
     decoded_apks_path = config.decoded_apks_path
     output_files = os.listdir(decoded_apks_path)
 
@@ -26,7 +26,7 @@ def decode_apk(config: HybridAnalysisConfig, apk:InputApkModel):
         logger.debug(" ".join(cmd))
         run_command(cmd)
 
-def decode_batch(config: HybridAnalysisConfig, apks:List[InputApkModel]):
+def decode_batch(config: HybridAnalysisConfig, apks:List[ApkModel]):
     for apk in apks:
         decode_apk(config, apk)
 

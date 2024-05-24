@@ -6,15 +6,15 @@ import os
 
 from hybrid.hybrid_config import HybridAnalysisConfig, apk_key_path
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 
 logger = logger.get_logger('intercept', 'keygen')
 
-def generate_keys_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+def generate_keys_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
     for apk in apks:
         generate_keys_single(config, apk)
 
-def generate_keys_single(config: HybridAnalysisConfig, apk: InputApkModel):
+def generate_keys_single(config: HybridAnalysisConfig, apk: ApkModel):
     if apk.apk_key_name() in os.listdir(config.keys_dir_path):
         logger.debug(f"APK keystore {apk.apk_key_name()} already exists, skipping.")
         return

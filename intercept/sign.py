@@ -6,15 +6,15 @@ import os
 
 from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, rebuilt_apk_path, apk_key_path
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 
 logger = logger.get_logger('intercept', 'sign')
 
-def assign_key_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+def assign_key_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
     for apk in apks:
         assign_key_single(config, apk)
 
-def assign_key_single(config: HybridAnalysisConfig, apk: InputApkModel):
+def assign_key_single(config: HybridAnalysisConfig, apk: ApkModel):
     # If the apk is already signed, don't sign it again.
     if os.path.exists(signed_apk_path(config, apk)):
         logger.debug(f"APK {apk.apk_name} already signed, skipping.")
