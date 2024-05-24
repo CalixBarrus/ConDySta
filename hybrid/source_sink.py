@@ -8,6 +8,10 @@ logger = logger.get_logger('hybrid', 'source_sink')
 
 
 class SourceSinkXML:
+    """
+    Class representing Flowdroid's new source/sink xml format.
+    """
+
     tree: ET.ElementTree
     source_count: int
     sink_count: int

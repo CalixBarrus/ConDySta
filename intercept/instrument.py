@@ -5,13 +5,13 @@ from typing import List
 
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 from util.subprocess import run_command
 
 logger = logger.get_logger('intercept', 'instrument')
 
 
-def instrument_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
 
     # Read in and parse decoded apks
     decoded_apk_models: List[DecodedApkModel] = []
@@ -20,7 +20,7 @@ def instrument_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
 
     # We may later decide to save the decoded_apk_models for use in interpreting dynamic analysis results
 
-def instrument_apk(config: HybridAnalysisConfig, apk: InputApkModel) -> 'DecodedApkModel':
+def instrument_apk(config: HybridAnalysisConfig, apk: ApkModel) -> 'DecodedApkModel':
     instrumentation_strategy: InformalInstrumentationStrategyInterface = instr_strategy_from_config(config)
 
     decoded_apk_model = DecodedApkModel(decoded_apk_path(config, apk))
@@ -1347,10 +1347,5 @@ def instr_strategy_from_config(
         raise ValueError(f"Invalid instrumentation strategy:"
                          f" {config.instrumentation_strategy}")
 
-def smali_parse_test():
-
-    result = SmaliFile("/Users/calix/Documents/programming/research-programming/ConDySta/data/intercept/decoded-apks/ReflectiveClass1/smali", "android/support/constraint", "ConstraintLayout.smali")
-    print(result)
-
 if __name__ == '__main__':
-    smali_parse_test()
+    pass

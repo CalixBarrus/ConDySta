@@ -6,15 +6,15 @@ import os
 
 from hybrid.hybrid_config import HybridAnalysisConfig, apk_key_path
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 
 logger = logger.get_logger('intercept', 'keygen')
 
-def generate_keys_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+def generate_keys_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
     for apk in apks:
         generate_keys_single(config, apk)
 
-def generate_keys_single(config: HybridAnalysisConfig, apk: InputApkModel):
+def generate_keys_single(config: HybridAnalysisConfig, apk: ApkModel):
     if apk.apk_key_name() in os.listdir(config.keys_dir_path):
         logger.debug(f"APK keystore {apk.apk_key_name()} already exists, skipping.")
         return
@@ -27,6 +27,18 @@ def generate_keys_single(config: HybridAnalysisConfig, apk: InputApkModel):
     # Use the first line if you want to see the output of the signing process
     # child = pexpect.spawn(cmd, logfile=sys.stdout, encoding='utf-8')
     child = pexpect.spawn(cmd, encoding='utf-8')
+
+
+    # Details that will be used for signing the apk
+    name = ""  # First and last name
+    unit = ""  # I used the university acronym
+    organization = ""  # I used the same value as unit
+    city = ""
+    state = ""
+    country_code = "01"  # United States
+    if any([detail == "" for detail in [name, unit, organization, city, state, country_code]]):
+        raise NotImplementedError("Please fill out details for key signing")
+
 
     # password
     try:
@@ -45,42 +57,42 @@ def generate_keys_single(config: HybridAnalysisConfig, apk: InputApkModel):
     # first and last name
     try:
         if (child.expect([pexpect.TIMEOUT, 'last'])):  # What is you first and last name?\n  [Unknown]:
-            child.sendline('Calix Barrus')
+            child.sendline(name)
     except Exception as e:
         logger.error(str(child))
 
     # unit
     try:
         if (child.expect([pexpect.TIMEOUT, 'unit'])):  # What is the name of your organizational unit?
-            child.sendline('UTSA')
+            child.sendline(unit)
     except Exception as e:
         logger.error(str(child))
 
     # organization
     try:
         if (child.expect([pexpect.TIMEOUT, 'organization'])):
-            child.sendline('UTSA')
+            child.sendline(organization)
     except Exception as e:
         logger.error(str(child))
 
     # city
     try:
         if (child.expect([pexpect.TIMEOUT, 'City'])):
-            child.sendline('San Antonio')
+            child.sendline(city)
     except Exception as e:
         logger.error(str(child))
 
     # state
     try:
         if (child.expect([pexpect.TIMEOUT, 'State'])):
-            child.sendline('TX')
+            child.sendline(state)
     except Exception as e:
         logger.error(str(child))
 
     # country code
     try:
         if (child.expect([pexpect.TIMEOUT, 'country code'])):
-            child.sendline('01')
+            child.sendline(country_code)
     except Exception as e:
         logger.error(str(child))
 

@@ -13,23 +13,23 @@ from intercept.install import get_package_name, getApkMainIntent
 
 
 from util import logger
-from util.input import InputApkModel, InputApkGroup, InputApksModel
+from util.input import ApkModel, InputModel, BatchInputModel
 from util.subprocess import run_command
 
 logger = logger.get_logger('intercept', 'monkey')
 
-def run_input_apks_model(config: HybridAnalysisConfig, input_apks_model: InputApksModel):
+def run_input_apks_model(config: HybridAnalysisConfig, input_apks_model: BatchInputModel):
 
     run_ungrouped_instrumented_apks(config, input_apks_model.ungrouped_apks)
 
-    if len(input_apks_model.input_apk_groups) > 0:
-        run_grouped_instrumented_apks(config, input_apks_model.input_apk_groups)
+    if len(input_apks_model.grouped_inputs) > 0:
+        run_grouped_instrumented_apks(config, input_apks_model.grouped_inputs)
 
-def run_ungrouped_instrumented_apks(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+def run_ungrouped_instrumented_apks(config: HybridAnalysisConfig, apks: List[ApkModel]):
     for apk in apks:
         run_ungrouped_instrumented_apk(config, apk)
 
-def run_ungrouped_instrumented_apk(config: HybridAnalysisConfig, apk: InputApkModel):
+def run_ungrouped_instrumented_apk(config: HybridAnalysisConfig, apk: ApkModel):
     install.installApk(signed_apk_path(config, apk))
 
     # Clear logcat so the log dump will only consist of statements relevant to this test
@@ -47,7 +47,7 @@ def run_ungrouped_instrumented_apk(config: HybridAnalysisConfig, apk: InputApkMo
 
     _uninstall_apk(signed_apk_path(config, apk))
 
-def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List[InputApkGroup]):
+def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List[InputModel]):
     """
     Grouped apks should all be installed, then each apk should get run. After each apk has been run, all apks in the
     group should be uninstalled
@@ -55,6 +55,7 @@ def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List
     use_monkey = config.use_monkey
 
     for apk_group in apk_groups:
+        # TODO: update
         for apk in apk_group.apks:
             install.installApk(signed_apk_path(config, apk))
 
@@ -71,7 +72,7 @@ def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List
                 test_apk_monkey(config, signed_apk_path(config, apk), seconds_to_test,
                                 monkey_rng_seed)
 
-            _dump_logcat(config, apk_logcat_dump_path(config, apk, apk_group.group_id))
+            _dump_logcat(config, apk_logcat_dump_path(config, apk, apk_group.input_id))
 
         for apk in apk_group.apks:
             _uninstall_apk(signed_apk_path(config, apk))

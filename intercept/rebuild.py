@@ -14,12 +14,12 @@ from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path, rebuilt
 from intercept import intercept_config
 
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 from util.subprocess import run_command
 
 logger = logger.get_logger('intercept', 'rebuild')
 
-def rebuild_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
+def rebuild_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
     logger.info("Rebuilding instrumented smali code...")
 
     for apk in apks:
@@ -28,7 +28,7 @@ def rebuild_batch(config: HybridAnalysisConfig, apks: List[InputApkModel]):
         except subprocess.CalledProcessError as e:
             logger.error(f"Error rebuilding apk {apk.apk_name} with message: " + e.stderr)
 
-def rebuild_apk(config: HybridAnalysisConfig, apk: InputApkModel):
+def rebuild_apk(config: HybridAnalysisConfig, apk: ApkModel):
     if apk.apk_name in os.listdir(config.rebuilt_apks_path):
         logger.debug(f"Instrumented APK {apk.apk_name} already in {config.rebuilt_apks_path}, skipping.")
         return

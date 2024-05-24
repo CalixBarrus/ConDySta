@@ -1,2 +1,2 @@
-recent_FD_and_RD_common_fewer_leaks_groups.txt/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location_Service1.apk
-/Users/calix/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk
+DroidBenchExtended/benchmark/apks/InterAppCommunication/Location_leakage/Location_Service1.apk
+DroidBenchExtended/benchmark/apks/InterAppCommunication/Collector/Collector.apk

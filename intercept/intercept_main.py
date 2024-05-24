@@ -1,13 +1,13 @@
 
 import os
-from typing import Union
+from typing import Union, List
 
 from hybrid.hybrid_config import HybridAnalysisConfig
 from intercept import decode, instrument, rebuild, keygen, \
     intercept_config, sign, clean, monkey
 
 from util import logger
-from util.input import InputApkModel, InputApksModel, InputApkGroup
+from util.input import ApkModel, BatchInputModel, InputModel
 
 logger = logger.get_logger('intercept', 'intercept_main')
 
@@ -20,7 +20,7 @@ logger = logger.get_logger('intercept', 'intercept_main')
 #     run_apks(config, input)
 
 
-def instrument_apks(config: HybridAnalysisConfig, input: InputApksModel, do_clean=True):
+def instrument_apks(config: HybridAnalysisConfig, unique_apks: List[ApkModel], do_clean=True):
     """
     Instrument each apk in InputApksModel (once).
     Instrumented apks can be accessed from hybrid_config.signed_apk_path()
@@ -28,14 +28,14 @@ def instrument_apks(config: HybridAnalysisConfig, input: InputApksModel, do_clea
     """
 
     logger.info("Starting code instrumentation...")
-    decode.decode_batch(config, input.unique_apks)
-    instrument.instrument_batch(config, input.unique_apks)
-    rebuild.rebuild_batch(config, input.unique_apks)
-    keygen.generate_keys_batch(config, input.unique_apks)
-    sign.assign_key_batch(config, input.unique_apks)
+    decode.decode_batch(config, unique_apks)
+    instrument.instrument_batch(config, unique_apks)
+    rebuild.rebuild_batch(config, unique_apks)
+    keygen.generate_keys_batch(config, unique_apks)
+    sign.assign_key_batch(config, unique_apks)
     logger.info("Code instrumentation finished.")
 
-def run_apks(config: HybridAnalysisConfig, input: InputApksModel):
+def run_apks(config: HybridAnalysisConfig, input: BatchInputModel):
     logger.info("Running APKs...")
     monkey.run_input_apks_model(config, input)
     logger.info("Finished running APKs.")

@@ -2,19 +2,18 @@ import os
 import intercept.intercept_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 
-from util.subprocess import run_command
+from util.subprocess import run_command, run_command_direct
 from subprocess import CalledProcessError
 
 from util import logger
 logger = logger.get_logger('hybrid', 'flowdroid')
 
-def activate_flowdroid(config: HybridAnalysisConfig, apk_path: str,
-                       source_and_sink_path: str,
-                       output_log_path: str,
-                       ):
+def run_flowdroid_config(config: HybridAnalysisConfig, apk_path: str,
+                         source_and_sink_path: str,
+                         output_log_path: str,
+                         ):
     # Use the compiled version of flowdroid at the specified jar on the specified apk.
     # Write the logged results to the specified file.
-    # Returns the name of the file (not the path) of the log file.
 
     if not apk_path.endswith(".apk"):
         raise ValueError(f"Input apk_name {apk_path} needs to end with \".apk\"")
@@ -41,12 +40,31 @@ def activate_flowdroid(config: HybridAnalysisConfig, apk_path: str,
        Compute the taint propagation paths and not just source-to-sink connections.
 """
 
-def flowdroid_help():
+def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, output_log_path: str = ""):
 
-    flowdroid_jar = "/Users/calix/Documents/programming/research-programming/FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
-    cmd = "java -jar " + flowdroid_jar + " -h"
-    logger.debug(cmd)
-    os.system(cmd)
+    if not apk_path.endswith(".apk"):
+        raise ValueError(f"Input apk_name {apk_path} needs to end with \".apk\"")
+
+    cmd = ["java", "-jar", flowdroid_jar_path,
+           "-a", apk_path,
+           "-p", android_platform_path,
+           "-s", source_sink_path,
+           "--enablereflection",
+           "--noiccresultspurify",
+           "--paths", "--pathspecificresults", "--outputlinenumbers",
+           "--layoutmode", "NONE"
+           ]
+
+    # If output_log_path is not "" redirect input to the provided file path, else print to stdout.
+    if output_log_path != "":
+        logger.debug(" ".join(cmd))
+        run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True)
+    else:
+        logger.debug(" ".join(cmd))
+        run_command_direct(cmd)
+
+
+
 
 
 

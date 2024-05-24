@@ -10,7 +10,7 @@ from typing import List
 from intercept import intercept_config
 
 from util import logger
-from util.input import InputApkModel
+from util.input import ApkModel
 from util.subprocess import run_command
 
 from subprocess import CalledProcessError
@@ -268,38 +268,9 @@ def check_device_is_ready():
 #     batch(list2, 0)
 
 if __name__ == '__main__':
-    configuration = intercept_config.get_default_intercept_config()
 
-    # apk_signedPath = "/home/xueling/apkAnalysis/invokeDetection/apk_signed/test/"
-    # signedApkPath = "signed-apks/"
-    # signedApkPath = "rebuilt-apks/"
-    configuration.signed_apks_path = "input-apks/"
-    apkName = "FieldSensitivity1.apk"
+    apk_path = "/Users/calix/Documents/programming/TaintASet/com.ladywoodi.herbarium.apk"
+    # installApk(apk_path)
 
-    
-    # signedApkPath = "../test-apks/"
-    # apkName = "art.coloringpages.paint.number.zodiac.free.apk"
-
-    adbOnPath = True
-    if not adbOnPath:
-        platformPath = "/home/xueling/Android/Sdk/platform-tools"
-    packageNameListALL = []
-    apkNameList = []
-
-    # moveToWork()
-    # openWeb()
-
-    # installAndStart()
-
-    apkPackageName = get_package_name(apkName, configuration.signed_apks_path)
-    uninstall_apk(apkPackageName)
-
-    # installApk(apkName, configuration.signed_apks_path)
-
-    # startApk(apkPackageName)
-
-    # apkPackageName = getPackageName(apkName, signedApkPath)
-    # startApk(apkPackageName)
-
-
-    # moveToDone()
+    package_name = "com.ladywoodi.herbarium"
+    # uninstall_apk(package_name)
