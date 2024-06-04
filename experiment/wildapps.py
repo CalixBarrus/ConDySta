@@ -1,10 +1,12 @@
 
 import os
+from typing import List
 
-from hybrid.flowdroid import run_flowdroid
+from hybrid.flowdroid import run_flowdroid, run_flowdroid_help
+from hybrid.source_sink import format_source_sink_signatures
 from util.subprocess import run_command_direct
 
-
+logger = logger.get_logger('hybrid', 'dynamic')
 
 
 def flowdroid_on_gpbench():
@@ -73,36 +75,23 @@ def source_sink_file_ssgpl_string() -> str:
              "org.apache.http.impl.client.DefaultHttpClient: org.apache.http.HttpResponse execute(org.apache.http.client. methods.HttpUriRequest)"
              ]
 
+    return format_source_sink_signatures(sources, sinks)
 
 
-    """
-    Sample for flowdroid default sources and sinks
-    <org.apache.xalan.xsltc.runtime.BasisLibrary: java.lang.String replace(java.lang.String,java.lang.String,java.lang.String[])> -> _SINK_
-    <org.springframework.mock.web.portlet.MockPortletRequest: void setParameters(java.util.Map)> -> _SINK_
-    """
 
-    result = ""
-    for source in sources:
-        result += f"<{source}> -> _SOURCE_\n"
-
-    for sink in sinks:
-        result += f"<{sink}> -> _SINK_\n"
-
-    return result
 
 def create_source_sink_file_ssgpl():
     file_path = "/Users/calix/Documents/programming/research-programming/ConDySta/data/sources-and-sinks/ss-gpl.txt"
-
     contents = source_sink_file_ssgpl_string()
-
     with open(file_path, 'w') as file:
         file.write(contents)
+
 
 def flowdroid_help():
     # flowdroid_jar_path: str = "/Users/calix/Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
     flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"
-    args = ['java', '-jar', flowdroid_jar_path, '-help']
-    run_command_direct(args)
+
+    run_flowdroid_help(flowdroid_jar_path)
 
 def run_ic3_on_apk():
     # ic3_jar_path = "/Users/calix/Documents/programming/research-programming/ic3/target/ic3-0.2.0-full.jar"
@@ -126,19 +115,6 @@ def run_ic3_on_apk():
     cmd = ["java", "-jar", ic3_jar_path, "-a", apk13_path, "-cp", android_path, "-protobuf", output_dir_path]
 
     run_command_direct(cmd)
-
-def run_dare_on_apk():
-    ic3_jar_path = "/Users/calix/Documents/programming/research-programming/ic3/target/ic3-0.2.0-full.jar"
-
-    dare_script_path = "/home/calix/programming/dare/dare-1.1.0-linux/dare"
-
-    input_apk_path = "/home/calix/programming/apktool/13.com.ackroo.mrgas/dist/13.com.ackroo.mrgas.apk"
-    output_dir_path = "~/dare/"
-
-    cmd = [dare_script_path, "-o", input_apk_path, "-d", output_dir_path]
-
-    run_command_direct(cmd)
-
 
 
 

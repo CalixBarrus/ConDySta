@@ -178,14 +178,14 @@ class HybridAnalysisResult:
 
         for ungrouped_input in input_apks.ungrouped_inputs:
             try:
-                first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, ungrouped_input))
+                first_pass_leaks_count = cls.count_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, ungrouped_input))
 
                 results_dict[ungrouped_input.input_identifier()].first_pass_leaks = first_pass_leaks_count
             except FlowdroidLogException as e:
                 results_dict[ungrouped_input.input_identifier()].error_msg += str(e)
 
             try:
-                second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, ungrouped_input))
+                second_pass_leaks_count = cls.count_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, ungrouped_input))
 
                 results_dict[ungrouped_input.input_identifier()].second_pass_leaks = second_pass_leaks_count
             except FlowdroidLogException as e:
@@ -196,7 +196,7 @@ class HybridAnalysisResult:
 
             for grouped_apk_index, _ in grouped_input.apks():
                 try:
-                    first_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
+                    first_pass_leaks_count = cls.count_leaks_in_flowdroid_log(
                         flowdroid_first_pass_logs_path(hybrid_config, grouped_input,
                                                        grouped_apk_index))
 
@@ -211,7 +211,7 @@ class HybridAnalysisResult:
                     result_instance.grouped_apk_error_msg[grouped_input.input_identifier(grouped_apk_index)] += e.msg
 
                 try:
-                    second_pass_leaks_count = cls._count_leaks_in_flowdroid_log(
+                    second_pass_leaks_count = cls.count_leaks_in_flowdroid_log(
                         flowdroid_second_pass_logs_path(hybrid_config, grouped_input, grouped_apk_index))
 
                     if result_instance.second_pass_leaks is None:
@@ -230,7 +230,7 @@ class HybridAnalysisResult:
 
 
     @classmethod
-    def _count_leaks_in_flowdroid_log(cls, flowdroid_log_path: str) -> int:
+    def count_leaks_in_flowdroid_log(cls, flowdroid_log_path: str) -> int:
         if not os.path.isfile(flowdroid_log_path):
             logger.error(f"Flowdroid did not execute; log file"
                          f" {flowdroid_log_path} does not exist.")

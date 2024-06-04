@@ -8,45 +8,48 @@ from util.input import BatchInputModel, input_apks_from_dir, ApkModel, InputMode
 #  into this file (see the mess of functions at the end)
 
 class HybridAnalysisConfig:
-    input_apks: BatchInputModel
+
+
+    input_apks: BatchInputModel # TODO: input should not be tagging along with the experiment config
     unmodified_source_sink_list_path: str
 
-
-
+    # Used for Flowdroid Runner
     android_platform_path: str
     flowdroid_jar_path: str
 
+    # Used for instrumentation and interpretation of instrumentation results
+    target_PII: List[str]
+    instrumentation_strategy: str
     dynamic_log_processing_strategy: str
 
-    target_PII: List[str]
-
-    # Start fields for intercept package
-
-    instrumentation_strategy: str
-
+    # Used for app runner
     use_monkey: bool
     seconds_to_test_each_app: int
     monkey_rng_seed: int
-    # End fields for intercept package
 
     results_dir_path: str
     data_dir_path: str
 
     # For use by results.py
-    results_dict: Dict
+    results_dict: Dict # TODO: results should not be tagging along with the config
 
-    # Internal project directory structure
-    _modified_source_sink_directory: str
-    _logcat_dump_dir_path: str
-    _flowdroid_first_pass_logs_path: str
-    _flowdroid_second_pass_logs_path: str
-    _flowdroid_misc_logs_path: str
-    # Just for intercept package
-    _decoded_apks_path: str
-    _rebuilt_apks_path: str
-    _keys_dir_path: str
-    _signed_apks_path: str
-    _logs_path: str
+    """
+    Setup fields that define the internal structure of project data. This should include all directories that have no
+    need to be client facing. These aren't expected to need to change.
+    """
+    _signed_apks_path: str = "data/signed-apks/"
+
+    _decoded_apks_path: str = "data/intercept/decoded-apks/"
+    _rebuilt_apks_path: str = "data/intercept/rebuilt-apks/"
+    _keys_dir_path: str = "data/intercept/apk-keys/"
+
+    _modified_source_sink_directory: str = "data/sources-and-sinks/modified"
+
+    _logs_path: str = "data/logs/"
+    _logcat_dump_dir_path: str = "data/logs/logcat-dump"
+    _flowdroid_first_pass_logs_path: str = "data/logs/flowdroid-first-run"
+    _flowdroid_second_pass_logs_path: str = "data/logs/flowdroid-second-run"
+    _flowdroid_misc_logs_path: str = "data/logs/flowdroid-misc-run"
 
     def __init__(self,
                  input_apks: BatchInputModel,
@@ -97,6 +100,7 @@ class HybridAnalysisConfig:
         self._rebuilt_apks_path = "data/intercept/rebuilt-apks/"
         self._keys_dir_path = "data/intercept/apk-keys/"
 
+        self._source_sink_directory = "data/sources-and-sinks"
         self._modified_source_sink_directory = "data/sources-and-sinks/modified"
 
         self._logs_path = "data/logs/"
@@ -190,3 +194,22 @@ def data_dir_path(config: HybridAnalysisConfig):
 
 def results_csv_path(config: HybridAnalysisConfig, experiment_name: str):
     return os.path.join(config.results_dir_path, experiment_name + ".csv")
+
+def source_sink_dir_path() -> str:
+    return "data/sources-and-sinks"
+
+def ic3_output_dir_path() -> str:
+    path = "data/ic3_output"
+    _verify_internal_dir_path(path)
+    return path
+
+def _verify_internal_dir_path(internal_dir_path: str):
+    # Make sure the path exists by creating the missing directory(s) if necessary
+    # future, confirm cwd and make any missing directories
+
+    if os.path.isdir(os.path.join(internal_dir_path)):
+        return
+    else:
+        raise AssertionError(f"Please create directory {internal_dir_path} and confirm current working directory {os.getcwd()}")
+
+

@@ -388,6 +388,23 @@ class MethodSignature:
 
         return result
 
+def format_source_sink_signatures(sources: List[str], sinks: List[str]) -> str:
+    """
+    Format lists of source/sink signatures into a string, ready to be written to a file. Mimic old style FlowDroid .txt source/sink files.
+
+        Sample for flowdroid default sources and sinks
+        <org.apache.xalan.xsltc.runtime.BasisLibrary: java.lang.String replace(java.lang.String,java.lang.String,java.lang.String[])> -> _SINK_
+        <org.springframework.mock.web.portlet.MockPortletRequest: void setParameters(java.util.Map)> -> _SINK_
+    """
+    result = ""
+    for source in sources:
+        result += f"<{source}> -> _SOURCE_\n"
+
+    for sink in sinks:
+        result += f"<{sink}> -> _SINK_\n"
+
+    return result
+
 
 def test_single_source_sink():
     source_sinks = SourceSinkXML()

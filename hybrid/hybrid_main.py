@@ -113,7 +113,7 @@ def flowdroid_on_apks(hybrid_config: HybridAnalysisConfig, input_apks: BatchInpu
                              flowdroid_misc_pass_logs_path(hybrid_config, ungrouped_input))
 
 
-        num_leaks = HybridAnalysisResult._count_leaks_in_flowdroid_log(
+        num_leaks = HybridAnalysisResult.count_leaks_in_flowdroid_log(
             flowdroid_misc_pass_logs_path(hybrid_config, ungrouped_input))
 
         if num_leaks is not None:

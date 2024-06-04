@@ -8,6 +8,8 @@ from subprocess import CalledProcessError
 from util import logger
 logger = logger.get_logger('hybrid', 'flowdroid')
 
+
+
 def run_flowdroid_config(config: HybridAnalysisConfig, apk_path: str,
                          source_and_sink_path: str,
                          output_log_path: str,
@@ -27,18 +29,45 @@ def run_flowdroid_config(config: HybridAnalysisConfig, apk_path: str,
            "-a", apk_path,
            "-p", android_platform_path,
            "-s", source_and_sink_path,
-           # "2>&1",
            "--paths", "--pathspecificresults", "--outputlinenumbers",
-           # ">", output_log_path,
            ]
 
     logger.debug(" ".join(cmd))
     run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True)
-
 """
        -cp,--paths                              
        Compute the taint propagation paths and not just source-to-sink connections.
 """
+
+def run_flowdroid_paper_settings(flowdroid_jar_path: str, android_platform_path: str, apk_path: str,
+                         source_and_sink_path: str,
+                         icc_model_path: str,
+                         output_log_path: str,
+                         verbose_path_info: bool):
+    if not apk_path.endswith(".apk"):
+        raise ValueError(f"Input apk_name {apk_path} needs to end with \".apk\"")
+
+
+    # log_name = apk_name + ".log"
+
+    cmd = ["java", "-jar", flowdroid_jar_path,
+           "-a", apk_path,
+           "-p", android_platform_path,
+           "-s", source_and_sink_path,
+           "--enablereflection",
+           "--noiccresultspurify",
+           "--layoutmode", "NONE"
+           ]
+    if verbose_path_info:
+        cmd += [
+           "--paths", "--pathspecificresults",
+           ]
+    if icc_model_path != "":
+        cmd.append("--iccmodel")
+        cmd.append(icc_model_path)
+
+    logger.debug(" ".join(cmd))
+    run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True)
 
 def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, icc_model_path: str = "", output_log_path: str = ""):
 
@@ -83,6 +112,10 @@ def get_flowdroid_callgraph(hybrid_analysis_config: HybridAnalysisConfig,
 
     run_command(cmd)
     pass
+
+def run_flowdroid_help(flowdroid_jar_path: str):
+    args = ['java', '-jar', flowdroid_jar_path, '-help']
+    run_command_direct(args)
 
 
 

@@ -39,7 +39,7 @@ class BatchInputModel:
                 if apk not in unique_apks:
                     unique_apks.append(apk)
         return unique_apks
-    
+
     def all_input_models(self) -> List["InputModel"]:
         return self.ungrouped_inputs + self.grouped_inputs
 
@@ -55,8 +55,9 @@ class InputModel:
     _apks: List["ApkModel"]
     _next_input_id: int = 0
     input_id: int
+    benchmark_id: int
 
-    def __init__(self, apks: List["ApkModel"]):
+    def __init__(self, apks: List["ApkModel"], benchmark_id: int=-1):
         if len(apks) < 1:
             raise AssertionError("Input list empty")
 
@@ -64,8 +65,10 @@ class InputModel:
         self.input_id = InputModel._next_input_id
         InputModel._next_input_id += 1
 
+        self.benchmark_id = benchmark_id
+
     def input_identifier(self, grouped_apk_idx: int = -1) -> str:
-        """ Short identifier string. If grouped_apk_idx specified, identifier is for a specific apk in a group """
+        """ Short identifier string. Especially useful for grouped apks. If grouped_apk_idx specified, identifier is for a specific apk in a group """
         if not self.is_group():
             if grouped_apk_idx != -1:
                 raise AssertionError()
