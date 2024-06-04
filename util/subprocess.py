@@ -52,4 +52,5 @@ def run_command_direct(args: List['str']) -> None:
     Run the command, but just in whatever current shell is running
     """
 
+    print(" ".join(args))
     os.system(" ".join(args))

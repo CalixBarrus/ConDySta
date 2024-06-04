@@ -40,7 +40,7 @@ def run_flowdroid_config(config: HybridAnalysisConfig, apk_path: str,
        Compute the taint propagation paths and not just source-to-sink connections.
 """
 
-def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, output_log_path: str = ""):
+def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, icc_model_path: str = "", output_log_path: str = ""):
 
     if not apk_path.endswith(".apk"):
         raise ValueError(f"Input apk_name {apk_path} needs to end with \".apk\"")
@@ -51,9 +51,12 @@ def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path:
            "-s", source_sink_path,
            "--enablereflection",
            "--noiccresultspurify",
-           "--paths", "--pathspecificresults", "--outputlinenumbers",
+        #    "--paths", "--pathspecificresults",
            "--layoutmode", "NONE"
            ]
+    if icc_model_path != "":
+        cmd.append("--iccmodel")
+        cmd.append(icc_model_path)
 
     # If output_log_path is not "" redirect input to the provided file path, else print to stdout.
     if output_log_path != "":
