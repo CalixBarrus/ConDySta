@@ -1,0 +1,1 @@
+The csv gpbench-info.csv is copied down from tables on the website https://resess.github.io/artifacts/StaticTaint/ggplay/, as well as Table 12 of the corresponding paper ("Analyzing Android Taint Analysis Tools: FlowDroid, Amandroid, and DroidSafe").

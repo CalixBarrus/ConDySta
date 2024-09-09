@@ -1,6 +1,7 @@
 import os
 from typing import List, Set, Union
 
+from hybrid.log_process_fd import get_reported_num_leaks_in_flowdroid_log
 import intercept.clean
 from hybrid import results
 from hybrid.clean import clean
@@ -113,7 +114,7 @@ def flowdroid_on_apks(hybrid_config: HybridAnalysisConfig, input_apks: BatchInpu
                              flowdroid_misc_pass_logs_path(hybrid_config, ungrouped_input))
 
 
-        num_leaks = HybridAnalysisResult.count_leaks_in_flowdroid_log(
+        num_leaks = get_reported_num_leaks_in_flowdroid_log(
             flowdroid_misc_pass_logs_path(hybrid_config, ungrouped_input))
 
         if num_leaks is not None:

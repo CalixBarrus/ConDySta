@@ -72,13 +72,13 @@ class InputModel:
         if not self.is_group():
             if grouped_apk_idx != -1:
                 raise AssertionError()
-            return str(self.input_id) + "." + self.apk().apk_name
+            return str(self.benchmark_id) + "." + self.apk().apk_name
 
         else:
             if grouped_apk_idx == -1:
-                return str(self.input_id) + "." + "group_of_" + str(len(self._apks))
+                return str(self.benchmark_id) + "." + "group_of_" + str(len(self._apks))
             else:
-                return str(self.input_id) + "." + "group_of_" + str(len(self._apks)) + self.apk(grouped_apk_idx).apk_name
+                return str(self.benchmark_id) + "." + "group_of_" + str(len(self._apks)) + self.apk(grouped_apk_idx).apk_name
 
     def is_group(self) -> bool:
         if len(self._apks) == 1:
@@ -109,13 +109,16 @@ class ApkModel:
 
     apk_name: str
     apk_path: str
+    apk_package_name: str
 
     def __init__(self, apk_path: str):
         self.apk_path = apk_path
-        self.apk_name = apk_path.split("/")[-1]
+        self.apk_name = os.path.basename(apk_path)
 
         if not os.path.isfile(self.apk_path) or not self.apk_path.endswith(".apk"):
             raise ValueError(f"The path {self.apk_path} isn't an apk.")
+        
+        self.apk_package_name = None
 
     def apk_name_no_suffix(self):
         # Drop the ".apk" on the end
@@ -134,20 +137,29 @@ def input_apks_from_dir(dir_path: str) -> 'BatchInputModel':
     return BatchInputModel(ungrouped_inputs, [])
 
 
-def _input_apks_from_dir_as_list(dir_path: str) -> List[ApkModel]:
+def find_apk_paths_in_dir_recursive(dir_path: str) -> List[str]:
     """ Recursively traverse the target directory and it's children. Return all apks
         discovered. """
-
     result = []
 
     for item in os.listdir(dir_path):
         new_path = os.path.join(dir_path, item)
 
         if new_path.endswith(".apk"):
-            result.append(ApkModel(new_path))
+            result.append(new_path)
         elif os.path.isdir(new_path):
-            result += _input_apks_from_dir_as_list(new_path)
+            result += find_apk_paths_in_dir_recursive(new_path)
     return result
+    
+
+def _input_apks_from_dir_as_list(dir_path: str) -> List[ApkModel]:
+    
+    result = []
+    for path in find_apk_paths_in_dir_recursive(dir_path):
+        result.append(ApkModel(path))
+
+    return result
+    
 
 
 def input_apks_from_list(list_path: str) -> 'BatchInputModel':
@@ -264,6 +276,7 @@ def list_of_lists_from_file(file_path: str) -> List[List[str]]:
     if len(inner_list) > 0:
         result.append(inner_list)
     return result
+        
 
 
 if __name__ == '__main__':

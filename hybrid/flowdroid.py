@@ -1,4 +1,5 @@
 import os
+from typing import Dict, List
 import intercept.intercept_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 
@@ -43,7 +44,8 @@ def run_flowdroid_paper_settings(flowdroid_jar_path: str, android_platform_path:
                          source_and_sink_path: str,
                          icc_model_path: str,
                          output_log_path: str,
-                         verbose_path_info: bool):
+                         verbose_path_info: bool,
+                         timeout: int=None):
     if not apk_path.endswith(".apk"):
         raise ValueError(f"Input apk_name {apk_path} needs to end with \".apk\"")
 
@@ -67,7 +69,7 @@ def run_flowdroid_paper_settings(flowdroid_jar_path: str, android_platform_path:
         cmd.append(icc_model_path)
 
     logger.debug(" ".join(cmd))
-    run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True)
+    run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True, timeout=timeout)
 
 def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, icc_model_path: str = "", output_log_path: str = ""):
 
@@ -95,11 +97,6 @@ def run_flowdroid(flowdroid_jar_path: str, apk_path: str, android_platform_path:
         logger.debug(" ".join(cmd))
         run_command_direct(cmd)
 
-
-
-
-
-
 def get_flowdroid_callgraph(hybrid_analysis_config: HybridAnalysisConfig,
                             apk_path: str,
                             output_path: str
@@ -118,51 +115,42 @@ def run_flowdroid_help(flowdroid_jar_path: str):
     run_command_direct(args)
 
 
+def run_flowdroid_with_fdconfig(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, flowdroid_args: "FlowdroidArgs", output_log_path: str = "", timeout: int=None):
+    cmd = ["java", "-jar", flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
 
-# def run_flowdroid_batch(input_apks_path, source_and_sink_path,
-#                         output_log_path, recursive=False):
-#     if not os.path.isdir(input_apks_path):
-#         raise FileNotFoundError(f"Directory {input_apks_path} not found.")
-#
-#     for item in os.listdir(input_apks_path):
-#         if os.path.isfile(os.path.join(input_apks_path, item)) and item.endswith(
-#                 ".apk"):
-#             activate_flowdroid(input_apks_path, item, source_and_sink_path,
-#                                output_log_path)
-#
-#         if recursive:
-#             if os.path.isdir(os.path.join(input_apks_path, item)):
-#                 run_flowdroid_batch(os.path.join(input_apks_path, item),
-#                                     source_and_sink_path,
-#                                     output_log_path, recursive)
+    run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True, timeout=timeout)
+
+class FlowdroidArgs:
+    """
+    --aliasalgo LAZY --aplength 4 --callbackanalyzer DEFAULT --codeelimination NONE --cgalgo RTA --dataflowsolver FLOWINSENSITIVE --analyzeframeworks --implicit NONE --maxcallbackspercomponent 80 --maxcallbacksdepth 0 --noexceptions --pathalgo CONTEXTSENSITIVE --onesourceatatime --pathspecificresults --singlejoinpointabstraction --staticmode CONTEXTFLOWSENSITIVE --taintwrapper DEFAULTFALLBACK
+    """
+    best_fossdroid_settings: Dict[str, str] = {'aliasalgo': 'LAZY', 'aplength': 4, 'callbackanalyzer': 'DEFAULT', 'codeelimination': 'NONE', 'cgalgo': 'RTA', 'dataflowsolver': 'FLOWINSENSITIVE', 'analyzeframeworks': None, 'implicit': 'NONE', 'maxcallbackspercomponent': 80, 'maxcallbacksdepth': 0, 'noexceptions': None, 'pathalgo': 'CONTEXTSENSITIVE', 'onesourceatatime': None, 'pathspecificresults': None, 'singlejoinpointabstraction': None, 'staticmode': 'CONTEXTFLOWSENSITIVE', 'taintwrapper': 'DEFAULTFALLBACK'}
+    default_settings: Dict[str, str] = {}
+
+    # Options with only an empty list [] do not take any argument
+    available_options: Dict = {'aliasalgo': ['LAZY'], 'aplength': range(1,10), 'callbackanalyzer': ['DEFAULT'], 'codeelimination': ['NONE'], 'cgalgo': ['RTA'], 'dataflowsolver': ['FLOWINSENSITIVE'], 'analyzeframeworks': [None], 'implicit': ['NONE'], 'maxcallbackspercomponent': range(0,1000), 'maxcallbacksdepth': range(-1, 10), 'noexceptions': [None], 'pathalgo': ['CONTEXTSENSITIVE'], 'onesourceatatime': [None], 'pathspecificresults': [None], 'singlejoinpointabstraction': [None], 'staticmode': ['CONTEXTFLOWSENSITIVE'], 'taintwrapper': ['DEFAULTFALLBACK']}
+    
+    args: Dict[str, str]
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if key not in FlowdroidArgs.available_options.keys():
+                raise AssertionError(f'Option {key} not documented.')
+            if value not in FlowdroidArgs.available_options[key]:
+                raise AssertionError(f'Option {value} not documented, documented options for {key} are {str(FlowdroidArgs.available_options[key])}')
+            
+        self.args = kwargs
+
+    def additional_args_list(self) -> List[str]:
+        additional_args = []
+        for key, value in self.args.items():
+            additional_args.append(f"--{str(key)}")
+            if value is not None:
+                additional_args.append(str(value))
+
+        return additional_args
 
 
 if __name__ == '__main__':
-    # apk_name = "FieldSensitivity3.apk"
-    # apk_path = intercept.intercept_config.get_default_intercept_config().input_apks_path
-    # output_path = os.path.join(
-    #     intercept.intercept_config.get_default_intercept_config().logs_path,
-    #     "droidbench-settings-experiments")
-    # sources_and_sinks = "SourcesAndSinks.txt"  # The flowdroid default is in
-    # # the root of this project
-    #
-    # activate_flowdroid(apk_path, apk_name, sources_and_sinks, output_path)
+    pass
 
-    flowdroid_help()
-
-# #
-# cmd_install = 'adb install ' + apk_signedPath + apk + '.apk'
-# os.system(cmd_install)
-#
-# cmd_logcat_c = 'adb logcat -c'
-# os.system(cmd_logcat_c)
-#
-#
-# input_log_path = '/home/xueling/researchProjects/sourceDetection/input_log_path/'
-# cmd_logcat_out = 'adb logcat > ' + input_log_path + apk
-# os.system(cmd_logcat_out)
-
-
-# cmd_taint_newSource = 'java -jar ' + jar + ' -a ' + apk_orgPath + apk + '.apk -p' + platformPath + ' -s ' + SourceAndSinks_newSources + ' > ' + analysis_newSources + apk + ' 2>&1'
-# print cmd_taint_newSource
-# os.system(cmd_taint_newSource)

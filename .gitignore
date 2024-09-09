@@ -15,8 +15,12 @@ data/input-smali-directories
 data/results
 data/signed-apks/
 data/sources-and-sinks/modified/*
+data/experiments
+data/ic3_output
+data/temp
 
 .DS_Store
+.vscode
 
 
 

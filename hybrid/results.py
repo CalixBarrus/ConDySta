@@ -3,6 +3,7 @@ import re
 from typing import List, Union, Dict
 
 from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_first_pass_logs_path, flowdroid_second_pass_logs_path
+from hybrid.log_process_fd import FlowdroidLogException, get_reported_num_leaks_in_flowdroid_log
 from util.input import ApkModel, InputModel, BatchInputModel
 
 from util.logger import get_logger
@@ -178,14 +179,14 @@ class HybridAnalysisResult:
 
         for ungrouped_input in input_apks.ungrouped_inputs:
             try:
-                first_pass_leaks_count = cls.count_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, ungrouped_input))
+                first_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, ungrouped_input))
 
                 results_dict[ungrouped_input.input_identifier()].first_pass_leaks = first_pass_leaks_count
             except FlowdroidLogException as e:
                 results_dict[ungrouped_input.input_identifier()].error_msg += str(e)
 
             try:
-                second_pass_leaks_count = cls.count_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, ungrouped_input))
+                second_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, ungrouped_input))
 
                 results_dict[ungrouped_input.input_identifier()].second_pass_leaks = second_pass_leaks_count
             except FlowdroidLogException as e:
@@ -196,7 +197,7 @@ class HybridAnalysisResult:
 
             for grouped_apk_index, _ in grouped_input.apks():
                 try:
-                    first_pass_leaks_count = cls.count_leaks_in_flowdroid_log(
+                    first_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(
                         flowdroid_first_pass_logs_path(hybrid_config, grouped_input,
                                                        grouped_apk_index))
 
@@ -211,7 +212,7 @@ class HybridAnalysisResult:
                     result_instance.grouped_apk_error_msg[grouped_input.input_identifier(grouped_apk_index)] += e.msg
 
                 try:
-                    second_pass_leaks_count = cls.count_leaks_in_flowdroid_log(
+                    second_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(
                         flowdroid_second_pass_logs_path(hybrid_config, grouped_input, grouped_apk_index))
 
                     if result_instance.second_pass_leaks is None:
@@ -227,32 +228,7 @@ class HybridAnalysisResult:
             # Note in error_msg field if any apks in a group had an error
             if len(result_instance.grouped_apk_error_msg.values()) > 0:
                 result_instance.error_msg += "Apks in group had errors."
-
-
-    @classmethod
-    def count_leaks_in_flowdroid_log(cls, flowdroid_log_path: str) -> int:
-        if not os.path.isfile(flowdroid_log_path):
-            logger.error(f"Flowdroid did not execute; log file"
-                         f" {flowdroid_log_path} does not exist.")
-            raise FlowdroidLogException(f"Flowdroid did not execute; log file"
-                         f" {flowdroid_log_path} does not exist.")
-
-        with open(flowdroid_log_path, 'r') as file:
-            for line in file.readlines():
-
-                # looking for lines such as
-                """
-    [main] INFO soot.jimple.infoflow.android.SetupApplication - Found 1 leaks
-                """
-                if " - Found " in line:
-                    # Pull number from phrase "Found n leaks"
-                    num_leaks = int(re.search("Found (\d+) leaks", line).group(1))
-                    return num_leaks
-
-        logger.error(f"Flowdroid did not execute as expected in log file"
-               f" {flowdroid_log_path}")
-        return None
-
+                
 
     @classmethod
     def report_error(cls, hybrid_config, apk_name, error_msg):
@@ -274,11 +250,6 @@ def test_initialize_results_dict_entries_works_recursively():
 
     # There are 118 apks in this Droidbench directory
     assert len(hybrid_analysis_configuration.results_dict) == 118
-
-class FlowdroidLogException(Exception):
-    msg: str
-    def __init__(self, msg):
-        self.msg = msg
 
 if __name__ == '__main__':
     test_initialize_results_dict_entries_works_recursively()

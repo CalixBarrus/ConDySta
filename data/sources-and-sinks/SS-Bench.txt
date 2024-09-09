@@ -1,0 +1,16 @@
+<android.telephony.TelephonyManager: java.lang.String getDeviceId()> -> _SOURCE_
+<android.telephony.TelephonyManager: java.lang.String getSimSerialNumber()> -> _SOURCE_
+<android.location.Location: double getLatitude()> -> _SOURCE_
+<android.location.Location: double getLongitude()> -> _SOURCE_
+<android.telephony.TelephonyManager: java.lang.String getSubscriberId()> -> _SOURCE_
+<android.telephony.SmsManager: void sendTextMessage(java.lang.String,java.lang.String,java.lang.String, android.app.PendingIntent,android.app.PendingIntent)> -> _SINK_
+<android.util.Log: int i(java.lang.String,java.lang.String)> -> _SINK_
+<android.util.Log: int e(java.lang.String,java.lang.String)> -> _SINK_
+<android.util.Log: int v(java.lang.String,java.lang.String)> -> _SINK_
+<android.util.Log: int d(java.lang.String,java.lang.String)> -> _SINK_
+<java.lang.ProcessBuilder: java.lang.Process start()> -> _SINK_
+<android.app.Activity: void startActivityForResult(android.content.Intent,int)> -> _SINK_
+<android.app.Activity: void setResult(int,android.content.Intent)> -> _SINK_
+<android.app.Activity: void startActivity(android.content.Intent)> -> _SINK_
+<java.net.URL: java.net.URLConnection openConnection()> -> _SINK_
+<android.content.ContextWrapper: void sendBroadcast(android.content.Intent)> -> _SINK_

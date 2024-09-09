@@ -1,0 +1,12 @@
+<android.widget.EditText: android.text.Editable getText()> -> _SOURCE_
+<com.squareup.okhttp.Call: com.squareup.okhttp.Response execute()> -> _SINK_
+<cz.msebera.android.httpclient.client.HttpClient: cz.msebera.android.httpclient.HttpResponse execute (cz.msebera.android.httpclient.client.methods.HttpUriRequest)> -> _SINK_
+<java.io.OutputStreamWriter: void write(java.lang.String)> -> _SINK_
+<java.io.PrintWriter: void write(java.lang.String)> -> _SINK_
+<java.net.HttpURLConnection: int getResponseCode()> -> _SINK_
+<java.util.zip.GZIPOutputStream: void write(byte[])> -> _SINK_
+<okhttp3.Call: okhttp3.Response execute()> -> _SINK_
+<okhttp3.Call: void enqueue(okhttp3.Callback)> -> _SINK_
+<org.apache.http.client.HttpClient: org.apache.http.HttpResponse execute(org.apache.http.client.methods.HttpUriRequest)> -> _SINK_
+<org.apache.http.client.HttpClient: org.apache.http.HttpResponse execute(org.apache.http.client.methods.HttpUriRequest, org.apache.http.protocol.HttpContext)> -> _SINK_
+<org.apache.http.impl.client.DefaultHttpClient: org.apache.http.HttpResponse execute(org.apache.http.client. methods.HttpUriRequest)> -> _SINK_
