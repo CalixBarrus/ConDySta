@@ -3,9 +3,10 @@ import re
 from typing import List
 import xml.etree.ElementTree as ET
 
-from hybrid.flow import Flow
+from hybrid.flow import Flow, create_flows_elements
 from util import logger
-logger = logger.get_logger('hybrid', 'log_process_fd')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def get_reported_num_leaks_in_flowdroid_log(flowdroid_log_path: str) -> int:
     if not os.path.isfile(flowdroid_log_path):
@@ -64,9 +65,9 @@ def get_flows_in_flowdroid_log(flowdroid_log_path: str, apk_path: str) -> List[F
             if " - Found " in line:
                 flowdroid_finished = True
         if not flowdroid_finished:
-            # TODO: parse some common types of failed flowdroid runs into a more informative error message
             raise FlowdroidLogException(f"Flowdroid did not execute succesfully, please see log file at {flowdroid_log_path}.")
 
+        flows = []
         for i, line in enumerate(lines):
             if " was called with values from the following sources:" in line:
                 match = re.search(r" - The sink (.+) in method (<(.+): .+>) was called with values from the following sources:", line)
@@ -74,10 +75,8 @@ def get_flows_in_flowdroid_log(flowdroid_log_path: str, apk_path: str) -> List[F
                 sink_method = match.group(2)
                 sink_class_name = match.group(3)
 
-                sink_reference_element = make_sink_reference_element(sink_statement_full, sink_method, sink_class_name, apk_path)
-
-                source_reference_elements = []
                 # Check following lines for one or more sources
+                source_tuples = []
                 for j in range(i+1, len(lines)):
                     possible_source_line = lines[j]
                     match = re.search(r"- - (.+) in method (<(.+): .+>)", possible_source_line)
@@ -87,21 +86,12 @@ def get_flows_in_flowdroid_log(flowdroid_log_path: str, apk_path: str) -> List[F
                     source_method = match.group(2)
                     source_class_name = match.group(3)
 
-                    source_reference_elements.append(make_source_reference_element(source_statement_full, source_method, source_class_name, apk_path))
+                    source_tuples.append((source_statement_full, source_method, source_class_name))
 
-                assert len(source_reference_elements) >= 1
-
-                # assemble flow elements
-                for source_reference_element in source_reference_elements:
-                    flow_element = ET.Element('flow') #TODO: add some experiment ID info?
-
-                    flow_element.append(source_reference_element) 
-                    flow_element.append(sink_reference_element) #TODO: does sink ref element need to be deep copied?
-
-                    flows.append(Flow(flow_element))
-
+                flows += create_flows_elements(sink_statement_full, sink_method, sink_class_name, source_tuples, apk_path)
 
     return flows
+
 
 def get_analysis_error_in_flowdroid_log(flowdroid_log_path: str) -> str:
     """
@@ -147,98 +137,7 @@ def get_flowdroid_memory(flowdroid_log_path: str) -> str:
             return f"{max(reported_mem)} MB"
 
                 
-def make_sink_reference_element(statement_full: str, method: str, classname: str, apk_path: str):
-    return make_reference_element(statement_full, method, classname, apk_path, "to")
 
-def make_source_reference_element(statement_full: str, method: str, classname: str, apk_path: str):
-    return make_reference_element(statement_full, method, classname, apk_path, "from")
-
-def make_reference_element(statement_full: str, method: str, classname: str, apk_path: str, type: str):
-    assert type == "to" or type == "from"
-
-    reference_element = ET.Element("reference", attrib={'type':type})
-
-    reference_element.append(make_statement_element(statement_full))
-
-    temp_element = ET.Element('method')
-    temp_element.text = method
-    reference_element.append(temp_element)
-    temp_element = ET.Element('classname')
-    temp_element.text = classname
-    reference_element.append(temp_element)
-
-    reference_element.append(make_app_element(apk_path))
-    return reference_element
-
-def make_statement_element(statement_full):
-
-    statement_generic = re.search(r"<(.+)>", statement_full).group(1)
-    
-    # First parse parameters
-    pattern = r"\((.*)\)"
-    matches = re.findall(pattern, statement_generic)
-    assert len(matches) == 1
-    param_types = matches[0].split(',')
-
-    # pattern = r"&gt;\((.*)\)"
-    pattern = r">\((.*)\)"
-    matches = re.findall(pattern, statement_full)
-    assert len(matches) == 1
-    param_values = matches[0].split(',')
-
-    # Splitting an empty string produces a list with one element
-    if matches[0] == "":
-        param_types = []
-        param_values = []
-
-    assert len(param_types) == len(param_values)
-    parameters_element = ET.Element("parameters")
-    for i in range(len(param_types)):
-        parameter_element = ET.Element("parameter")
-
-        temp_element = ET.Element("type")
-        temp_element.text = param_types[i]
-        parameter_element.append(temp_element)
-        temp_element = ET.Element("value")
-        temp_element.text = param_values[i]
-        parameter_element.append(temp_element)
-        
-        parameters_element.append(parameter_element)
-
-    statement_element = ET.Element("statement")
-    temp_element = ET.Element("statementfull")
-    temp_element.text = statement_full
-    statement_element.append(temp_element)
-    temp_element = ET.Element("statementgeneric")
-    temp_element.text = statement_generic
-    statement_element.append(temp_element)
-
-    statement_element.append(parameters_element)
-
-    return statement_element
-
-
-def make_app_element(apk_path):
-    #TODO: make sure path exists, add in hashes
-
-    app_element = ET.Element("app")
-    temp_element = ET.Element("file")
-    temp_element.text = os.path.basename(apk_path)
-    app_element.append(temp_element)
-    ET.SubElement(app_element, "hashes")
-    return app_element
-
-def attributes_ground_truth(value):
-    attributes_element = ET.Element("attributes")
-    attribute_element = ET.Element("attribute")
-    temp_element = ET.Element("name")
-    temp_element.text = "ground_truth"
-    attribute_element.append(temp_element)
-    temp_element = ET.Element("value")
-    temp_element.text = value
-    attribute_element.append(temp_element)
-    attributes_element.append(attribute_element)
-    return attribute_element
 
 
 class FlowdroidLogException(Exception):

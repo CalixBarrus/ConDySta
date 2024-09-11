@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 
-from experiment.common import setup_dirs_generic, setup_dirs_with_ic3
+from experiment.common import setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
 import hybrid.hybrid_config
 from hybrid.flowdroid import run_flowdroid_paper_settings
 from hybrid.ic3 import run_ic3_on_apk, run_ic3_on_apk_direct
@@ -13,8 +13,8 @@ from hybrid.source_sink import format_source_sink_signatures
 from util.input import BatchInputModel, input_apks_from_dir, InputModel
 import pandas as pd
 
-from util import logger
-logger = logger.get_logger('experiment', 'benchmarks')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def icc_bench_mac():
     benchmark_folder_path: str = "/Users/calix/Documents/programming/research-programming/benchmarks/gpbench/apks"
@@ -181,8 +181,10 @@ def droidbench(flowdroid_jar_path: str, android_path: str, droidbench_dir_path: 
 Run Flowdroid on a subset of Droidbench apps
 """
 
-    
-    results_df_path, fd_output_dir_path = setup_dirs_generic(experiment_name, experiment_description, ['flowdroid_logs'])
+    experiment_id, experiment_dir_path = setup_experiment_dir(experiment_name, experiment_description, {})
+    results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
+    fd_output_dir_path = setup_additional_directories(experiment_dir_path, ['flowdroid_logs'])[0]
+
 
     # ss_bench_path: str = check_ss_bench_list()
 

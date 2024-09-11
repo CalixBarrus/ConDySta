@@ -5,10 +5,10 @@ import sys
 import os
 
 from hybrid.hybrid_config import HybridAnalysisConfig, apk_key_path
-from util import logger
 from util.input import ApkModel
 
-logger = logger.get_logger('intercept', 'keygen')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def generate_keys_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
     for apk in apks:

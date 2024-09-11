@@ -11,12 +11,11 @@ from hybrid.results import HybridAnalysisResult
 from intercept import install
 from intercept.install import get_package_name, getApkMainIntent
 
-
-from util import logger
 from util.input import ApkModel, InputModel, BatchInputModel
 from util.subprocess import run_command
 
-logger = logger.get_logger('intercept', 'monkey')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def run_input_apks_model(config: HybridAnalysisConfig, input_apks_model: BatchInputModel):
 

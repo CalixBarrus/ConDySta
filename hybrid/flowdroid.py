@@ -6,8 +6,8 @@ from hybrid.hybrid_config import HybridAnalysisConfig
 from util.subprocess import run_command, run_command_direct
 from subprocess import CalledProcessError
 
-from util import logger
-logger = logger.get_logger('hybrid', 'flowdroid')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 
@@ -33,7 +33,7 @@ def run_flowdroid_config(config: HybridAnalysisConfig, apk_path: str,
            "--paths", "--pathspecificresults", "--outputlinenumbers",
            ]
 
-    logger.debug(" ".join(cmd))
+    logger.debug(" ".join(cmd)) # type: ignore
     run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True)
 """
        -cp,--paths                              
@@ -124,11 +124,13 @@ class FlowdroidArgs:
     """
     --aliasalgo LAZY --aplength 4 --callbackanalyzer DEFAULT --codeelimination NONE --cgalgo RTA --dataflowsolver FLOWINSENSITIVE --analyzeframeworks --implicit NONE --maxcallbackspercomponent 80 --maxcallbacksdepth 0 --noexceptions --pathalgo CONTEXTSENSITIVE --onesourceatatime --pathspecificresults --singlejoinpointabstraction --staticmode CONTEXTFLOWSENSITIVE --taintwrapper DEFAULTFALLBACK
     """
-    best_fossdroid_settings: Dict[str, str] = {'aliasalgo': 'LAZY', 'aplength': 4, 'callbackanalyzer': 'DEFAULT', 'codeelimination': 'NONE', 'cgalgo': 'RTA', 'dataflowsolver': 'FLOWINSENSITIVE', 'analyzeframeworks': None, 'implicit': 'NONE', 'maxcallbackspercomponent': 80, 'maxcallbacksdepth': 0, 'noexceptions': None, 'pathalgo': 'CONTEXTSENSITIVE', 'onesourceatatime': None, 'pathspecificresults': None, 'singlejoinpointabstraction': None, 'staticmode': 'CONTEXTFLOWSENSITIVE', 'taintwrapper': 'DEFAULTFALLBACK'}
+    best_fossdroid_settings: Dict = {'aliasalgo': 'LAZY', 'aplength': 4, 'callbackanalyzer': 'DEFAULT', 'codeelimination': 'NONE', 'cgalgo': 'RTA', 'dataflowsolver': 'FLOWINSENSITIVE', 'analyzeframeworks': None, 'implicit': 'NONE', 'maxcallbackspercomponent': 80, 'maxcallbacksdepth': 0, 'noexceptions': None, 'pathalgo': 'CONTEXTSENSITIVE', 'onesourceatatime': None, 'pathspecificresults': None, 'singlejoinpointabstraction': None, 'staticmode': 'CONTEXTFLOWSENSITIVE', 'taintwrapper': 'DEFAULTFALLBACK'}
     default_settings: Dict[str, str] = {}
+    gpbench_experiment_settings_modified: Dict = {"enablereflection": None, "noiccresultspurify": None, "layoutmode": "NONE", }
+    gpbench_experiment_settings: Dict = {"enablereflection": None, "noiccresultspurify": None, "layoutmode": "NONE", "iccmodel": "placeholder for path to icc_model"}
 
     # Options with only an empty list [] do not take any argument
-    available_options: Dict = {'aliasalgo': ['LAZY'], 'aplength': range(1,10), 'callbackanalyzer': ['DEFAULT'], 'codeelimination': ['NONE'], 'cgalgo': ['RTA'], 'dataflowsolver': ['FLOWINSENSITIVE'], 'analyzeframeworks': [None], 'implicit': ['NONE'], 'maxcallbackspercomponent': range(0,1000), 'maxcallbacksdepth': range(-1, 10), 'noexceptions': [None], 'pathalgo': ['CONTEXTSENSITIVE'], 'onesourceatatime': [None], 'pathspecificresults': [None], 'singlejoinpointabstraction': [None], 'staticmode': ['CONTEXTFLOWSENSITIVE'], 'taintwrapper': ['DEFAULTFALLBACK']}
+    available_options: Dict = {'aliasalgo': ['LAZY'], 'aplength': range(1,10), 'callbackanalyzer': ['DEFAULT'], 'codeelimination': ['NONE'], 'cgalgo': ['RTA'], 'dataflowsolver': ['FLOWINSENSITIVE'], 'analyzeframeworks': [None], 'implicit': ['NONE'], 'maxcallbackspercomponent': range(0,1000), 'maxcallbacksdepth': range(-1, 10), 'noexceptions': [None], 'pathalgo': ['CONTEXTSENSITIVE'], 'onesourceatatime': [None], 'pathspecificresults': [None], 'singlejoinpointabstraction': [None], 'staticmode': ['CONTEXTFLOWSENSITIVE'], 'taintwrapper': ['DEFAULTFALLBACK'], 'enablereflection': [None], 'noiccresultspurify': [None], 'layoutmode': ["NONE"], 'iccmodel': ['any']}
     
     args: Dict[str, str]
 
@@ -136,7 +138,7 @@ class FlowdroidArgs:
         for key, value in kwargs.items():
             if key not in FlowdroidArgs.available_options.keys():
                 raise AssertionError(f'Option {key} not documented.')
-            if value not in FlowdroidArgs.available_options[key]:
+            if value not in FlowdroidArgs.available_options[key] and FlowdroidArgs.available_options[key] not in ['iccmodel']:
                 raise AssertionError(f'Option {value} not documented, documented options for {key} are {str(FlowdroidArgs.available_options[key])}')
             
         self.args = kwargs

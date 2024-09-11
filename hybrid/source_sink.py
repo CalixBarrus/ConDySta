@@ -2,9 +2,8 @@ import re
 from typing import List
 import xml.etree.ElementTree as ET
 
-from util import logger
-
-logger = logger.get_logger('hybrid', 'source_sink')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 class SourceSinkXML:

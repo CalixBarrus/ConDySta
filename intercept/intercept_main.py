@@ -6,10 +6,10 @@ from hybrid.hybrid_config import HybridAnalysisConfig
 from intercept import decode, instrument, rebuild, keygen, \
     intercept_config, sign, clean, monkey
 
-from util import logger
 from util.input import ApkModel, BatchInputModel, InputModel
 
-logger = logger.get_logger('intercept', 'intercept_main')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 # def main(config: HybridAnalysisConfig, input: InputApksModel, do_clean=True):
 #     if do_clean:

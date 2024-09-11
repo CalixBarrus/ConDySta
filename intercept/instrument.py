@@ -4,11 +4,11 @@ import shutil
 from typing import List
 
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
-from util import logger
 from util.input import ApkModel
 from util.subprocess import run_command
 
-logger = logger.get_logger('intercept', 'instrument')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):

@@ -9,13 +9,13 @@ from typing import List
 
 from intercept import intercept_config
 
-from util import logger
 from util.input import ApkModel
 from util.subprocess import run_command
 
 from subprocess import CalledProcessError
 
-logger = logger.get_logger('intercept', 'install')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 def uninstall_apk(package_name):

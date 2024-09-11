@@ -8,10 +8,11 @@ from hybrid.hybrid_config import HybridAnalysisConfig, modified_source_sink_path
 from hybrid.source_sink import MethodSignature, SourceSinkXML
 from intercept.instrument import InstrumentationReport, SmaliMethodInvocation
 
-from util import logger
+
 from util.input import InputModel
 
-logger = logger.get_logger('hybrid', 'dynamic')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 class AbstractDynamicLogProcessingStrategy:

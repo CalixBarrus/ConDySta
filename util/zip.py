@@ -1,8 +1,8 @@
 import os
 from util.subprocess import run_command
 
-from util import logger
-logger = logger.get_logger('util', 'zip')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def zip_dir(target_dir_path, output_dir_path, output_file_name):
 

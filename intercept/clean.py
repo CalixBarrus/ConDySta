@@ -2,9 +2,8 @@ import os
 
 from hybrid.hybrid_config import HybridAnalysisConfig
 
-from util import logger
-
-logger = logger.get_logger('intercept', 'clean')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 def clean(config: HybridAnalysisConfig):

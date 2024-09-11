@@ -2,8 +2,8 @@ import os
 import subprocess
 from typing import List
 
-from util import logger
-logger = logger.get_logger('util', 'subprocess')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 def run_command(args: List['str'], redirect_stdout: str = "",

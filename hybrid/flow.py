@@ -1,15 +1,17 @@
 # Copyright 2020 Austin Mordahl
 # Forked  in 2024 by Calix Barrus
 
-from typing import Dict
+from typing import Dict, List
 import logging
 #logging.basicConfig(level=logging.DEBUG)
 import os
 import re
 import xml.etree.ElementTree as ET
 
-from util import logger
-logger = logger.get_logger_revised(__name__)
+import pandas as pd
+
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 class Flow:
     """
@@ -48,16 +50,32 @@ class Flow:
         # def get_statement_full(a: ET.Element) -> str:
         #     return a.find("statement").find("statementfull").text
 
+        
+
         def get_statementgeneric(a: ET.Element) -> str:
             return a.find("statement").find("statementgeneric").text
 
+        # debug
+        # logger.debug(source)
+        # write_element(source, os.path.join("data", "temp", "temp.xml"))
+        # end debug
+
         result["source_statementgeneric"] = get_statementgeneric(source)
-        result["source_method"] = source.find("method").text
+
+        result["source_method"] = self.get_method_text(source)
         result["source_classname"] = source.find("classname").text
         result["sink_statementgeneric"] = get_statementgeneric(sink)
-        result["sink_method"] = sink.find("method").text
+        result["sink_method"] = self.get_method_text(sink)
         result["sink_classname"] = sink.find("classname").text
         return result
+    
+    def get_method_text(self, statement_element: ET.Element):
+        # Some gpbench cases don't report method, and so there is no method element
+        method_element = statement_element.find("classname")
+        if method_element is not None:
+            return method_element.text
+        else:
+            return ""
     
     def get_source_statementgeneric(self) -> str:
         references = self.element.findall("reference")
@@ -102,8 +120,14 @@ class Flow:
             self_ss_dict = self.get_source_and_sink()
             other_ss_dict = other.get_source_and_sink()
 
-            for key in ["source_method", "source_classname", "sink_method", "sink_classname"]:
+            for key in ["source_classname", "sink_classname"]:
                 if self_ss_dict[key] != other_ss_dict[key]:
+                    return False
+            
+            # In some cases the ground truth does not report a method.
+            for key in ["source_method",  "sink_method"]:
+                # If neither method is "" and they don't match
+                if not (self_ss_dict[key] == "" and other_ss_dict[key] == "") and (self_ss_dict[key] != other_ss_dict[key]):
                     return False
 
             if self_ss_dict["source_statementgeneric"] == other_ss_dict["source_statementgeneric"] and self_ss_dict["sink_statementgeneric"] == other_ss_dict["sink_statementgeneric"]:
@@ -181,3 +205,194 @@ class Flow:
     def __ge__(self, other):
         return self == other or self > other
     
+
+def compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str) -> List[int]:
+    apk_name_mask = ground_truth_flows_df['APK Name'] == apk_name
+    
+    # Keep track of specific flows since I'll probably need to look at them specifically later.
+    tp_flows = []
+    fp_flows = []
+    # Flows not in ground truth, or annotated in ground truth as UNKNOWN or MISMATCH
+    inconclusive_flows = []
+
+    tn_flows = []
+    fn_flows = []
+    has_flow_been_detected = pd.Series([False] * len(ground_truth_flows_df[apk_name_mask]), index=ground_truth_flows_df[apk_name_mask].index)
+    for detected_flow in detected_flows:
+        # does it match a ground truth flow?
+        detected_flow_mask = ground_truth_flows_df[apk_name_mask]['Flow'] == detected_flow
+        if sum(detected_flow_mask) == 0:
+            # Flow is not in ground_truth
+            inconclusive_flows.append(detected_flow)
+        elif sum(detected_flow_mask) == 1:
+            detected_flow_row = ground_truth_flows_df[apk_name_mask][detected_flow_mask].iloc[0]
+            has_flow_been_detected[detected_flow_row.name] = True #TODO test to see if name actually pulls the index of the row
+            ground_truth_value = detected_flow_row['Ground Truth Value']
+            if ground_truth_value == "TRUE":
+                tp_flows.append(detected_flow)
+            elif ground_truth_value == "FALSE": 
+                fp_flows.append(detected_flow)
+            else: 
+                # Value must have been UNKNOWN or MISMATCH or NATIVE
+                inconclusive_flows.append(detected_flow)
+        else: 
+            raise AssertionError("Detected flow is not expected to match with more than 1 ground truth flow.")
+
+    # count the known flows that were not hit to get TN/FN, Unknown Negative
+    for i in has_flow_been_detected[has_flow_been_detected == False].index:
+        # These flows were NOT hit, so if ground truth is FALSE -> true negative, and vice versa
+        if ground_truth_flows_df.loc[i, 'Ground Truth Value'] == 'FALSE':
+            tn_flows.append(ground_truth_flows_df.loc[i, 'Flow'])
+        elif ground_truth_flows_df.loc[i, 'Ground Truth Value'] == 'TRUE':
+            fn_flows.append(ground_truth_flows_df.loc[i, 'Flow'])
+        else: 
+            # We don't really care if uncategorized flows are detected or not.
+            pass
+
+
+    # Debug
+    # ground_truth_flows_df[apk_name_mask].to_csv(os.path.join("/home/calix/programming/ConDySta/data/temp", "app_flows.csv"))
+
+    # # tree = ET.ElementTree(inconclusive_flows[0].element)
+    # # ET.indent(tree) # Pretty print the result, requires python 3.9
+    # # tree.write(os.path.join("/home/calix/programming/ConDySta/data/temp", "detected_leak.xml"))
+    # for flow in inconclusive_flows:
+    #     logger.debug(str(flow))
+        
+
+    # element = inconclusive_flows[0].element
+    # references = element.findall("reference")
+    # logger.debug(references)
+    # source = [r for r in references if r.get("type") == "to"][0]
+    # logger.debug(source)
+    # for child in source:
+    #     logger.debug(child)
+    #     logger.debug(child.text)
+    #     logger.debug(len(child))
+    # logger.debug(source.find("statement").find("statementgeneric").text)
+    
+    # End Debug
+
+    return len(tp_flows), len(fp_flows), len(tn_flows), len(fn_flows), len(inconclusive_flows) # type: ignore
+
+
+def create_flows_elements(sink_statement_full, sink_method, sink_class_name, source_tuples, apk_path):
+    # TODO: this method of making flows isn't consistent with Flowdroid's semantics (its fine for the granularity of the fossdroid ground truth though)
+
+    sink_reference_element = make_sink_reference_element(sink_statement_full, sink_method, sink_class_name, apk_path)
+    source_reference_elements = []
+    for tuple in source_tuples:
+        source_reference_elements.append(make_source_reference_element(tuple[0], tuple[1], tuple[2], apk_path))
+
+    assert len(source_reference_elements) >= 1
+
+    # assemble flow elements
+    flows = []
+    
+    for source_reference_element in source_reference_elements:
+        flow_element = ET.Element('flow') #TODO: add some experiment ID info?
+
+        flow_element.append(source_reference_element) 
+        flow_element.append(sink_reference_element) #TODO: does sink ref element need to be deep copied?
+
+        flows.append(Flow(flow_element))
+    
+    return flows
+
+def make_sink_reference_element(statement_full: str, method: str, classname: str, apk_path: str):
+    return make_reference_element(statement_full, method, classname, apk_path, "to")
+
+def make_source_reference_element(statement_full: str, method: str, classname: str, apk_path: str):
+    return make_reference_element(statement_full, method, classname, apk_path, "from")
+
+def make_reference_element(statement_full: str, method: str, classname: str, apk_path: str, type: str):
+    assert type == "to" or type == "from"
+
+    reference_element = ET.Element("reference", attrib={'type':type})
+
+    reference_element.append(make_statement_element(statement_full))
+
+    temp_element = ET.Element('method')
+    temp_element.text = method
+    reference_element.append(temp_element)
+    temp_element = ET.Element('classname')
+    temp_element.text = classname
+    reference_element.append(temp_element)
+
+    reference_element.append(make_app_element(apk_path))
+    return reference_element
+
+def make_statement_element(statement_full):
+
+    statement_generic = re.search(r"<(.+)>", statement_full).group(1)
+    
+    # First parse parameters
+    pattern = r"\((.*)\)"
+    matches = re.findall(pattern, statement_generic)
+    assert len(matches) == 1
+    param_types = matches[0].split(',')
+
+    # pattern = r"&gt;\((.*)\)"
+    pattern = r">\((.*)\)"
+    matches = re.findall(pattern, statement_full)
+    assert len(matches) == 1
+    param_values = matches[0].split(',')
+
+    # Splitting an empty string produces a list with one element
+    if matches[0] == "":
+        param_types = []
+        param_values = []
+
+    assert len(param_types) == len(param_values)
+    parameters_element = ET.Element("parameters")
+    for i in range(len(param_types)):
+        parameter_element = ET.Element("parameter")
+
+        temp_element = ET.Element("type")
+        temp_element.text = param_types[i]
+        parameter_element.append(temp_element)
+        temp_element = ET.Element("value")
+        temp_element.text = param_values[i]
+        parameter_element.append(temp_element)
+        
+        parameters_element.append(parameter_element)
+
+    statement_element = ET.Element("statement")
+    temp_element = ET.Element("statementfull")
+    temp_element.text = statement_full
+    statement_element.append(temp_element)
+    temp_element = ET.Element("statementgeneric")
+    temp_element.text = statement_generic
+    statement_element.append(temp_element)
+
+    statement_element.append(parameters_element)
+
+    return statement_element
+
+
+def make_app_element(apk_path):
+    #TODO: make sure path exists, add in hashes
+
+    app_element = ET.Element("app")
+    temp_element = ET.Element("file")
+    temp_element.text = os.path.basename(apk_path)
+    app_element.append(temp_element)
+    ET.SubElement(app_element, "hashes")
+    return app_element
+
+def attributes_ground_truth(value):
+    attributes_element = ET.Element("attributes")
+    attribute_element = ET.Element("attribute")
+    temp_element = ET.Element("name")
+    temp_element.text = "ground_truth"
+    attribute_element.append(temp_element)
+    temp_element = ET.Element("value")
+    temp_element.text = value
+    attribute_element.append(temp_element)
+    attributes_element.append(attribute_element)
+    return attribute_element
+
+def write_element(element: ET.Element, output_path: str):
+    tree = ET.ElementTree(element)
+    ET.indent(tree) # Pretty print the result, requires python 3.9
+    tree.write(output_path)

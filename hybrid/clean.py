@@ -3,9 +3,8 @@ import os
 import intercept.clean
 from hybrid.hybrid_config import HybridAnalysisConfig, get_default_hybrid_analysis_config
 
-from util import logger
-
-logger = logger.get_logger('hybrid', 'clean')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 def clean(config: HybridAnalysisConfig):

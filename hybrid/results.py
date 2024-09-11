@@ -6,8 +6,8 @@ from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_first_pass_logs
 from hybrid.log_process_fd import FlowdroidLogException, get_reported_num_leaks_in_flowdroid_log
 from util.input import ApkModel, InputModel, BatchInputModel
 
-from util.logger import get_logger
-logger = get_logger("hybrid", "results")
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 
 def print_results_to_terminal(hybrid_config: HybridAnalysisConfig):

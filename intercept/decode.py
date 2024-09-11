@@ -4,11 +4,11 @@ import subprocess
 from typing import List
 
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
-from util import logger
 from util.input import ApkModel
 from util.subprocess import run_command
 
-logger = logger.get_logger('intercept', 'decode')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def decode_apk(config: HybridAnalysisConfig, apk:ApkModel):
     decoded_apks_path = config.decoded_apks_path

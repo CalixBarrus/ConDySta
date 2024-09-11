@@ -5,9 +5,8 @@ from intercept.install import get_package_name
 from util.input import InputModel
 from util.subprocess import run_command_direct, run_command
 
-from util import logger
-logger = logger.get_logger('hybrid', 'ic3')
-
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def run_ic3_on_apk_direct(ic3_jar_path: str, android_path: str, input_model: InputModel, output_dir_path):
 

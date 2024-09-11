@@ -23,3 +23,22 @@ Get a JAR of FlowDroid, and make sure the path in hybrid_config.py points to it.
 
 You probably will want to download and use benchmarks, I used the ones from ReproDroid's website (https://foellix.github.io/ReproDroid/).
 
+Folders: benchmarks subset, flowdroid-jars, IC3
+
+From mordahls TA Env setup: 
+# Android SDK
+wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
+unzip sdk-tools-linux-4333796.zip
+cd tools
+./bin/sdkmanager "packages;android-25"
+cd ~
+
+Download command line tools from the GUI link here
+https://developer.android.com/studio#command-tools
+unzip [sdk-tools-linux-4333796.zip]
+# make sure java is updated (>= Java 17)
+cd [tools]
+./bin/sdkmanager "packages;android-25"
+
+
+

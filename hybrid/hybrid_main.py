@@ -17,9 +17,8 @@ from intercept.monkey import run_grouped_instrumented_apks
 from util import input
 from util.input import BatchInputModel
 
-from util import logger
-
-logger = logger.get_logger('hybrid', 'hybrid_main')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def main(hybrid_config, do_clean=True):
     if do_clean:

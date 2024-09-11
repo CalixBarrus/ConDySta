@@ -22,17 +22,12 @@ rotating_handler.setFormatter(formatter)
 default_logger = logging.getLogger("default")
 default_logger.addHandler(rotating_handler)
 
-
-def get_logger(package_name: str, module_name: str):
-    # logging_conf_path = "~/Documents/programming/research-programming/ConDySta/data/logger/logging.conf"
-    # TODO: path should get abstracted into config
-    # TODO: how to get logging.config.fileconfig to think it's in the project root, not the hybrid dir?
-
-    # [logger_name].[name of child logger]
-    logger = logging.getLogger(f"default.{package_name}.{module_name}")
-    return logger
-
-def get_logger_revised(file__name__: str) -> logging.Logger:
+def get_logger(file__name__: str) -> logging.Logger:
+    """
+    use at the top of every file as 
+import util.logger
+logger = util.logger.get_logger(__name__)
+    """
 
     # [logger_name].[name of child logger]
     logger = logging.getLogger(f"default.{file__name__}")

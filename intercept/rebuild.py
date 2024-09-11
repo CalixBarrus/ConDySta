@@ -13,11 +13,11 @@ from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path, rebuilt
 # print len(apkNameList)
 from intercept import intercept_config
 
-from util import logger
 from util.input import ApkModel
 from util.subprocess import run_command
 
-logger = logger.get_logger('intercept', 'rebuild')
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def rebuild_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
     logger.info("Rebuilding instrumented smali code...")
