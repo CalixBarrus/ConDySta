@@ -66,8 +66,8 @@ def gbpench_experiment_1hr_fd_configs(**file_paths):
         
         experiment_args = gpbench_experiment_full_long_timeout(**file_paths)
         experiment_args["flowdroid_args"] = FlowdroidArgs(**fd_settings)
-        experiment_args["experiment_name"] = f"fd-on-fossdroid-{name_suffix}"
-        experiment_args["experiment_description"] = f"Run FlowDroid on the full Fossdroid dataset with {settings_description_suffix}"
+        experiment_args["experiment_name"] = f"fd-on-gpbench-{name_suffix}"
+        experiment_args["experiment_description"] = f"Run FlowDroid on the full GP Bench dataset with {settings_description_suffix}"
         experiment_args["timeout"] = 60 * 60 * 60
         gpbench_experiment_generic(**experiment_args)
 
