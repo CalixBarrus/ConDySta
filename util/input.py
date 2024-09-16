@@ -131,6 +131,10 @@ class ApkModel:
 def input_apks_from_dir(dir_path: str) -> 'BatchInputModel':
     """ Recursively traverse the target directory and it's children. Return all apks
     discovered as InputApksModel with no grouped_apks. """
+
+    if dir_path == "":
+        return None
+
     ungrouped_apks = _input_apks_from_dir_as_list(dir_path)
     ungrouped_inputs = [InputModel([apk_model]) for apk_model in ungrouped_apks]
 

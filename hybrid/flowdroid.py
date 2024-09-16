@@ -1,6 +1,5 @@
 import os
 from typing import Dict, List
-import intercept.intercept_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 
 from util.subprocess import run_command, run_command_direct

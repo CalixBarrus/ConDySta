@@ -7,7 +7,7 @@ from hybrid import results
 from hybrid.clean import clean
 from hybrid.dynamic import dynamic_log_processing_strategy_factory
 from hybrid.flowdroid import run_flowdroid_config
-from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_first_pass_logs_path, apk_logcat_dump_path, \
+from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_first_pass_logs_path, apk_logcat_output_path, \
     flowdroid_second_pass_logs_path, flowdroid_misc_pass_logs_path
 from hybrid.results import HybridAnalysisResult
 from hybrid.source_sink import SourceSinkXML, MethodSignature
@@ -51,12 +51,12 @@ def dysta(config: HybridAnalysisConfig):
 
         # Run instrumented apk and collect intermediate sources
         monkey.run_ungrouped_instrumented_apk(config, apk)
-        if not os.path.isfile(apk_logcat_dump_path(config, ungrouped_input)):
+        if not os.path.isfile(apk_logcat_output_path(config._logcat_dump_dir_path, ungrouped_input)):
             results.HybridAnalysisResult.report_error(config, apk.apk_name, "No record of Dynamic Run")
             continue
         strategy = dynamic_log_processing_strategy_factory(config)
         new_sources: Union[Set[MethodSignature], SourceSinkXML] \
-            = strategy.sources_from_log(config, apk_logcat_dump_path(config, ungrouped_input), ungrouped_input)
+            = strategy.sources_from_log(config, apk_logcat_output_path(config._logcat_dump_dir_path, ungrouped_input), ungrouped_input)
         new_source_sink_path = strategy.source_sink_file_from_sources(config, new_sources, ungrouped_input)
 
         # flowdroid 2nd pass, use original apk and modified source/sink file
@@ -81,7 +81,7 @@ def dysta(config: HybridAnalysisConfig):
     for grouped_input in config.input_apks.grouped_inputs:
         for grouped_apk_index, apk in grouped_input.apks():
             new_sources: Union[Set[MethodSignature], SourceSinkXML] \
-                = strategy.sources_from_log(config, apk_logcat_dump_path(config, grouped_input, grouped_apk_index),
+                = strategy.sources_from_log(config, apk_logcat_output_path(config._logcat_dump_dir_path, grouped_input, grouped_apk_index),
                                             grouped_input, grouped_apk_index)
 
             new_source_sink_path = strategy.source_sink_file_from_sources(config, new_sources, grouped_input, grouped_apk_index)

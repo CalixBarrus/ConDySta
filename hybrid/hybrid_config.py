@@ -110,19 +110,22 @@ class HybridAnalysisConfig:
         self._flowdroid_misc_logs_path = "data/logs/flowdroid-misc-run"
 
 def get_default_hybrid_analysis_config() -> "HybridAnalysisConfig":
-
+    # TODO: External dir paths should not be set (configured) here, but for now they can be stored here.
     # unmodified_source_sink_list_path = "data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
     # unmodified_source_sink_list_path = "FlowDroid/soot-infoflow-android/SourcesAndSinks.txt"
     unmodified_source_sink_list_path = ""
 
-    flowdroid_compiled_jar_path = "FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
+    # flowdroid_compiled_jar_path = "FlowDroid/soot-infoflow-cmd/target/soot-infoflow-cmd-jar-with-dependencies.jar"
     flowdroid_compiled_jar_path = ""
 
     # android_platform_path = "~/Library/Android/sdk/platforms/"
     android_platform_path = ""
 
+    # default_apks_dir_path = "data/input-apks"
+    default_apks_dir_path = ""
+
     config = HybridAnalysisConfig(
-        input_apks=input_apks_from_dir("data/input-apks"),
+        input_apks=input_apks_from_dir(default_apks_dir_path),
 
         unmodified_source_sink_list_path=unmodified_source_sink_list_path,
         android_platform_path=android_platform_path,
@@ -153,8 +156,8 @@ def get_target_PII() -> List[str]:
     target_PII = [mint_mobile_SIM_id, nexus_6_IMEI]
     return target_PII
 
-def decoded_apk_path(config: HybridAnalysisConfig, apk: ApkModel) -> str:
-    return os.path.join(config._decoded_apks_path, apk.apk_name_no_suffix())
+def decoded_apk_path(decoded_apks_dir_path: str, apk: ApkModel) -> str:
+    return os.path.join(decoded_apks_dir_path, apk.apk_name_no_suffix())
 
 def rebuilt_apk_path(config: HybridAnalysisConfig, apk: ApkModel) ->  str:
     # Rebuilt apk keeps the ".apk" suffix
@@ -166,8 +169,9 @@ def apk_key_path(config: HybridAnalysisConfig, apk: ApkModel) -> str:
 def signed_apk_path(config: HybridAnalysisConfig, apk: ApkModel) -> str:
     return os.path.join(config._signed_apks_path, apk.apk_name)
 
-def apk_logcat_dump_path(config: HybridAnalysisConfig, apk: InputModel, grouped_apk_idx: int=-1) -> str:
-    return os.path.join(config._logcat_dump_dir_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
+def apk_logcat_output_path(logcat_dump_dir_path: str, apk: InputModel, grouped_apk_idx: int=-1) -> str:
+
+    return os.path.join(logcat_dump_dir_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
 
 def flowdroid_first_pass_logs_path(config: HybridAnalysisConfig, apk: InputModel, grouped_apk_idx: int=-1) -> str:
     return os.path.join(config._flowdroid_first_pass_logs_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))

@@ -1,7 +1,7 @@
 import os
 import re
 import shutil
-from typing import List
+from typing import List, Tuple
 
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from util.input import ApkModel
@@ -9,25 +9,6 @@ from util.subprocess import run_command
 
 import util.logger
 logger = util.logger.get_logger(__name__)
-
-
-def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
-
-    # Read in and parse decoded apks
-    decoded_apk_models: List[DecodedApkModel] = []
-    for apk in apks:
-        decoded_apk_models.append(instrument_apk(config, apk))
-
-    # We may later decide to save the decoded_apk_models for use in interpreting dynamic analysis results
-
-def instrument_apk(config: HybridAnalysisConfig, apk: ApkModel) -> 'DecodedApkModel':
-    instrumentation_strategy: InformalInstrumentationStrategyInterface = instr_strategy_from_config(config)
-
-    decoded_apk_model = DecodedApkModel(decoded_apk_path(config, apk))
-
-    decoded_apk_model.instrument(instrumentation_strategy)
-
-    return decoded_apk_model
 
 class InformalInstrumentationStrategyInterface:
     def instrument_file(self, smali_file: 'SmaliFile'):
@@ -50,6 +31,23 @@ class InformalInstrumentationStrategyInterface:
         """
         raise NotImplementedError("Interface not implemented")
 
+def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
+
+    # Read in and parse decoded apks
+    decoded_apk_models: List[DecodedApkModel] = []
+    for apk in apks:
+        decoded_apk_models.append(instrument_apk(config, apk))
+
+    # We may later decide to save the decoded_apk_models for use in interpreting dynamic analysis results
+
+def instrument_apk(config: HybridAnalysisConfig, apk: ApkModel) -> 'DecodedApkModel':
+    instrumentation_strategy: InformalInstrumentationStrategyInterface = instr_strategy_from_strategy_name(config.instrumentation_strategy)
+
+    decoded_apk_model = DecodedApkModel(decoded_apk_path(config._decoded_apks_path, apk))
+
+    decoded_apk_model.instrument(instrumentation_strategy)
+
+    return decoded_apk_model
 
 ### Begin Model Classes ###
 # Model classes store lexing and parsing logic. The constructors should leave the model
@@ -60,8 +58,8 @@ class DecodedApkModel:
     Representation of a decoded apk's files for the purposes of instrumentation
     """
     apk_root_path: str
-    project_smali_directory_names: List[str]
-    smali_directories: List[List['SmaliFile']]
+    project_smali_directory_paths: List[str]
+    smali_directories: List[List['SmaliFile']] # TODO: this doesn't need to be a list of lists, this could just be a list of SmaliFiles (as long as the directory's are being kept track of separate)
     # is_instrumented: bool TODO: this is a good idea, but right now DecodedApkModels are constructed when they are needed and then deleted; this kind of state wouldn't get cached anywhwere
 
     def __init__(self, decoded_apk_root_path: str):
@@ -75,59 +73,121 @@ class DecodedApkModel:
 
         self.apk_root_path = decoded_apk_root_path
 
-        self.project_smali_directory_names = []
-        for item in os.listdir(self.apk_root_path):
-            if (os.path.isdir(os.path.join(self.apk_root_path, item)) and
+        # self.project_smali_directory_names = []
+        # for item in os.listdir(self.apk_root_path):
+        #     if (os.path.isdir(os.path.join(self.apk_root_path, item)) and
+        #             item.startswith("smali")):
+        #         assert (item == "smali"
+        #                 or item.startswith("smali_classes")
+        #                 or item.startswith("smali_assets"))
+        #         self.project_smali_directory_names.append(item)
+
+        # # Sort the folder names so indexing into the list is consistent with
+        # # the file names.
+        # self.project_smali_directory_names.sort()
+        # assert self.project_smali_directory_names[0] == "smali"
+
+        # # Go through each folder smali_classes folder and parse all the smali
+        # # files.
+        # project_smali_directory_paths = map(os.path.join,
+        #                                     [decoded_apk_root_path] * len(
+        #                                         self.project_smali_directory_names),
+        #                                     self.project_smali_directory_names)
+
+        self.project_smali_directory_paths = DecodedApkModel.get_project_smali_directory_paths(self.apk_root_path)
+        
+        self.smali_directories: List[List[SmaliFile]] = []
+        for smali_dir_path in self.project_smali_directory_paths:
+            smali_paths = DecodedApkModel.scan_for_smali_file_paths(smali_dir_path)
+            # self.smali_directories.append(
+            #     self.scan_for_smali_files(path, ""))
+            self.smali_directories.append([SmaliFile(smali_file_path) for smali_file_path in smali_paths])
+
+        # self.is_instrumented = False
+
+    @staticmethod
+    def get_project_smali_directory_paths(decoded_apk_root_path: str) -> List[str]:
+        project_smali_directory_names = []
+        for item in os.listdir(decoded_apk_root_path):
+            if (os.path.isdir(os.path.join(decoded_apk_root_path, item)) and
                     item.startswith("smali")):
                 assert (item == "smali"
                         or item.startswith("smali_classes")
                         or item.startswith("smali_assets"))
-                self.project_smali_directory_names.append(item)
+                project_smali_directory_names.append(item)
 
         # Sort the folder names so indexing into the list is consistent with
         # the file names.
-        self.project_smali_directory_names.sort()
-        assert self.project_smali_directory_names[0] == "smali"
+        project_smali_directory_names.sort()
+        assert project_smali_directory_names[0] == "smali"
 
-        # Go through each folder smali_classes folder and parse all the smali
-        # files.
-        project_smali_directory_paths = map(os.path.join,
+        project_smali_directory_paths = list(map(os.path.join,
                                             [decoded_apk_root_path] * len(
-                                                self.project_smali_directory_names),
-                                            self.project_smali_directory_names)
-        self.smali_directories: List[List[SmaliFile]] = []
-        for path in project_smali_directory_paths:
-            self.smali_directories.append(
-                self.scan_for_smali_files(path, ""))
+                                                project_smali_directory_names),
+                                            project_smali_directory_names))
+        
+        return project_smali_directory_paths
+    
 
-        # self.is_instrumented = False
-
-    def scan_for_smali_files(self, project_smali_folder_path: str,
-                             class_path: str):
+    @staticmethod
+    def scan_for_smali_file_paths(project_smali_folder_path: str, _class_path: str="") -> List[str]:
         """
         Recursively traverse the subdirectories of
         project_smali_folder_path, getting the methods in each smali file.
         :param project_smali_folder_path: path to the "smali" or
         "smali_classes[n]" directory.
-        :param class_path: relative path referring to the subdirectories
-        traversed so far.
+        :param _class_path: relative path referring to the subdirectories
+        traversed so far, used for recursion.
         :return: List of SmaliFile objects containing data about each file in the apk
         """
-        result_smali_files: List[SmaliFile] = []
+    
+        assert os.path.basename(project_smali_folder_path).startswith("smali")
+
+        result_smali_file_paths: List[str] = []
+        # result_smali_files: List[SmaliFile] = []
         for item in os.listdir(os.path.join(project_smali_folder_path,
-                                            class_path)):
-            item_path = os.path.join(project_smali_folder_path, class_path,
+                                            _class_path)):
+            item_path = os.path.join(project_smali_folder_path, _class_path,
                                      item)
             if os.path.isdir(item_path):
-                result_smali_files += self.scan_for_smali_files(
+                result_smali_file_paths += DecodedApkModel.scan_for_smali_file_paths(
                     project_smali_folder_path,
-                    os.path.join(class_path, item))
+                    os.path.join(_class_path, item))
 
             elif item.endswith(".smali"):
-                result_smali_files.append(SmaliFile(
-                    project_smali_folder_path, class_path, item))
+                # result_smali_files.append(SmaliFile(
+                #     project_smali_folder_path, _class_path, item))
+                result_smali_file_paths.append(os.path.join(project_smali_folder_path, _class_path, item))
 
-        return result_smali_files
+        return result_smali_file_paths
+
+
+    # def scan_for_smali_files(self, project_smali_folder_path: str,
+    #                          class_path: str) -> "SmaliFile":
+    #     # """
+    #     # Recursively traverse the subdirectories of
+    #     # project_smali_folder_path, getting the methods in each smali file.
+    #     # :param project_smali_folder_path: path to the "smali" or
+    #     # "smali_classes[n]" directory.
+    #     # :param class_path: relative path referring to the subdirectories
+    #     # traversed so far.
+    #     # :return: List of SmaliFile objects containing data about each file in the apk
+    #     # """
+    #     # result_smali_files: List[SmaliFile] = []
+    #     # for item in os.listdir(os.path.join(project_smali_folder_path,
+    #     #                                     class_path)):
+    #     #     item_path = os.path.join(project_smali_folder_path, class_path,
+    #     #                              item)
+    #     #     if os.path.isdir(item_path):
+    #     #         result_smali_files += self.scan_for_smali_files(
+    #     #             project_smali_folder_path,
+    #     #             os.path.join(class_path, item))
+
+    #     #     elif item.endswith(".smali"):
+    #     #         result_smali_files.append(SmaliFile(
+    #     #             project_smali_folder_path, class_path, item))
+
+    #     return result_smali_files
 
     def instrument(self, instrumenter: InformalInstrumentationStrategyInterface):
         if instrumenter.needs_to_insert_directory():
@@ -148,9 +208,8 @@ class DecodedApkModel:
             raise ValueError(
                 "Directory " + smali_source_directory_path + " does not exist.")
 
-        destination_directory_path = os.path.join(self.apk_root_path,
-                                                  self.project_smali_directory_names[
-                                                      -1])
+        # Use the last directory; it hopefully has the fewest methods, so we don't put too many methods into the same smali directory
+        destination_directory_path = self.project_smali_directory_paths[-1]
         if not os.path.isdir(destination_directory_path):
             raise ValueError(
                 "Directory " + destination_directory_path + " does not exist.")
@@ -170,10 +229,8 @@ class SmaliFile:
     file_path: str
     methods: List['SmaliMethod']
 
-    def __init__(self, project_smali_folder_path, class_path,
-                 file_name):
-        self.file_path = os.path.join(project_smali_folder_path, class_path,
-                                      file_name)
+    def __init__(self, smali_file_path):
+        self.file_path = smali_file_path
         self.methods = []
 
         with open(self.file_path, 'r') as file:
@@ -181,13 +238,15 @@ class SmaliFile:
 
         for i, line in enumerate(lines):
             if line.startswith(".method"):
-                self.methods.append(self.parse_smali_method(lines, i))
+                self.methods.append(self.parse_smali_method(lines, i, self.file_path))
 
-    def parse_smali_method(self, lines, function_start_index) -> 'SmaliMethod':
+    def parse_smali_method(self, lines, function_start_index, parent_file_path) -> 'SmaliMethod':
         result_method = SmaliMethod()
         result_method.start_line_number = function_start_index
+        result_method.parent_file_path = parent_file_path
 
         self.parse_method_signature(result_method, lines[function_start_index])
+
 
         for i in range(function_start_index, len(lines)):
             line = lines[i]
@@ -211,8 +270,12 @@ class SmaliFile:
                 result_method.invocation_statements.append(
                     self.parse_invocation_line(i, line))
             elif SmaliMethodInvocation.is_move_result(line):
-                self.parse_move_result(
-                    result_method.invocation_statements[-1], i, line)
+                # Move result always occurs after a method invoke or a filled-new-array instruction. We want to ignore move_results due to filled-new-array instructions
+                j, prev_instr_line = SmaliMethodInvocation.get_prev_instruction(i, lines)
+                if not SmaliMethodInvocation.is_filled_new_array(prev_instr_line):
+                    self.parse_move_result(
+                        result_method.invocation_statements[-1], i, line)
+
 
         # debug
         assert result_method.start_line_number < result_method.end_line_number
@@ -329,7 +392,7 @@ class SmaliFile:
 
         # find and capture the return type, between a right paren and the end of the
         # string.
-        result_invocation.return_type = re.search("\)(.*)$", line).group(1).strip()
+        result_invocation.return_type = re.search(r"\)(.*)$", line).group(1).strip()
 
         return result_invocation
 
@@ -389,7 +452,7 @@ class SmaliFile:
         :param requested_register_count: The number of registers being requested
         :return: List of names of registers
         """
-        method = self.methods[method_number]
+        method: SmaliMethod = self.methods[method_number]
         if method.register_count() + requested_register_count > 16:
             raise ValueError("Requesting too many registers")
 
@@ -515,16 +578,42 @@ class SmaliMethod:
         self.locals_line_number = -1
 
     def register_count(self):
-        # Count the # of param registers, with "J" (long) and "D" (double) taking up two registers
+        return len(self._register_names())
+        
+    def _register_names(self) -> List[str]:
+        register_names = []
+
+        for i in range(self.number_of_locals):
+            register_names.append(f"v{str(i)}")
+
         param_registers_count = len(self.args)
         param_registers_count += sum([1 if data_type == "J" else 0 for data_type in self.args])
         param_registers_count += sum([1 if data_type == "D" else 0 for data_type in self.args])
 
-        if self.is_static:
-            return self.number_of_locals + param_registers_count
+        # Implicit param register for "this" pointer
+        if not self.is_static:
+            param_registers_count += 1
+
+        for i in range(param_registers_count):
+            register_names.append(f"p{str(i)}") 
+
+        # Aliases for these registers are:
+        # for i in range(self.number_of_locals, self.number_of_locals + param_registers_count):
+        #     register_names.append(f"v{str(i)}") 
+
+
+        return register_names
+        
+    def get_next_register(self, register: str) -> str:
+        register_names: List[str] = self._register_names()
+        if not register in register_names:
+            raise AssertionError(f"register {register} is not in {register_names}")
+
+        next_register_index = register_names.index(register) + 1
+        if next_register_index < len(register_names):
+            return register_names[next_register_index]
         else:
-            # There is an extra parameter, p0, which is "this"
-            return self.number_of_locals + param_registers_count + 1
+            return ""
 
     def increment_line_numbers(self, increment):
         self.start_line_number += increment
@@ -538,6 +627,8 @@ class SmaliMethod:
 
         for invocation_statement in self.invocation_statements:
             invocation_statement.increment_line_number(increment)
+
+    
 
 
 class SmaliMethodInvocation:
@@ -605,6 +696,10 @@ class SmaliMethodInvocation:
     @staticmethod
     def is_move_result(line):
         return line.strip().startswith("move-result")
+    
+    @staticmethod
+    def is_filled_new_array(line):
+        return line.strip().startswith("filled-new-array")
 
     def is_primitive_register(self, register_index):
         return self._is_type_primitive(self.register_type(register_index))
@@ -749,12 +844,40 @@ class SmaliMethodInvocation:
             else:
                 raise AssertionError("Unexpected primitive type: " + smali_type)
 
+    @staticmethod        
+    def is_wide_datatype(smali_type: str) -> bool:
+        return smali_type == "J" or smali_type == "D"
+
 
     def is_static_invoke(self):
         return "static" in self.invoke_kind
+    
+    @staticmethod
+    def get_prev_instruction(i: int, lines: List[str]) -> Tuple[int, str]: 
+        # Look backwards from the instruction before i, looking for the previous instruction. 
+        # Ignore lines that start with ".", unless the line starts with ".method", in which case return ""
+        # Ignore lines that start with ":", since these are like goto Locations
+        for j in range(i-1, -1, -1):
+            line = lines[j].strip()
+            
+            if line == "":
+                continue
+            if line.startswith(".method"):
+                return None, ""
+            if line.startswith("."):
+                continue
+            if line.startswith(":"):
+                continue
+            if line[0].isalnum():
+                return j, line
+            
+        assert False
+
 
 
 class InstrumentationReport:
+    """ This model class is intended to contain information that will be left 
+    in hard coded strings in the instrumented code, to be later recovered and reconstructed by a log analysis."""
     invoke_signature: str
     invoke_id: int
     is_arg_register: bool
@@ -789,13 +912,12 @@ class InstrumentationReport:
     def __repr__(self):
         return f"InstrumentationReport(invoke_signature={repr(self.invoke_signature)},invoke_id={repr(self.invoke_id)},is_arg_register={repr(self.is_arg_register)},is_return_register={repr(self.is_return_register)},register_index={repr(self.register_index)},is_before_invoke={repr(self.is_before_invoke)},register_name={repr(self.register_name)},register_type={repr(self.register_type)},is_static={repr(self.is_static)})"
 
+### End Model Classes
 
-def instrument_decoded_apks(decoded_apks_path):
-    decoded_apks_list = []
-    for item in os.listdir(decoded_apks_path):
-        if os.path.isdir(item):
-            decoded_apks_list.append(DecodedApkModel(os.path.join(decoded_apks_path,
-                                                                  item)))
+### Begin Instrumentation Strategy Classes
+
+
+
 
 class StringReturnInstrumentationStrategy(InformalInstrumentationStrategyInterface):
     def instrument(self, contents: List[str]) -> List[str]:
@@ -1041,6 +1163,8 @@ class StringReturnValuesInstrumentationStrategy(
 class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
     InformalInstrumentationStrategyInterface):
 
+    static_function_signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPII(Ljava/lang/Object;Ljava/lang/String;)I"
+
     def __init__(self):
         self.invocation_id = -1
 
@@ -1064,11 +1188,11 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
             for invocation_statement in method.invocation_statements:
                 self.invocation_id += 1
 
-                code_insertions += self._instrument_invocation_statement(method_index, method_instr_registers, invocation_statement, self.invocation_id)
+                code_insertions += self._instrument_invocation_statement(method_index, method, method_instr_registers, invocation_statement, self.invocation_id)
 
         smali_file.insert_code(code_insertions)
 
-    def _instrument_invocation_statement(self, method_index: int, method_instr_registers: List[str], invocation_statement: SmaliMethodInvocation, invocation_id: int) -> List[CodeInsertionModel]:
+    def _instrument_invocation_statement(self, method_index: int, method: SmaliMethod, method_instr_registers: List[str], invocation_statement: SmaliMethodInvocation, invocation_id: int) -> List[CodeInsertionModel]:
         code_insertions: List[CodeInsertionModel] = []
 
         # Setup arg_registers
@@ -1130,11 +1254,17 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
                 register_type_before = ""
                 register_type_after = invocation_statement.return_type
 
+            # If the invocation move-result is moving a wide data type, the register after the return register will change type
+            if invocation_statement.move_result_register != "" and SmaliMethodInvocation.is_wide_datatype(invocation_statement.return_type):
+                if method.get_next_register(invocation_statement.move_result_register) == register:
+                    register_type_after = invocation_statement.return_type
+
             # Skip Primitive types
             if not register_type_before.startswith("L"):
                 skip_instr_before = True
             if not register_type_after.startswith("L"):
                 skip_instr_after = True
+                
 
             ### End checks
 
@@ -1153,7 +1283,8 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
 
                 code = invoke_static_heapsnapshot_function(report,
                                                            register,
-                                                           method_instr_registers[0])
+                                                           method_instr_registers[0],
+                                                           self.static_function_signature)
 
                 code_insertions.append(CodeInsertionModel(code, method_index,
                                                           invocation_statement.invoke_line_number,
@@ -1187,7 +1318,8 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
 
                 code = invoke_static_heapsnapshot_function(report,
                                                            register,
-                                                           method_instr_registers[0])
+                                                           method_instr_registers[0],
+                                                           self.static_function_signature)
 
                 # Place code after move_result if there is one, otherwise place code after invoke
                 target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
@@ -1321,31 +1453,33 @@ invoke-virtual {{{v2}}}, Ljava/lang/Exception;->printStackTrace()V
 
 
 def invoke_static_heapsnapshot_function(report: InstrumentationReport,
-                                        register_to_analyze, empty_register):
+                                        register_to_analyze, empty_register, static_function_signature: str):
+    # static_function_signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPII(Ljava/lang/Object;Ljava/lang/String;)I"
     return f"""
     const-string {empty_register}, "{repr(report)}"
-    invoke-static {{{register_to_analyze}, {empty_register}}}, Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPII(Ljava/lang/Object;Ljava/lang/String;)I
+    invoke-static {{{register_to_analyze}, {empty_register}}}, {static_function_signature}
 """
 
 
-def instr_strategy_from_config(
-        config: HybridAnalysisConfig) -> \
+def instr_strategy_from_strategy_name(
+        strategy_name: str) -> \
         'InformalInstrumentationStrategyInterface':
-    if config.instrumentation_strategy == \
+    
+    if strategy_name == \
             "LogStringReturnInstrumentationStrategy":
         return LogStringReturnInstrumentationStrategy()
-    elif config.instrumentation_strategy == \
+    elif strategy_name == \
             "StringReturnInstrumentationStrategy":
         return StringReturnInstrumentationStrategy()
-    elif config.instrumentation_strategy == \
+    elif strategy_name == \
             "StringReturnValuesInstrumentationStrategy":
         return StringReturnValuesInstrumentationStrategy()
-    elif config.instrumentation_strategy == \
+    elif strategy_name == \
             "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy":
         return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy()
     else:
         raise ValueError(f"Invalid instrumentation strategy:"
-                         f" {config.instrumentation_strategy}")
+                         f" {strategy_name}")
 
 if __name__ == '__main__':
     pass

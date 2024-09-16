@@ -4,6 +4,7 @@ import pexpect
 import sys
 import os
 
+from experiment import personal_info
 from hybrid.hybrid_config import HybridAnalysisConfig, apk_key_path
 from util.input import ApkModel
 
@@ -15,7 +16,7 @@ def generate_keys_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
         generate_keys_single(config, apk)
 
 def generate_keys_single(config: HybridAnalysisConfig, apk: ApkModel):
-    if apk.apk_key_name() in os.listdir(config.keys_dir_path):
+    if os.path.isfile(apk_key_path(config, apk)):
         logger.debug(f"APK keystore {apk.apk_key_name()} already exists, skipping.")
         return
 
@@ -24,18 +25,19 @@ def generate_keys_single(config: HybridAnalysisConfig, apk: ApkModel):
 
     # Todo: should some of this logic be in util.subprocess? It's fairly business logic specific, so it may be ok leaving it here
     # set encoding to utf-8 or stdout will whine about getting bytes, instead of strings
+
     # Use the first line if you want to see the output of the signing process
     # child = pexpect.spawn(cmd, logfile=sys.stdout, encoding='utf-8')
     child = pexpect.spawn(cmd, encoding='utf-8')
 
 
     # Details that will be used for signing the apk
-    name = ""  # First and last name
-    unit = ""  # I used the university acronym
-    organization = ""  # I used the same value as unit
-    city = ""
-    state = ""
-    country_code = "01"  # United States
+    name = personal_info.name  # First and last name
+    unit = personal_info.unit  # I used the university acronym
+    organization = personal_info.organization  # I used the same value as unit
+    city = personal_info.city
+    state = personal_info.state
+    country_code = personal_info.country_code
     if any([detail == "" for detail in [name, unit, organization, city, state, country_code]]):
         raise NotImplementedError("Please fill out details for key signing")
 
@@ -100,6 +102,13 @@ def generate_keys_single(config: HybridAnalysisConfig, apk: ApkModel):
     try:
         if (child.expect([pexpect.TIMEOUT, 'correct'])):
             child.sendline('y')
+    except Exception as e:
+        logger.error(str(child))
+
+    # correct?
+    try:
+        if (child.expect([pexpect.TIMEOUT, 'Enter key password'])):
+            child.sendline("")
     except Exception as e:
         logger.error(str(child))
 

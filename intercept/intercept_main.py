@@ -67,17 +67,17 @@ def rebuild_smali_code(config: HybridAnalysisConfig):
 
 
 
-def instrument_apps(config: HybridAnalysisConfig, do_clean=True):
-    logger.info("Start code instrumentation")
-    if do_clean:
-        clean.clean(config)
+# def instrument_apps(config: HybridAnalysisConfig, do_clean=True):
+#     logger.info("Start code instrumentation")
+#     if do_clean:
+#         clean.clean(config)
 
-    apks_list = config.input_apks.unique_apks
-    decode.decode_batch(config, apks_list)
-    instrument.instrument_batch(config, apks_list)
-    rebuild.rebuild_batch(config, apks_list)
-    keygen.generate_keys_batch(config, apks_list)
-    sign.assign_key_batch(config, apks_list)
+#     apks_list = config.input_apks.unique_apks
+#     decode.decode_batch(config, apks_list)
+#     instrument.instrument_batch(config, apks_list)
+#     rebuild.rebuild_batch(config, apks_list)
+#     keygen.generate_keys_batch(config, apks_list)
+#     sign.assign_key_batch(config, apks_list)
 
 if __name__ == '__main__':
     pass

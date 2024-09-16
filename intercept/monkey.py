@@ -6,7 +6,7 @@ import time
 from subprocess import CalledProcessError
 from typing import List
 
-from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, apk_logcat_dump_path
+from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, apk_logcat_output_path
 from hybrid.results import HybridAnalysisResult
 from intercept import install
 from intercept.install import get_package_name, getApkMainIntent
@@ -29,20 +29,22 @@ def run_ungrouped_instrumented_apks(config: HybridAnalysisConfig, apks: List[Apk
         run_ungrouped_instrumented_apk(config, apk)
 
 def run_ungrouped_instrumented_apk(config: HybridAnalysisConfig, apk: ApkModel):
-    install.installApk(signed_apk_path(config, apk))
+    install.install_apk(signed_apk_path(config, apk))
+
+    apk_package_name = get_package_name(signed_apk_path(config, apk))
 
     # Clear logcat so the log dump will only consist of statements relevant to this test
     _clear_logcat()
 
     seconds_to_test = config.seconds_to_test_each_app
     if not config.use_monkey:
-        test_apk_manual(signed_apk_path(config, apk), seconds_to_test)
+        test_apk_manual(apk_package_name, seconds_to_test)
     else:
         monkey_rng_seed = config.monkey_rng_seed
-        test_apk_monkey(config, signed_apk_path(config, apk), seconds_to_test,
-                        monkey_rng_seed)
+        test_apk_monkey(apk_package_name, seconds_to_test,
+                                seed=monkey_rng_seed)
 
-    _dump_logcat(config, apk_logcat_dump_path(config, apk))
+    _dump_logcat(apk_logcat_output_path(config._logcat_dump_dir_path, apk))
 
     _uninstall_apk(signed_apk_path(config, apk))
 
@@ -56,22 +58,25 @@ def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List
     for apk_group in apk_groups:
         # TODO: update
         for apk in apk_group.apks:
-            install.installApk(signed_apk_path(config, apk))
+            install.install_apk(signed_apk_path(config, apk))
 
         for apk in apk_group.apks:
 
             # Clear logcat so the log dump will only consist of statements relevant to this test
             _clear_logcat()
 
+            apk_package_name = get_package_name(signed_apk_path(config, apk))
+            logcat_output_path = apk_logcat_output_path(config._logcat_dump_dir_path, apk, apk_group.input_id)
+
             seconds_to_test = config.seconds_to_test_each_app
             if not use_monkey:
                 test_apk_manual(signed_apk_path(config, apk), seconds_to_test)
             else:
                 monkey_rng_seed = config.monkey_rng_seed
-                test_apk_monkey(config, signed_apk_path(config, apk), seconds_to_test,
-                                monkey_rng_seed)
+                test_apk_monkey(apk_package_name, seconds_to_test,
+                                seed=monkey_rng_seed)
 
-            _dump_logcat(config, apk_logcat_dump_path(config, apk, apk_group.input_id))
+            _dump_logcat(logcat_output_path)
 
         for apk in apk_group.apks:
             _uninstall_apk(signed_apk_path(config, apk))
@@ -81,7 +86,7 @@ def _clear_logcat():
     logger.debug(" ".join(cmd))
     run_command(cmd)
 
-def _dump_logcat(config: HybridAnalysisConfig, output_path: str):
+def _dump_logcat(output_path: str):
 
     # dump logcat to a text file on the host machine
     # cmd = "adb logcat -d \"DySta-Instrumentation:I System.err:W *:S\" > {}" \
@@ -105,7 +110,7 @@ def _uninstall_apk(apk_path):
     package_name = get_package_name(apk_path)
     install.uninstall_apk(package_name)
 
-def test_apk_manual(apk_path: str, block_duration: int):
+def test_apk_manual(apk_package_name: str, block_duration: int, apk_main_intent: str="", logcat_output_path: str=""):
     """
     :param block_duration: Function will block for this number of seconds. The
     logs are collected after this function returns; this blocking behavior
@@ -114,9 +119,13 @@ def test_apk_manual(apk_path: str, block_duration: int):
     :return:
     """
 
-    apk_package_name = get_package_name(apk_path)
+    # apk_package_name = get_package_name(apk_path)
     # apkPackageName = getPackageName(apkName, target_apks_path)
-    apk_main_intent = getApkMainIntent(apk_package_name)
+    if not logcat_output_path == "":
+        _clear_logcat()
+
+    if apk_main_intent == "":
+        apk_main_intent = getApkMainIntent(apk_package_name)
 
     # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
     cmd = "adb shell am start {}".format(apk_main_intent)
@@ -126,10 +135,16 @@ def test_apk_manual(apk_path: str, block_duration: int):
 
     if block_duration > 0:
         time.sleep(block_duration)
+    # if block_duration == -1: 
+    #   input("Press enter when finished testing")
+
+    # TODO: is there an adb command to quit/close the app? or notify the user?
+
+    if not logcat_output_path == "":
+        _dump_logcat(logcat_output_path)
 
 
-def test_apk_monkey(config: HybridAnalysisConfig, apk_path: str, seconds_to_test: int,
-                    seed: int=-1):
+def test_apk_monkey(apk_package_name: str, seconds_to_test: int, logcat_output_path: str="", seed: int=-1):
     # There is not explicit option to run monkey for n seconds, but a time delay
     # between events can be used.
     # As fast as possible on a toy app, monkey generated an event ~once every
@@ -138,7 +153,11 @@ def test_apk_monkey(config: HybridAnalysisConfig, apk_path: str, seconds_to_test
 
     num_events = int(seconds_to_test * 1000 / throttle_ms)
 
-    apk_package_name = get_package_name(apk_path)
+    # TODO: assert the target package is already installed
+
+    # apk_package_name = get_package_name(apk_path)
+    if not logcat_output_path == "":
+        _clear_logcat()
 
     # This command will block for the duration that monkey runs.
     if seed == -1:
@@ -155,10 +174,13 @@ def test_apk_monkey(config: HybridAnalysisConfig, apk_path: str, seconds_to_test
     try:
         run_command(cmd)
     except CalledProcessError as e:
-        error_msg = f"Error when running {apk_path}, check logcat dump"
+        error_msg = f"Error when running {apk_package_name}, check logcat dump"
 
         logger.error(error_msg)
-        HybridAnalysisResult.report_error(config, apk_path.split("/")[-1], error_msg)
+        # HybridAnalysisResult.report_error(config, apk_path.split("/")[-1], error_msg)
+
+    if not logcat_output_path == "":
+        _dump_logcat(logcat_output_path)
 
 
 if __name__ == '__main__':

@@ -7,8 +7,6 @@ import time
 import subprocess
 from typing import List
 
-from intercept import intercept_config
-
 from util.input import ApkModel
 from util.subprocess import run_command
 
@@ -16,6 +14,19 @@ from subprocess import CalledProcessError
 
 import util.logger
 logger = util.logger.get_logger(__name__)
+
+# def check_adb_connection() -> bool: # Should this throw an exception?
+#     cmd = ["adb", "devices"]
+
+#     result = run_command(cmd)
+
+#     if result.splitlines()[1].strip() == "":
+
+#         logger.error(result)
+#         return False
+#         # raise AssertionError("Adb can't find device")
+
+#     return True
 
 
 def uninstall_apk(package_name):
@@ -78,8 +89,6 @@ def getApkMainIntent(packageName):
     cmd='adb shell dumpsys package {}'.format(packageName)
     logger.debug(cmd)
     exeResult= getCmdExecuteResult(cmd)
-
-    temp = "".join(exeResult)
 
     # Example Output:
     """
@@ -145,6 +154,8 @@ Compiler stats:
     for index, val in enumerate(exeResult):
         #print index ,val
         if val.strip("\r\n").strip()=='Action: "android.intent.action.MAIN"':
+            # Grab the previous line. In the above example, it's "40355f5 de.ecspride/.MainActivity filter 5381d72"
+            
             return exeResult[index-1].strip().split(" ")[1]
 
     raise AssertionError("Unable to find main intent!")
@@ -164,7 +175,7 @@ def startApk(packageName):
     logger.debug(getCmdExecuteResult(cmd))
 
 
-def installApk(apk_path: str):
+def install_apk(apk_path: str):
 
     # -r, replace the app if already installed
     # -t, allows test packages
@@ -190,6 +201,9 @@ def check_device_is_ready():
     result = run_command(cmd.split())
     return result.splitlines()[1].__contains__("device")
 
+def list_installed_apps():
+    "adb shell cmd package list packages -3"
+    pass
 
 # def batch(apkNameList,index):
 #     packageNameList=[]
@@ -269,8 +283,11 @@ def check_device_is_ready():
 
 if __name__ == '__main__':
 
-    apk_path = "/Users/calix/Documents/programming/TaintASet/com.ladywoodi.herbarium.apk"
-    # installApk(apk_path)
+    # apk_path = "/Users/calix/Documents/programming/TaintASet/com.ladywoodi.herbarium.apk"
+    # # installApk(apk_path)
 
-    package_name = "com.ladywoodi.herbarium"
+    # package_name = "com.ladywoodi.herbarium"
     # uninstall_apk(package_name)
+
+    # check_adb_connection()
+    pass

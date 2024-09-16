@@ -1,5 +1,6 @@
 import copy
 import os
+import shutil
 import subprocess
 from typing import List
 
@@ -10,25 +11,28 @@ from util.subprocess import run_command
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def decode_apk(config: HybridAnalysisConfig, apk:ApkModel):
-    decoded_apks_path = config.decoded_apks_path
-    output_files = os.listdir(decoded_apks_path)
+def decode_apk(config: HybridAnalysisConfig, apk:ApkModel, clean:bool=False):
 
     # todo: fix test usages of this function
+    if os.path.isdir(decoded_apk_path(config._decoded_apks_path, apk)):
+        if not clean:
+            logger.debug(f"APK {apk.apk_name} already decompiled. Skipping.")
+            return
+        else:
+            shutil.rmtree(decoded_apk_path(config._decoded_apks_path, apk))
+            logger.debug(f"APK {apk.apk_name} already decompiled. Deleting.")
 
-    if apk.apk_name[:-4] in output_files:
-        logger.debug(f"APK {apk.apk_name} already decompiled. Skipping.")
-    else:
-        # decompile to decoded_apks_path
-        # Pull off the ".apk" of the name of the output file
-        cmd = ["apktool", "--quiet", "d", apk.apk_path, "-o", decoded_apk_path(config, apk)]
+    # decompile to decoded_apks_path
+    # Pull off the ".apk" of the name of the output file
+    apktool_path = "apktool" # TODO: move this to external_path
+    cmd = [apktool_path, "--quiet", "d", apk.apk_path, "-o", decoded_apk_path(config._decoded_apks_path, apk)]
 
-        logger.debug(" ".join(cmd))
-        run_command(cmd)
+    logger.debug(" ".join(cmd))
+    run_command(cmd)
 
-def decode_batch(config: HybridAnalysisConfig, apks:List[ApkModel]):
+def decode_batch(config: HybridAnalysisConfig, apks:List[ApkModel], clean: bool=False):
     for apk in apks:
-        decode_apk(config, apk)
+        decode_apk(config, apk, clean)
 
 if __name__ == '__main__':
     pass

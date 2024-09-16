@@ -7,6 +7,7 @@ import typing
 
 import numpy as np
 
+from experiment import external_path
 from experiment.common import benchmark_df_base_from_batch_input_model, format_num_secs, groundtruth_df_from_xml, process_results_from_fd_log_single, results_df_from_benchmark_df, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
 import hybrid
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid, run_flowdroid_help, run_flowdroid_paper_settings, run_flowdroid_with_fdconfig
@@ -24,7 +25,7 @@ logger = util.logger.get_logger(__name__)
 
 def gpbench_main():
     # benchmark_folder_path: str = "/Users/calix/Documents/programming/research-programming/benchmarks/gpbench/apks"
-    benchmark_folder_path: str = "/home/calix/programming/benchmarks/wild-apps/data/gpbench/apks"
+    benchmark_folder_path: str = external_path.gpbench_apks_dir_path
 
     # flowdroid_jar_path: str = "/Users/calix/Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
     # flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"

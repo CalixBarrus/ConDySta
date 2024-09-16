@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 
+from experiment import external_path
 from experiment.common import benchmark_df_base_from_batch_input_model, format_num_secs, groundtruth_df_from_xml, process_results_from_fd_log_single, results_df_from_benchmark_df, setup_additional_directories, setup_dirs_with_dependency_info, setup_experiment_dir
 from hybrid.flow import Flow
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
@@ -22,7 +23,7 @@ def fossdroid_main():
     # flowdroid_jar_path = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"
     flowdroid_jar_path = "/home/calix/programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
     android_platforms_dir_path = "/home/calix/.android_sdk/platforms"
-    fossdroid_benchmark_dir_path = "/home/calix/programming/benchmarks/wild-apps/data/fossdroid/fossdroid_apks"
+    fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
     fossdroid_ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/fossdroid_ground_truth.xml"
 
     # This rewrites the source sink list

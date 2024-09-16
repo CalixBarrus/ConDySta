@@ -4,21 +4,27 @@ import pexpect
 import sys
 import os
 
+from experiment import external_path
 from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, rebuilt_apk_path, apk_key_path
 from util.input import ApkModel
 
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def assign_key_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
+def assign_key_batch(config: HybridAnalysisConfig, apks: List[ApkModel], clean: bool=False):
     for apk in apks:
-        assign_key_single(config, apk)
+        assign_key_single(config, apk, clean)
 
-def assign_key_single(config: HybridAnalysisConfig, apk: ApkModel):
+def assign_key_single(config: HybridAnalysisConfig, apk: ApkModel, clean: bool):
     # If the apk is already signed, don't sign it again.
     if os.path.exists(signed_apk_path(config, apk)):
-        logger.debug(f"APK {apk.apk_name} already signed, skipping.")
-        return
+        if not clean:
+            logger.debug(f"APK {apk.apk_name} already signed, skipping.")
+            return
+        else: 
+            logger.debug(f"APK {apk.apk_name} already signed, deleting.")
+            os.remove(signed_apk_path(config, apk))
+
 
     # Make sure the apk being signed exists
     if not os.path.exists(rebuilt_apk_path(config, apk)):
@@ -27,7 +33,9 @@ def assign_key_single(config: HybridAnalysisConfig, apk: ApkModel):
 
     # cmd = "jarsigner -verbose -keystore {}{} -storepass 123456 -signedjar {}{} {}{} abc.keystore".format(keyPath, apkKeyName, signedApksPath, apkName, rebuiltApksPath, apkName)
     # In theory, this should be "zipalign"ed and verified before signing. It seems to work OK without that step though.
-    cmd = ["apksigner", "sign",
+    apksigner_path = "apksigner"
+    # apksigner_path = external_path.apksigner_path
+    cmd = [apksigner_path, "sign",
            "--ks", apk_key_path(config, apk),
            "--ks-pass", "pass:123456",
            "--in", rebuilt_apk_path(config, apk),
