@@ -71,7 +71,7 @@ class Flow:
     
     def get_method_text(self, statement_element: ET.Element):
         # Some gpbench cases don't report method, and so there is no method element
-        method_element = statement_element.find("classname")
+        method_element = statement_element.find("method")
         if method_element is not None:
             return method_element.text
         else:

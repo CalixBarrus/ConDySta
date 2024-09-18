@@ -17,21 +17,51 @@ import util.logger
 from util.input import BatchInputModel, InputModel, find_apk_paths_in_dir_recursive, input_apks_from_dir
 logger = util.logger.get_logger(__name__)
 
-def fossdroid_main():
-    # File names only in this layer
-
+def get_file_paths():
     # flowdroid_jar_path = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"
     flowdroid_jar_path = "/home/calix/programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
     android_platforms_dir_path = "/home/calix/.android_sdk/platforms"
     fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
     fossdroid_ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/fossdroid_ground_truth.xml"
 
+    # source_sink_list_from_df(df_from_groundtruth_xmls(fossdroid_benchmark_dir_path, fossdroid_ground_truth_xml_path), get_fossdroid_source_sink_list_path())
+    file_paths = {"flowdroid_jar_path": flowdroid_jar_path, 
+                  "android_path": android_platforms_dir_path,
+                  "fossdroid_dir_path": fossdroid_benchmark_dir_path, 
+                  "fossdroid_ground_truth_xml_path": fossdroid_ground_truth_xml_path}
+    
+    return file_paths
+
+def fossdroid_main():
     # This rewrites the source sink list
     # source_sink_list_from_df(df_from_groundtruth_xmls(fossdroid_benchmark_dir_path, fossdroid_ground_truth_xml_path), get_fossdroid_source_sink_list_path())
 
+    file_paths = get_file_paths()
     # single_fossdroid_experiment(flowdroid_jar_path=flowdroid_jar_path, android_path=android_platforms_dir_path, fossdroid_dir_path=fossdroid_benchmark_dir_path, fossdroid_ground_truth_xml_path=fossdroid_ground_truth_xml_path)
-    fossdroid_experiment_1hr_fd_configs(flowdroid_jar_path=flowdroid_jar_path, android_path=android_platforms_dir_path, fossdroid_dir_path=fossdroid_benchmark_dir_path, fossdroid_ground_truth_xml_path=fossdroid_ground_truth_xml_path)
-    
+    fossdroid_experiment_15min_fd_configs(**file_paths)
+
+def fossdroid_validation_experiment():
+    file_paths = get_file_paths()
+    experiment_args = fossdroid_experiment_setup_base(**file_paths)
+
+    experiment_args["timeout"] = 60 * 60 # 1 hour
+    experiment_args["always_new_experiment_directory"] = False
+
+    fossdroid_default_csv_path = "data/benchmark-descriptions/fossdroid_config_aplength5_replication1.csv"
+    fossdroid_best_csv_path = "data/benchmark-descriptions/fossdroid_config_2way2_replication1.csv"
+
+    experiment_args["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.default_settings)
+    experiment_args["experiment_name"] = f"fd-on-fossdroid-default-validation"
+    experiment_args["experiment_description"] = f"Run FlowDroid on the full Fossdroid dataset with default settings, compare with Mordahl's experiment"
+    experiment_args["benchmark_description_path"] = fossdroid_default_csv_path
+    fossdroid_experiment_generic(**experiment_args)
+
+    experiment_args["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.best_fossdroid_settings)
+    experiment_args["experiment_name"] = f"fd-on-fossdroid-best-mordahl-validation"
+    experiment_args["experiment_description"] = f"Run FlowDroid on the full Fossdroid dataset with Mordahl's best DB3 settings, compare with Mordahl's experiment"
+    experiment_args["benchmark_description_path"] = fossdroid_best_csv_path
+    fossdroid_experiment_generic(**experiment_args)
+
 
 def single_fossdroid_experiment(**file_paths):
     # experiment_args = fossdroid_experiment_setup_misc(**file_paths)
@@ -40,7 +70,7 @@ def single_fossdroid_experiment(**file_paths):
     
     fossdroid_experiment_generic(**experiment_args)
 
-def fossdroid_experiment_1hr_fd_configs(**file_paths):
+def fossdroid_experiment_15min_fd_configs(**file_paths):
 
     for name_suffix, settings_description_suffix, fd_settings in [("default", "default FD settings", FlowdroidArgs.default_settings), 
                                                            ("modified-zhang-settings", "modified settings from gpbench study", FlowdroidArgs.gpbench_experiment_settings_modified), 
@@ -50,13 +80,14 @@ def fossdroid_experiment_1hr_fd_configs(**file_paths):
         experiment_args["flowdroid_args"] = FlowdroidArgs(**fd_settings)
         experiment_args["experiment_name"] = f"fd-on-fossdroid-{name_suffix}"
         experiment_args["experiment_description"] = f"Run FlowDroid on the full Fossdroid dataset with {settings_description_suffix}"
-        experiment_args["timeout"] = 60 * 60 * 60
+        experiment_args["timeout"] =  15 * 60
         fossdroid_experiment_generic(**experiment_args)
 
 
 def fossdroid_experiment_setup_base(**file_paths) -> Dict[str, typing.Any]:
     # No file names in this layer, but I want this function to eventually allow wierd automation of tweaking some experiment args. (test experiments, run different FD versions/SS lists in serial, etc.)
     # This should NOT be called by fossdroid_main, rather right some functions to handle these
+    # print(file_paths)
     assert list(file_paths.keys()) == ["flowdroid_jar_path", "android_path", "fossdroid_dir_path", "fossdroid_ground_truth_xml_path"]
     
     experiment_args = file_paths.copy()
@@ -78,6 +109,8 @@ def fossdroid_experiment_setup_base(**file_paths) -> Dict[str, typing.Any]:
     experiment_args["flowdroid_args"] = flowdroid_args
 
     experiment_args["always_new_experiment_directory"] = False
+
+    experiment_args["benchmark_description_path"] = ""
 
     return experiment_args
 
@@ -163,6 +196,7 @@ def fossdroid_experiment_generic(**kwargs):
     experiment_description = kwargs["experiment_description"]
     flowdroid_args = kwargs["flowdroid_args"]
     always_new_experiment_directory = kwargs["always_new_experiment_directory"]
+    benchmark_description_path = kwargs["benchmark_description_path"]
     
     # Things below here don't need tweaking between experiments???
 
@@ -176,36 +210,7 @@ def fossdroid_experiment_generic(**kwargs):
     # TODO: This isn't a general way at all to setup the results_df/apps_df
     inputs_model: BatchInputModel = input_apks_from_dir(fossdroid_dir_path)
     # For benchmark/app 'id's, take the apps alphabetically from the directory 
-    
-    benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model)
-
-    # apk_names = os.listdir(fossdroid_dir_path)
-    # apk_names.sort()
-    # apps_df = pd.DataFrame({
-    #                 "Benchmark ID": [""]*len(apk_names),
-    #                 "Input Model": [""]*len(apk_names),
-    #                 "APK Name": [""]*len(apk_names), 
-    #                 "APK Path": [""]*len(apk_names), 
-    #                 "Reported Flowdroid Flows": [""]*len(apk_names),
-    #                 "TP": [""]*len(apk_names), 
-    #                 "FP": [""]*len(apk_names), 
-    #                 "TN": [""]*len(apk_names), 
-    #                 "FN": [""]*len(apk_names), 
-    #                 "Flows Not Evaluated": [""]*len(apk_names), 
-    #                 "Time Elapsed": [""]*len(apk_names), 
-    #                 "Max Reported Memory Usage": [""]*len(apk_names), 
-    #                 "Error Message": [""]*len(apk_names), 
-    #                 })
-
-    # for i, apk_name in enumerate(apk_names):
-    #     matching_input_model = next((input_model for input_model in inputs_model.ungrouped_inputs if input_model.apk().apk_name == apk_name), None)
-    #     assert matching_input_model is not None
-    #     matching_input_model.benchmark_id = i
-
-    #     apps_df.loc[i, 'Benchmark ID'] = i
-    #     apps_df.loc[i, 'Input Model'] = matching_input_model
-    #     apps_df.loc[i, 'APK Name'] = matching_input_model.apk().apk_name
-    #     apps_df.loc[i, 'APK Path'] = matching_input_model.apk().apk_path
+    benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_path)
     
     if ids_subset is not None:
         benchmark_df = benchmark_df.iloc[ids_subset]
@@ -234,43 +239,6 @@ def fossdroid_experiment_generic(**kwargs):
 
         process_results_from_fd_log_single(results_df, i, time_elapsed, output_log_path, input_model.apk().apk_path, ground_truth_flows_df=ground_truth_flows_df)
 
-        # apps_df.loc[i, "Time Elapsed"] = format_num_secs(time_elapsed)
-
-        # apps_df.loc[i, "Max Reported Memory Usage"] = get_flowdroid_memory(output_log_path)
-        # analysis_error = get_analysis_error_in_flowdroid_log(output_log_path)
-        # if analysis_error != "":
-        #     apps_df.loc[i, "Error Message"] += analysis_error
-        #     logger.error(analysis_error)
-
-        # try: 
-        #     reported_num_leaks = get_reported_num_leaks_in_flowdroid_log(output_log_path)
-        #     detected_flows = get_flows_in_flowdroid_log(output_log_path, apps_df.loc[i, 'APK Path'])
-
-        # except FlowdroidLogException as e:
-        #     logger.error(e.msg)
-        #     apps_df.loc[i, "Error Message"] = e.msg
-        #     # raise e
-        #     continue
-
-        # apps_df.loc[i, "Reported Flowdroid Flows"] = reported_num_leaks
-
-        # # deduplicate FD flows
-        # original_length = len(detected_flows)
-        # detected_flows = list(set(detected_flows))
-        # if len(detected_flows) != original_length:
-        #     logger.warn(f"Flowdroid reported {original_length - len(detected_flows)} duplicate flows for app {apps_df.loc[i, 'APK Name']}")
-
-        # tp, fp, tn, fn, inconclusive = compare_flows(detected_flows, ground_truth_flows_df, apps_df.loc[i, 'APK Name'])
-
-        # apps_df.loc[i, "TP"] = tp
-        # apps_df.loc[i, "FP"] = fp
-        # apps_df.loc[i, "TN"] = tn
-        # apps_df.loc[i, "FN"] = fn
-        # apps_df.loc[i, "Flows Not Evaluated"] = inconclusive
-
-    # Save the results
-    # cols = ["Benchmark ID","Input Model","APK Name","APK Path","TP","FP","TN","FN","Flows Not Evaluated","Time Elapsed","Max Reported Memory Usage","Error Message"]
-    # cols = ["Benchmark ID","APK Name","TP","FP","TN","FN","Flows Not Evaluated","Time Elapsed","Max Reported Memory Usage","Error Message"]
     results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
     results_df.to_csv(results_df_path)
 

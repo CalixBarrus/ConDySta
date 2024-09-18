@@ -1,6 +1,6 @@
 import subprocess
 from experiment.benchmarks import icc_bench_linux
-from experiment.fossdroid import fossdroid_main
+from experiment.fossdroid import fossdroid_main, fossdroid_validation_experiment
 from experiment.gpbench import flowdroid_help, gpbench_main, ic3_linux, run_ic3_on_apk
 
 from experiment.instrument import instrument_test_wild_benchmarks, instrument_test_wild_benchmarks_few, instrument_test_wild_benchmarks_full
@@ -17,7 +17,9 @@ if __name__ == '__main__':
     # ic3_linux()
     # gpbench_main()
     # fossdroid_main()
-    instrument_test_wild_benchmarks_few()
+    
+    # instrument_test_wild_benchmarks_few()
     # instrument_test_wild_benchmarks_full()
     # run_apps_for_integration_testing()
 
+    fossdroid_validation_experiment()

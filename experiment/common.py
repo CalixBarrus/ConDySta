@@ -169,6 +169,7 @@ def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path):
     # df columns -> Flow, APK Name, APK Path, Source Signature, Sink Signature, Ground Truth Value
     flows = [Flow(element) for element in flow_elements]
     flows.sort()
+
     groundtruth_df = pd.DataFrame({"Flow": flows})
     # Index is set to the list index of flows
     groundtruth_df["APK Name"] = ""
@@ -177,16 +178,13 @@ def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path):
     groundtruth_df["Sink Signature"] = ""
     groundtruth_df["Ground Truth Value"] = ""
 
-    flows = [Flow(element) for element in flow_elements]
-    flows.sort()
-
     for i in groundtruth_df.index:
         flow: Flow = groundtruth_df.loc[i, "Flow"] # type: ignore
         groundtruth_df.loc[i, "APK Name"] = flow.get_file()
 
         # Match up the flow with the corresponding Benchmark ID
         mask = benchmark_df["Input Model"].apply(lambda model: model.apk().apk_name).values == groundtruth_df.loc[i, "APK Name"]
-        # logger.debug(benchmark_df["Input Model"].apply(lambda model: model.apk().apk_name).values)
+        
         assert sum(mask) <= 1
         if sum(mask) == 1:
             groundtruth_df.loc[i, "Benchmark ID"] = benchmark_df[mask]["Benchmark ID"].iloc[0]
@@ -214,12 +212,20 @@ def benchmark_df_base_from_batch_input_model(inputs_model: BatchInputModel, benc
         benchmark_df.loc[i, "Input Model"].benchmark_id = i # type: ignore
 
     if benchmark_description_csv_path != "":
-        description_df = pd.read_csv(benchmark_description_csv_path, header=0, index_col=False)
-        description_df = description_df.set_index(description_df["AppID"])
+
+        description_df = description_df_from_path(benchmark_description_csv_path)
+
+        # if "AppID" in description_df.columns:
+        #     description_df = description_df.set_index(description_df["AppID"])
+        # else: 
+        #     description_df["AppID"] = description_df.index
 
         # Change the Benchmark IDs to match the AppID's from the description.
-        # Join on description_df["AppName"], where a given apk_name is [AppID].[AppName].apk
-        description_df_apk_names = description_df["AppID"].astype(str) + "." + description_df["AppName"] + ".apk"
+        if os.path.basename(benchmark_description_csv_path) == "gpbench-info.csv":
+            # Join on description_df["AppName"], where a given apk_name is [AppID].[AppName].apk
+            description_df_apk_names = description_df["AppID"].astype(str) + "." + description_df["AppName"] + ".apk"
+        else: 
+            description_df_apk_names = description_df["apk"].apply(lambda path: os.path.basename(path))
 
         for i in benchmark_df.index:
             model: InputModel = benchmark_df.loc[i, "Input Model"] # type: ignore
@@ -229,11 +235,15 @@ def benchmark_df_base_from_batch_input_model(inputs_model: BatchInputModel, benc
             benchmark_df.loc[i, "Benchmark ID"] = description_df[mask]["AppID"].iloc[0]
             model.benchmark_id = description_df[mask]["AppID"].iloc[0]
 
-        benchmark_df.set_index("Benchmark ID")
+        benchmark_df = benchmark_df.set_index("Benchmark ID")
+        benchmark_df["Benchmark ID"] = benchmark_df.index
+
+    benchmark_df.sort_index(inplace=True)
 
     return benchmark_df
 
-def results_df_from_benchmark_df(benchmark_df: pd.DataFrame) -> pd.DataFrame:
+def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_description_path: str="") -> pd.DataFrame:
+
     results_df = benchmark_df[["Benchmark ID"]]
     results_df["APK Name"] = ""
     for i in benchmark_df.index:
@@ -241,9 +251,32 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame) -> pd.DataFrame:
 
     results_df["Error Message"] = ""
 
+
+    if benchmark_description_path != "":
+        description_df = description_df_from_path(benchmark_description_path)
+        assert description_df.index == results_df.index
+
+        if os.path.basename(benchmark_description_path) == "gpbench-info.csv":
+            cols_to_copy = ["UBC # of Expected Flows", "UBC FlowDroid v2.7.1 Detected Flows"]
+        elif os.path.basename(benchmark_description_path) == "fossdroid_config_aplength5_replication1.csv" or os.path.basename(benchmark_description_path) == "fossdroid_config_2way2_replication1.csv":
+            cols_to_copy = ["num_flows", "time", "total_TP", "detected_TP", "total_FP", "detected_FP"]
+        else:
+            raise NotImplementedError()            
+        
+        results_df[cols_to_copy] = description_df[cols_to_copy]
+
     return results_df
 
-    
+def description_df_from_path(benchmark_description_path: str):
+    description_df = pd.read_csv(benchmark_description_path, header=0)
+
+    if "AppID" in description_df.columns:
+        description_df = description_df.set_index(description_df["AppID"])
+    else: 
+        description_df["AppID"] = description_df.index
+
+    return description_df
+
 
 # def apks_df_from_apk_models(apk_models: List[ApkModel]) -> pd.DataFrame:
 

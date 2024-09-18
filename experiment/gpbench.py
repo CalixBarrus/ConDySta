@@ -47,8 +47,8 @@ def gpbench_main():
     gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
 
     # single_gpbench_experiment(flowdroid_jar_path=flowdroid_jar_path, android_path=android_path, gpbench_dir_path=benchmark_folder_path, ground_truth_xml_path=ground_truth_xml_path, gpbench_description_path=gpbench_description_path)
-    gbpench_experiment_1hr_fd_configs(flowdroid_jar_path=flowdroid_jar_path, android_path=android_path, gpbench_dir_path=benchmark_folder_path, ground_truth_xml_path=ground_truth_xml_path, gpbench_description_path=gpbench_description_path)
-    # flowdroid_on_gpbench_full(flowdroid_jar_path, android_path, gpbench_dir_path, ic3_path="", use_model_paths_csv=False, using_ic3_script=False, app_ids=range(1,20))
+    # gbpench_experiment_1hr_fd_configs(flowdroid_jar_path=flowdroid_jar_path, android_path=android_path, gpbench_dir_path=benchmark_folder_path, ground_truth_xml_path=ground_truth_xml_path, gpbench_description_path=gpbench_description_path)
+    gpbench_experiment_test_fd_configs(flowdroid_jar_path=flowdroid_jar_path, android_path=android_path, gpbench_dir_path=benchmark_folder_path, ground_truth_xml_path=ground_truth_xml_path, gpbench_description_path=gpbench_description_path)
 
 
 def single_gpbench_experiment(**file_paths):
@@ -59,18 +59,29 @@ def single_gpbench_experiment(**file_paths):
     gpbench_experiment_generic(**experiment_args)
 
 
-def gbpench_experiment_1hr_fd_configs(**file_paths):
+def gbpench_experiment_fd_configs(timeout=60*60, ids_subset=None, experiment_name_suffix="full", **file_paths):
 
     for name_suffix, settings_description_suffix, fd_settings in [("default", "default FD settings", FlowdroidArgs.default_settings), 
                                                            ("modified-zhang-settings", "modified settings from gpbench study", FlowdroidArgs.gpbench_experiment_settings_modified), 
                                                            ("best-mordahl-settings", "best settings from Mordahl study's droidbench trial", FlowdroidArgs.best_fossdroid_settings)]:
-        
+
         experiment_args = gpbench_experiment_full_long_timeout(**file_paths)
         experiment_args["flowdroid_args"] = FlowdroidArgs(**fd_settings)
-        experiment_args["experiment_name"] = f"fd-on-gpbench-{name_suffix}"
-        experiment_args["experiment_description"] = f"Run FlowDroid on the full GP Bench dataset with {settings_description_suffix}"
-        experiment_args["timeout"] = 60 * 60 * 60
+        experiment_args["experiment_name"] = f"fd-on-gpbench-{experiment_name_suffix}-{name_suffix}"
+        experiment_args["experiment_description"] = f"Run FlowDroid on the {experiment_name_suffix} GP Bench dataset with {settings_description_suffix}"
+        experiment_args["timeout"] = timeout
+        experiment_args["ids_subset"] = ids_subset
         gpbench_experiment_generic(**experiment_args)
+
+def gbpench_experiment_1hr_fd_configs(**file_paths):
+    timeout = 60 * 60
+    ids_subset = None
+    gbpench_experiment_fd_configs(timeout=timeout, ids_subset=ids_subset, experiment_name_suffix="full", **file_paths)
+
+def gpbench_experiment_test_fd_configs(**file_paths):
+    timeout =  15 * 60
+    ids_subset = [2,3,4,5]
+    gbpench_experiment_fd_configs(timeout=timeout, ids_subset=ids_subset, experiment_name_suffix="test", **file_paths)
 
 def gpbench_experiment_setup_base(**file_paths) -> Dict[str, typing.Any]:
     # assert list(file_paths.keys()) == ["flowdroid_jar_path", "android_path", "fossdroid_dir_path", "fossdroid_ground_truth_xml_path"]
@@ -182,8 +193,8 @@ Using ic3 script from Junbin Zhang (UBC).
             # skip the rest of the experiment; Can't run FD properly without the ICC model
             continue
         except TimeoutExpired as e:
-            logger.error(f"ic3 timed out after {ic3_timeout} seconds; details in " + ic3_path)
-            results_df.loc[input_model.benchmark_id, "Error Message"] = f"IC3 Timed Out after {ic3_timeout} seconds"
+            logger.error(f"ic3 timed out after {format_num_secs(ic3_timeout)}; details in " + ic3_path)
+            results_df.loc[input_model.benchmark_id, "Error Message"] = f"IC3 Timed Out after {format_num_secs(ic3_timeout)}"
             # skip the rest of the experiment; Can't run FD properly without the ICC model
             continue
         except ValueError as e:
@@ -208,7 +219,7 @@ def gpbench_experiment_generic(**kwargs):
     ids_subset = kwargs["ids_subset"] 
     experiment_name = kwargs["experiment_name"] 
     experiment_description = kwargs["experiment_description"] 
-    flowdroid_args = kwargs["flowdroid_args"] 
+    flowdroid_args: FlowdroidArgs = kwargs["flowdroid_args"] 
     always_new_experiment_directory = kwargs["always_new_experiment_directory"] 
 
     # ic3_timeout = 4 * 60 * 60
@@ -218,38 +229,18 @@ def gpbench_experiment_generic(**kwargs):
 
     ss_gpl_path: str = check_ssgpl_list()
 
-
-    # Setup experiment df
-    #TODO: more general would be to merge in a given benchmark description
-    # ground_truth_xml_path = ""
-    # gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
-    # benchmark_df = pd.read_csv(gpbench_description_path, header=0, index_col=False)
-    # benchmark_df = benchmark_df.set_index(benchmark_df["AppID"])
-    # benchmark_df["Detected Flows"] = None
-    # benchmark_df["Error Message"] = None
-    # # results_df["IC3 Time"] = None
-    # benchmark_df["Time Elapsed"] = None
-
-    # Get apps from gp_bench
-    # input_apks: BatchInputModel = apps_from_gpbench(gpbench_dir_path, benchmark_df)
+    # debug
+    flowdroid_args.set_arg("outputlinenumbers", None)
+    fd_xml_output_dir_path = setup_additional_directories(experiment_dir_path, ["fd-xml-output"])[0]
+    
+    # end debug
 
     inputs_model = input_apks_from_dir(gpbench_dir_path)
-
-    # #TODO: reconcile this impl with the one in fossdroid.py. 
-    # benchmark_df["Input Model"] = None
-    # for input_model in input_apks.ungrouped_inputs:
-    #     mask = benchmark_df["AppName"].apply(lambda x: x in input_model.apk().apk_name) # type: ignore
-    #     # only one result should be found 
-    #     if mask.sum() > 1:
-    #         raise AssertionError("Apk Name " + input_model.apk().apk_name + " found in multiple df rows: \n" + str(benchmark_df[mask]))
-    #     app_id = benchmark_df[mask]["AppID"].iloc[0]
-    #     input_model.benchmark_id = app_id
-    #     benchmark_df.loc[app_id, "Input Model"] = input_model # type: ignore
 
     benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=gpbench_description_path)
 
     if ids_subset is not None:
-        benchmark_df = benchmark_df.iloc[ids_subset]
+        benchmark_df = benchmark_df.loc[ids_subset]
 
     """
     ic3_path: str = kwargs["ic3_path"]
@@ -296,7 +287,7 @@ def gpbench_experiment_generic(**kwargs):
                     # skip the rest of the experiment; Can't run FD properly without the ICC model
                     continue
                 except TimeoutExpired as e:
-                    logger.error(f"ic3 timed out after {ic3_timeout} seconds; details in " + ic3_log_path)
+                    logger.error(f"ic3 timed out after {format_num_secs(ic3_timeout)}; details in " + ic3_log_path)
                     results_df.loc[input_model.benchmark_id, "Error Message"] = f"IC3 Timed Out after {format_num_secs(ic3_timeout)} "
                     # skip the rest of the experiment; Can't run FD properly without the ICC model
                     continue
@@ -315,7 +306,7 @@ def gpbench_experiment_generic(**kwargs):
                     # skip the rest of the experiment; Can't run FD properly without the ICC model
                     continue
                 except TimeoutExpired as e:
-                    msg = f"ic3 timed out after {format_num_secs(ic3_timeout)} seconds; details in " + ic3_path
+                    msg = f"ic3 timed out after {format_num_secs(ic3_timeout)}; details in " + ic3_path
                     logger.error(msg)
                     results_df.loc[i, "Error Message"] = msg
                     # skip the rest of the experiment; Can't run FD properly without the ICC model
@@ -331,30 +322,26 @@ def gpbench_experiment_generic(**kwargs):
             pass
 
         fd_log_path = os.path.join(fd_output_dir_path, input_model.input_identifier() + ".log")
+        # debug
+        flowdroid_args.set_arg("outputfile", os.path.join(fd_xml_output_dir_path, input_model.input_identifier() + ".xml"))
+        # end debug
+        
 
         try:
             t0 = time.time()
-            # run_flowdroid_paper_settings(flowdroid_jar_path, android_path, input_model.apk().apk_path,
-            #                 ss_gpl_path,
-            #                 icc_model_path, # type: ignore
-            #                 fd_log_path,
-            #                 verbose_path_info=True,
-            #                 timeout=flowdroid_timeout)
             run_flowdroid_with_fdconfig(flowdroid_jar_path, input_model.apk().apk_path, android_path, ss_gpl_path, flowdroid_args, fd_log_path, flowdroid_timeout)
             time_elapsed = time.time() - t0
         except TimeoutExpired as e:
-            logger.error(f"Flowdroid timed out after {flowdroid_timeout} seconds; details in " + fd_log_path)
+            logger.error(f"Flowdroid timed out after {format_num_secs(flowdroid_timeout)}; details in " + fd_log_path)
             results_df.loc[i, "Error Message"] = f"Flowdroid Timed Out after {format_num_secs(flowdroid_timeout)} "
             continue
 
         process_results_from_fd_log_single(results_df, i, time_elapsed, fd_log_path, apk_path=input_model.apk().apk_path, ground_truth_flows_df=ground_truth_flows_df)
 
-        # leaks_count = get_reported_num_leaks_in_flowdroid_log(fd_log_path)
-        # if leaks_count is None:
-        #     benchmark_df.loc[input_model.benchmark_id, "Error Message"] = "Flowdroid Irregularity, review log at " + fd_log_path
-        # benchmark_df.loc[input_model.benchmark_id, "Detected Flows"] = leaks_count
+        # debug
+        ground_truth_flows_df.to_csv(os.path.join(experiment_dir_path, "groundtruth_df.csv"))
+        # end debug
 
-    # print(results_df)
     results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
     results_df.to_csv(results_df_path)
 

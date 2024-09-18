@@ -115,7 +115,7 @@ def run_flowdroid_help(flowdroid_jar_path: str):
 
 
 def run_flowdroid_with_fdconfig(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, flowdroid_args: "FlowdroidArgs", output_log_path: str = "", timeout: int=None):
-    cmd = ["java", "-jar", flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
+    cmd = ["java", "-Xmx16G", "-jar" , flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
 
     run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True, timeout=timeout)
 
@@ -123,24 +123,33 @@ class FlowdroidArgs:
     """
     --aliasalgo LAZY --aplength 4 --callbackanalyzer DEFAULT --codeelimination NONE --cgalgo RTA --dataflowsolver FLOWINSENSITIVE --analyzeframeworks --implicit NONE --maxcallbackspercomponent 80 --maxcallbacksdepth 0 --noexceptions --pathalgo CONTEXTSENSITIVE --onesourceatatime --pathspecificresults --singlejoinpointabstraction --staticmode CONTEXTFLOWSENSITIVE --taintwrapper DEFAULTFALLBACK
     """
+    wild_value = "ANY"
     best_fossdroid_settings: Dict = {'aliasalgo': 'LAZY', 'aplength': 4, 'callbackanalyzer': 'DEFAULT', 'codeelimination': 'NONE', 'cgalgo': 'RTA', 'dataflowsolver': 'FLOWINSENSITIVE', 'analyzeframeworks': None, 'implicit': 'NONE', 'maxcallbackspercomponent': 80, 'maxcallbacksdepth': 0, 'noexceptions': None, 'pathalgo': 'CONTEXTSENSITIVE', 'onesourceatatime': None, 'pathspecificresults': None, 'singlejoinpointabstraction': None, 'staticmode': 'CONTEXTFLOWSENSITIVE', 'taintwrapper': 'DEFAULTFALLBACK'}
     default_settings: Dict[str, str] = {}
     gpbench_experiment_settings_modified: Dict = {"enablereflection": None, "noiccresultspurify": None, "layoutmode": "NONE", }
-    gpbench_experiment_settings: Dict = {"enablereflection": None, "noiccresultspurify": None, "layoutmode": "NONE", "iccmodel": "placeholder for path to icc_model"}
+    gpbench_experiment_settings: Dict = {"enablereflection": None, "noiccresultspurify": None, "layoutmode": "NONE", "iccmodel": "placeholder"}
+    
 
     # Options with only an empty list [] do not take any argument
-    available_options: Dict = {'aliasalgo': ['LAZY'], 'aplength': range(1,10), 'callbackanalyzer': ['DEFAULT'], 'codeelimination': ['NONE'], 'cgalgo': ['RTA'], 'dataflowsolver': ['FLOWINSENSITIVE'], 'analyzeframeworks': [None], 'implicit': ['NONE'], 'maxcallbackspercomponent': range(0,1000), 'maxcallbacksdepth': range(-1, 10), 'noexceptions': [None], 'pathalgo': ['CONTEXTSENSITIVE'], 'onesourceatatime': [None], 'pathspecificresults': [None], 'singlejoinpointabstraction': [None], 'staticmode': ['CONTEXTFLOWSENSITIVE'], 'taintwrapper': ['DEFAULTFALLBACK'], 'enablereflection': [None], 'noiccresultspurify': [None], 'layoutmode': ["NONE"], 'iccmodel': ['any']}
+    available_options: Dict = {'aliasalgo': ['LAZY'], 'aplength': range(1,10), 'callbackanalyzer': ['DEFAULT'], 'codeelimination': ['NONE'], 'cgalgo': ['RTA'], 'dataflowsolver': ['FLOWINSENSITIVE'], 'analyzeframeworks': [None], 'implicit': ['NONE'], 'maxcallbackspercomponent': range(0,1000), 'maxcallbacksdepth': range(-1, 10), 'noexceptions': [None], 'pathalgo': ['CONTEXTSENSITIVE'], 'onesourceatatime': [None], 'pathspecificresults': [None], 'singlejoinpointabstraction': [None], 'staticmode': ['CONTEXTFLOWSENSITIVE'], 'taintwrapper': ['DEFAULTFALLBACK'], 'enablereflection': [None], 'noiccresultspurify': [None], 'layoutmode': ["NONE"], 'iccmodel': [wild_value], 'outputlinenumbers': [None], 'outputfile': [wild_value]}
     
     args: Dict[str, str]
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
-            if key not in FlowdroidArgs.available_options.keys():
-                raise AssertionError(f'Option {key} not documented.')
-            if value not in FlowdroidArgs.available_options[key] and FlowdroidArgs.available_options[key] not in ['iccmodel']:
-                raise AssertionError(f'Option {value} not documented, documented options for {key} are {str(FlowdroidArgs.available_options[key])}')
+            self.check_arg(key, value)
             
         self.args = kwargs
+
+    def check_arg(self, key, value):
+        if key not in FlowdroidArgs.available_options.keys():
+            raise AssertionError(f'Option {key} not documented.')
+        if value not in FlowdroidArgs.available_options[key] and FlowdroidArgs.available_options[key] != [self.wild_value]:
+            raise AssertionError(f'Option {value} not documented, documented options for {key} are {str(FlowdroidArgs.available_options[key])}')
+
+    def set_arg(self, key, value):
+        self.check_arg(key, value)
+        self.args[key] = value
 
     def additional_args_list(self) -> List[str]:
         additional_args = []
