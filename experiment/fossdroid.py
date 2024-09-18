@@ -46,6 +46,7 @@ def fossdroid_validation_experiment():
 
     experiment_args["timeout"] = 60 * 60 # 1 hour
     experiment_args["always_new_experiment_directory"] = False
+    experiment_args["ids_subset"] = None
 
     fossdroid_default_csv_path = "data/benchmark-descriptions/fossdroid_config_aplength5_replication1.csv"
     fossdroid_best_csv_path = "data/benchmark-descriptions/fossdroid_config_2way2_replication1.csv"
@@ -200,10 +201,10 @@ def fossdroid_experiment_generic(**kwargs):
     
     # Things below here don't need tweaking between experiments???
 
-    # dir_names = ["flowdroid-logs"]
-    #refactor this into setup_experiment_dir
+    logger.info(f"Starting experiment {experiment_name}")
+    
     experiment_id, experiment_dir_path = setup_experiment_dir(experiment_name, experiment_description, kwargs, always_new_experiment_directory)
-    # result_df_path, dir_paths = setup_dirs_with_dependency_info(experiment_name, experiment_description, dir_names, kwargs, always_new_experiment_directory)
+    
 
     source_sink_list_path = get_fossdroid_source_sink_list_path()
 
@@ -218,7 +219,7 @@ def fossdroid_experiment_generic(**kwargs):
     flowdroid_logs_dir_path = setup_additional_directories(experiment_dir_path, ["flowdroid-logs"])[0]
 
     ground_truth_flows_df = groundtruth_df_from_xml(benchmark_df, fossdroid_ground_truth_xml_path)
-    results_df = results_df_from_benchmark_df(benchmark_df)
+    results_df = results_df_from_benchmark_df(benchmark_df, benchmark_description_path)
     
     for i in benchmark_df.index:
         input_model: InputModel = benchmark_df.loc[i, "Input Model"] # type: ignore
@@ -234,7 +235,7 @@ def fossdroid_experiment_generic(**kwargs):
         except TimeoutExpired as e:
             msg = f"Flowdroid timed out after {format_num_secs(timeout)} on apk {input_model.apk().apk_name}; details in " + output_log_path
             logger.error(msg)
-            benchmark_df.loc[i, "Error Message"] += msg
+            results_df.loc[i, "Error Message"] += msg
             continue
 
         process_results_from_fd_log_single(results_df, i, time_elapsed, output_log_path, input_model.apk().apk_path, ground_truth_flows_df=ground_truth_flows_df)
@@ -242,88 +243,11 @@ def fossdroid_experiment_generic(**kwargs):
     results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
     results_df.to_csv(results_df_path)
 
-# def process_results_from_fd_log_single(**kwargs):
-#     results_df = kwargs["results_df"] 
-#     i = kwargs["i"]
-#     time_elapsed  = kwargs["time_elapsed"]
-#     output_log_path = kwargs["output_log_path"]
-#     ground_truth_flows_df = kwargs["ground_truth_flows_df"]
-
-#     results_df.loc[i, "Time Elapsed"] = format_num_secs(time_elapsed)
-
-#     results_df.loc[i, "Max Reported Memory Usage"] = get_flowdroid_memory(output_log_path)
-#     analysis_error = get_analysis_error_in_flowdroid_log(output_log_path)
-#     if analysis_error != "":
-#         results_df.loc[i, "Error Message"] += analysis_error
-#         logger.error(analysis_error)
-
-#     try: 
-#         reported_num_leaks = get_reported_num_leaks_in_flowdroid_log(output_log_path)
-#         detected_flows = get_flows_in_flowdroid_log(output_log_path, results_df.loc[i, 'APK Path'])
-
-#     except FlowdroidLogException as e:
-#         logger.error(e.msg)
-#         results_df.loc[i, "Error Message"] = e.msg
-#         # raise e
-#         return
-
-#     results_df.loc[i, "Reported Flowdroid Flows"] = reported_num_leaks
-
-#     # deduplicate FD flows
-#     original_length = len(detected_flows)
-#     detected_flows = list(set(detected_flows))
-#     if len(detected_flows) != original_length:
-#         logger.warn(f"Flowdroid reported {original_length - len(detected_flows)} duplicate flows for app {results_df.loc[i, 'APK Name']}")
-
-#     tp, fp, tn, fn, inconclusive = compare_flows(detected_flows, ground_truth_flows_df, results_df.loc[i, 'APK Name'])
-
-#     results_df.loc[i, "TP"] = tp
-#     results_df.loc[i, "FP"] = fp
-#     results_df.loc[i, "TN"] = tn
-#     results_df.loc[i, "FN"] = fn
-#     results_df.loc[i, "Flows Not Evaluated"] = inconclusive
 
 def get_fossdroid_source_sink_list_path() -> str:
     project_root = os.path.dirname(os.path.dirname(__file__)) # Go back a directory
     return os.path.join(project_root, "data", "sources-and-sinks", "SS-from-fossdroid-ground-truth.txt")
 
-# def df_from_groundtruth_xmls(fossdroid_benchmark_dir_path, fossdroid_ground_truth_xml_path):
-
-#     tree = ET.parse(fossdroid_ground_truth_xml_path)
-#     fossdroid_ground_truth_root = tree.getroot() 
-    
-#     apk_paths = find_apk_paths_in_dir_recursive(fossdroid_benchmark_dir_path)
-
-#     flow_elements = fossdroid_ground_truth_root.findall("flow")
-#     # df columns -> Flow, APK Name, APK Path, Source Signature, Sink Signature, Ground Truth Value
-#     # for gpBench, will want API level too
-#     df = pd.DataFrame({'Flow': [""]*len(flow_elements), 
-#                        "APK Name": [""]*len(flow_elements), 
-#                        "APK Path": [""]*len(flow_elements), 
-#                        "Source Signature": [""]*len(flow_elements), 
-#                        "Sink Signature": [""]*len(flow_elements), 
-#                        "Ground Truth Value": [""]*len(flow_elements), })
-    
-#     flows = [Flow(element) for element in flow_elements]
-#     flows.sort()
-
-#     for i, flow in enumerate(flows):
-#         df.loc[i, "Flow"] = flow
-#         df.loc[i, "APK Name"] = flow.get_file()
-
-#         apk_path = ""
-#         for path in apk_paths:
-#             if os.path.basename(path) == flow.get_file():
-#                 apk_path = path
-#                 break
-#         assert apk_path != ""
-#         df.loc[i, "APK Path"] = apk_path
-
-#         df.loc[i, "Source Signature"] = flow.get_source_statementgeneric()
-#         df.loc[i, "Sink Signature"] = flow.get_sink_statementgeneric()
-#         df.loc[i, "Ground Truth Value"] = flow.get_ground_truth_attribute()
-
-#     return df
 
 def source_sink_list_from_df(df, output_file):
     # df["Source Signature"].unique().list()

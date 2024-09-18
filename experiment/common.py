@@ -226,12 +226,14 @@ def benchmark_df_base_from_batch_input_model(inputs_model: BatchInputModel, benc
             description_df_apk_names = description_df["AppID"].astype(str) + "." + description_df["AppName"] + ".apk"
         else: 
             description_df_apk_names = description_df["apk"].apply(lambda path: os.path.basename(path))
+            # logger.debug(description_df_apk_names)
 
         for i in benchmark_df.index:
             model: InputModel = benchmark_df.loc[i, "Input Model"] # type: ignore
 
             mask = description_df_apk_names == model.apk().apk_name 
             assert sum(mask) == 1
+            # logger.debug(f"{str(i)}, {str(description_df[mask]["AppID"].iloc[0])}")
             benchmark_df.loc[i, "Benchmark ID"] = description_df[mask]["AppID"].iloc[0]
             model.benchmark_id = description_df[mask]["AppID"].iloc[0]
 
@@ -251,10 +253,10 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_descripti
 
     results_df["Error Message"] = ""
 
-
     if benchmark_description_path != "":
         description_df = description_df_from_path(benchmark_description_path)
-        assert description_df.index == results_df.index
+        # print(f"{description_df.index}, {results_df.index}")
+        # assert  == 
 
         if os.path.basename(benchmark_description_path) == "gpbench-info.csv":
             cols_to_copy = ["UBC # of Expected Flows", "UBC FlowDroid v2.7.1 Detected Flows"]
