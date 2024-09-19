@@ -182,6 +182,7 @@ def install_apk(apk_path: str):
 
     try:
         cmd = ["adb", "install", apk_path]
+        cmd = ["adb", "install", "-r", apk_path]
         logger.debug(" ".join(cmd))
         run_command(cmd)
     except CalledProcessError as e:
@@ -196,10 +197,16 @@ def install_apk(apk_path: str):
         logger.debug(" ".join(cmd))
         run_command(cmd)
 
-def check_device_is_ready():
+def check_device_is_ready() -> bool:
     cmd = 'adb devices'
     result = run_command(cmd.split())
-    return result.splitlines()[1].__contains__("device")
+
+    devices_found = result.splitlines()[1].__contains__("device")
+
+    if not devices_found:
+        logger.error("No devices found. adb devices output: \n" + result)
+
+    return devices_found
 
 def list_installed_apps():
     "adb shell cmd package list packages -3"

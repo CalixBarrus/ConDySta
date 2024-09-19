@@ -362,6 +362,13 @@ class SmaliFile:
 
     def parse_invocation_line(self, line_number: int,
                               line: str) -> 'SmaliMethodInvocation':
+
+        """
+        Examples: 
+        invoke-super {p0, p1, p2, p3, p4}, Landroid/widget/TextView;->onSizeChanged(IIII)V
+        invoke-virtual/range {v0 .. v5}, Landroid/graphics/Canvas;->drawArc(Landroid/graphics/RectF;FFZLandroid/graphics/Paint;)V
+        invoke-static/range {v0 .. v5}, Lrx/Observable;->interval(JJLjava/util/concurrent/TimeUnit;Lrx/Scheduler;)Lrx/Observable;
+        """
         result_invocation = SmaliMethodInvocation.get_empty_object()
 
         result_invocation.invoke_line_number = line_number
@@ -375,7 +382,9 @@ class SmaliFile:
 
         # find and capture the contents of matched curly braces
         arg_registers_string = re.search(r"\{(.*)\}", line).group(1)
-        result_invocation.arg_registers = arg_registers_string.split(", ")
+        result_invocation.arg_registers = self.parse_arg_registers_str(arg_registers_string)
+        # Note that the first register here is *this* iff the invoke is not static
+
         if len(result_invocation.arg_registers) == 1 and result_invocation.arg_registers[0].strip() == '':
             result_invocation.arg_registers = []
 
@@ -388,8 +397,16 @@ class SmaliFile:
         # find and capture the arg types,
         # between a left and right paren
         arg_types_str = re.search(r"\((.*)\)", line).group(1)
-        result_invocation.arg_types = self.parse_arg_types_str(arg_types_str)
+        result_invocation.arg_types_pre = self.parse_arg_types_str(arg_types_str)
+        if not result_invocation.is_static_invoke():
+            # Type of first argument is implicit
+            result_invocation.arg_types_pre = [result_invocation.class_name] + result_invocation.arg_types_pre
 
+        assert len(result_invocation.arg_types_pre) == len(result_invocation.arg_registers)
+
+        # This needs to be checked and maybe updated when move-results are parsed TODO
+        result_invocation.arg_types_post = result_invocation.arg_types_pre
+        
         # find and capture the return type, between a right paren and the end of the
         # string.
         result_invocation.return_type = re.search(r"\)(.*)$", line).group(1).strip()
@@ -399,8 +416,11 @@ class SmaliFile:
     def parse_arg_types_str(self, arg_types_str: str) -> List[str]:
         if arg_types_str == "":
             return []
-        elif arg_types_str[0] in ['Z', 'B', 'S', 'C', 'I', 'J', 'F', 'D']:
+        elif arg_types_str[0] in ['Z', 'B', 'S', 'C', 'I', 'F']:
             return [arg_types_str[0]] + self.parse_arg_types_str(arg_types_str[1:])
+        elif arg_types_str[0] in ['J','D']:
+            # Long or Double type are 64 bits, these take up two registers
+            return [arg_types_str[0]] + [arg_types_str[0]] + self.parse_arg_types_str(arg_types_str[1:])
         elif arg_types_str[0] == '[':
             result = self.parse_arg_types_str(arg_types_str[1:])
             if len(result) == 0:
@@ -411,14 +431,45 @@ class SmaliFile:
             # Find the first semicolon, and split the string up accordingly
             semicolon_index = arg_types_str.find(';')
             if semicolon_index == -1:
-                raise AssertionError("Object has no ending parentheses: " + arg_types_str)
+                raise AssertionError("Object type has no ending semicolon: " + arg_types_str)
             return [arg_types_str[:semicolon_index + 1]] + self.parse_arg_types_str(
                 arg_types_str[semicolon_index + 1:])
         else:
             raise AssertionError("Unexpected case when parsing arg types string: " + arg_types_str)
+        
+    def parse_arg_registers_str(arg_registers_string):
+        if arg_registers_string.__contains__(" .. "):
+            # Range case
+            # "v0 .. v9" or "p0 .. p9"
+            if arg_registers_string.startswith("v"):
+                prefix = "v"
+                regex_result = re.search(r"v(\d+) \.\. v(\d+)",
+                                         arg_registers_string)
+            elif arg_registers_string.startswith("p"):
+                prefix = "p"
+                regex_result = re.search(r"p(\d+) \.\. p(\d+)",
+                                         arg_registers_string)
+            else:
+                raise AssertionError(
+                    "Range registers did not parse as expected: " +
+                    arg_registers_string)
+
+            if regex_result is None:
+                raise AssertionError(
+                    "Range registers did not parse as expected: " +
+                    arg_registers_string)
+            
+            arg_start = int(regex_result.group(1))
+            arg_end = int(regex_result.group(2))
+            arg_registers = [prefix + str(i) for i in
+                             range(arg_start, arg_end + 1)]
+        else:
+            arg_registers = arg_registers_string.split(", ")
+
+        return arg_registers
 
     def parse_move_result(self, prev_method_invocation: 'SmaliMethodInvocation',
-                          line_number: int, move_result_line: str):
+                          line_number: int, move_result_line: str, method: 'SmaliMethod'):
         """
         Parse a statement containing a move-result instruction and update the
         associated SmaliMethodInvocation with the parsed information.
@@ -433,6 +484,18 @@ class SmaliFile:
         split_line = move_result_line.strip().split()
         prev_method_invocation.move_result_kind = split_line[0]
         prev_method_invocation.move_result_register = split_line[1]
+
+        # Check if the invocation arg_types_post need updating
+        # Update the type if the arg register is being overwritten by the move result
+        if prev_method_invocation.move_result_register in prev_method_invocation.arg_registers:
+            prev_method_invocation.arg_types_post[prev_method_invocation.arg_registers.index(prev_method_invocation.move_result_register)] = prev_method_invocation.return_type
+
+        # Update the type if there is an arg register after the move result register and the return is of a wide data type
+        if SmaliMethodInvocation.is_wide_datatype(prev_method_invocation.return_type):
+            register_after_result_register = method.get_next_register(prev_method_invocation.move_result_register)
+            if register_after_result_register in prev_method_invocation.arg_registers:
+                prev_method_invocation.arg_types_post[prev_method_invocation.arg_registers.index(register_after_result_register)] = prev_method_invocation.return_type
+        
 
     def get_registers(self, method_number, requested_register_count: int) -> \
             List[str]:
@@ -646,7 +709,7 @@ class SmaliMethodInvocation:
     arg_registers: List[str]
     class_name: str
     method_name: str
-    arg_types: List[str]
+    arg_types_pre: List[str]
     return_type: str
     move_result_line_number: int
     move_result_kind: str
@@ -659,7 +722,8 @@ class SmaliMethodInvocation:
                  arg_registers: List[str],
                  class_name: str,
                  method_name: str,
-                 arg_types: List[str],
+                 arg_types_pre: List[str],
+                 arg_types_post: List[str],
                  return_type: str,
                  move_result_line_number: int,
                  move_result_kind: str,
@@ -671,23 +735,27 @@ class SmaliMethodInvocation:
         self.arg_registers = arg_registers
         self.class_name = class_name
         self.method_name = method_name
-        self.arg_types = arg_types
+        self.arg_types_pre = arg_types_pre
+        self.arg_types_post = arg_types_post
         self.return_type = return_type
         self.move_result_line_number = move_result_line_number
         self.move_result_kind = move_result_kind
         self.move_result_register = move_result_register
 
     def __repr__(self):
-        return f"SmaliMethodInvocation(invoke_line_number" \
-               f"={repr(self.invoke_line_number)},invoke_kind" \
-               f"={repr(self.invoke_kind)},is_range_kind=" \
-               f"{repr(self.is_range_kind)},arg_registers={repr(self.arg_registers)}," \
-               f"class_name={repr(self.class_name)},method_name=" \
-               f"{repr(self.method_name)},arg_types={repr(self.arg_types)},return_type={repr(self.return_type)},move_result_line_number={repr(self.move_result_line_number)},move_result_kind={repr(self.move_result_kind)},move_result_register={repr(self.move_result_register)},)"
+        return f"SmaliMethodInvocation(invoke_line_number={repr(self.invoke_line_number)}," \
+                f"invoke_kind={repr(self.invoke_kind)}," \
+                f"is_range_kind={repr(self.is_range_kind)}," \
+                f"arg_registers={repr(self.arg_registers)}," \
+                f"class_name={repr(self.class_name)},method_name={repr(self.method_name)}," \
+                f"arg_types_pre={repr(self.arg_types_pre)}," \
+                f"arg_types_post={repr(self.arg_types_post)}," \
+                f"return_type={repr(self.return_type)}," \
+                f"move_result_line_number={repr(self.move_result_line_number)},move_result_kind={repr(self.move_result_kind)},move_result_register={repr(self.move_result_register)},)"
 
     @staticmethod
     def get_empty_object() -> 'SmaliMethodInvocation':
-        return SmaliMethodInvocation(-1, "", False, [], "", "", [], "", -1, "", "")
+        return SmaliMethodInvocation(-1, "", False, [], "", "", [], [], "", -1, "", "")
 
     @staticmethod
     def is_invocation(line: str) -> bool:
@@ -701,8 +769,8 @@ class SmaliMethodInvocation:
     def is_filled_new_array(line):
         return line.strip().startswith("filled-new-array")
 
-    def is_primitive_register(self, register_index):
-        return self._is_type_primitive(self.register_type(register_index))
+    # def is_primitive_register(self, register_index):
+    #     return self._is_type_primitive(self.register_type(register_index))
 
     def is_return_primitive(self):
         return self._is_type_primitive(self.return_type)
@@ -716,16 +784,19 @@ class SmaliMethodInvocation:
         # <[full package name]: [return type] [method name]([arg types,])>
         #
         # Note the change from smali types to flowdroid types.
+        # TODO: self.arg_types_pre won't match up precisely with the function's signature!!
         return f"<{self.smali_type_to_flowdroid_type(self.class_name)}: " \
                f"{self.smali_type_to_flowdroid_type(self.return_type)}" \
-               f" {self.method_name}({','.join([self.smali_type_to_flowdroid_type(arg_type) for arg_type in self.arg_types])})>"
+               f" {self.method_name}({','.join([self.smali_type_to_flowdroid_type(arg_type) for arg_type in self.arg_types_pre])})>"
 
-    def register_type(self, register_index):
-        is_static = self.invoke_kind.startswith("invoke-static")
-        base_type = self.class_name
-        signature_arg_types = self.arg_types
+    # def register_type(self, register_index):
+    #     # is_static = self.invoke_kind.startswith("invoke-static")
+    #     # base_type = self.class_name
+    #     # signature_arg_types = self.arg_types_pre
 
-        return self.register_index_to_type(is_static, register_index, base_type, signature_arg_types)
+    #     return self.arg_types_pre[register_index]
+
+        # return self.register_index_to_type(is_static, register_index, base_type, signature_arg_types)
 
         # arg_type_index = self.arg_type_register_index_map()[register_index]
         # if arg_type_index is None:
@@ -756,13 +827,13 @@ class SmaliMethodInvocation:
     #
     #     return map
 
-    @staticmethod
-    def register_index_to_type(is_static, register_index, base_type, signature_arg_types):
-        arg_index = SmaliMethodInvocation.register_index_to_arg_index(is_static, register_index, signature_arg_types)
-        if arg_index is None:
-            return base_type
-        else:
-            return signature_arg_types[arg_index]
+    # @staticmethod
+    # def register_index_to_type(is_static, register_index, base_type, signature_arg_types):
+    #     arg_index = SmaliMethodInvocation.register_index_to_arg_index(is_static, register_index, signature_arg_types)
+    #     if arg_index is None:
+    #         return base_type
+    #     else:
+    #         return signature_arg_types[arg_index]
 
     @staticmethod
     def register_index_to_arg_index(is_static, register_index, signature_arg_types):
@@ -797,6 +868,12 @@ class SmaliMethodInvocation:
             cur_arg_index += 1
 
         raise AssertionError("Should have used one of the returns in the loop")
+    
+    def register_types_pre() -> List[str]:
+        pass
+
+    def register_types_post() -> List[str]:
+        pass
 
 
     def increment_line_number(self, increment: int):
@@ -872,6 +949,23 @@ class SmaliMethodInvocation:
                 return j, line
             
         assert False
+
+    def args_overriden_by_return(self, parent_method: SmaliMethod) -> List[bool]:
+        # return list matching dimension of self.arg_registers stating if register is over written by move-result
+        result = [False] * len(self.arg_registers)
+        
+        if self.move_result_line_number == -1:
+            return result
+        
+        if self.move_result_register in self.arg_registers:
+            result[self.arg_registers.index(self.move_result_register)] = True
+        
+        if SmaliMethodInvocation.is_wide_datatype(self.return_type):
+            next_register = parent_method.get_next_register(self.move_result_register)
+            if next_register in self.arg_registers:
+                result[self.arg_registers.index(next_register)] = True
+
+        return result
 
 
 
@@ -1195,46 +1289,68 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
     def _instrument_invocation_statement(self, method_index: int, method: SmaliMethod, method_instr_registers: List[str], invocation_statement: SmaliMethodInvocation, invocation_id: int) -> List[CodeInsertionModel]:
         code_insertions: List[CodeInsertionModel] = []
 
-        # Setup arg_registers
-        if not invocation_statement.is_range_kind:
-            arg_registers = invocation_statement.arg_registers
-        else:
-            # "v0 .. v9"
-            if invocation_statement.arg_registers[0].startswith("v"):
-                prefix = "v"
-                regex_result = re.search(r"v(\d+) \.\. v(\d+)",
-                                         invocation_statement.arg_registers[0])
-            elif invocation_statement.arg_registers[0].startswith("p"):
-                prefix = "p"
-                regex_result = re.search(r"p(\d+) \.\. p(\d+)",
-                                         invocation_statement.arg_registers[0])
-            else:
-                raise AssertionError(
-                    "Range registers did not parse as expected: " +
-                    invocation_statement.arg_registers[0])
-
-            if regex_result is None:
-                raise AssertionError(
-                    "Range registers did not parse as expected: " +
-                    invocation_statement.arg_registers[0])
-            
-            arg_start = int(regex_result.group(1))
-            arg_end = int(regex_result.group(2))
-            arg_registers = [prefix + str(i) for i in
-                             range(arg_start, arg_end + 1)]
-
-        registers = arg_registers.copy()
-        if invocation_statement.move_result_register != "" and not invocation_statement.move_result_register in arg_registers:
-            registers.append(invocation_statement.move_result_register)
 
 
-        for register_index, register in enumerate(registers):
+        # registers = arg_registers.copy()
+        # if invocation_statement.move_result_register != "" and not invocation_statement.move_result_register in arg_registers:
+        #     registers.append(invocation_statement.move_result_register)
+
+        # invocation_statement.arg_types_pre
+
+        # If arg type is an object before, it can be instrumented
+        # If arg type is still an object after, it can be instrumented
+        # "this" register cannot be instrumented if method is constructor (<init>)
+        # some instrumentation schemes will not want to instrument an arg before if it can't be instrumented after,
+        # some instrumentation schemes would want to save the 1 or 2 arg registers that could become unavailable due to a return
+        # some instr schemes wouldn't bother instrumenting an arg before if it can't be accessed after. 
+        # some instrumentation schemes will want to do complex type checking for if a register should be instrumented
+
+        # instrumentation report requirements
+        # able to interface  with the corresponding SmaliFile/SmaliMethod/SmaliMethodInvocation from static analysis time
+        # OR include all the relevant information (sad, current impl)
+        # these requirement will prolly need to be tweaked -> refactor current impl so it can be modified in ~ 1 place
+        
+        args_overriden_by_return = invocation_statement.args_overriden_by_return(method)
+        invocation_statement.arg_types_pre
+        invocation_statement.arg_types_post
+
+        report = InstrumentationReport(
+                invoke_signature=invocation_statement.get_signature(), 
+                invoke_id=invocation_id,
+                is_arg_register=True, # Needs tweaked
+                is_return_register=False, # Needs tweaked
+                register_index=register_index, # Needs tweaked
+                is_before_invoke=True, # Needs tweaked
+                register_name=register, # Needs tweaked
+                register_type=invocation_statement.arg_types_pre[register_index], # Needs tweaked
+                is_static=invocation_statement.is_static_invoke(), 
+            )
+        
+        def add_code_insertion(cur_report, cur_register):
+            code = invoke_static_heapsnapshot_function(cur_report,
+                                                        cur_register,
+                                                        method_instr_registers[0],
+                                                        self.static_function_signature)
+
+            # Place code after move_result if there is one, otherwise place code after invoke
+            target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
+
+            code_insertions.append(CodeInsertionModel(code, method_index,
+                                                        target_line_number,
+                                                        method_instr_registers))
+
+        # First consider invocation argument registers
+        is_arg_register = True
+        for register_index, register in enumerate(invocation_statement.arg_registers):
 
             ### Begin Checks
-            skip_instr_before = False
+            # skip_instr_before = False
             skip_instr_after = False
-            is_arg_register = register in invocation_statement.arg_registers
-            is_return_register = register == invocation_statement.move_result_register
+
+            # Skip Primitive types
+            if not invocation_statement.arg_types_pre[register_index].startswith("L"):
+                True
+
 
             # If it's a constructor, the first register will be unallocated before the invocation
             if invocation_statement.method_name == "<init>" and register_index == 0:
@@ -1242,45 +1358,40 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
 
 
             # Sometimes the after type will be different if an arg and return use the same register
-            if is_arg_register:
-                register_type_before = invocation_statement.register_type(register_index)
-                if is_return_register:
-                    register_type_after = invocation_statement.return_type
-                else:
-                    register_type_after = register_type_before
-            else:
-                # If not an argument, then it's a return register that wasn't used as an argument
-                skip_instr_before = True
-                register_type_before = ""
-                register_type_after = invocation_statement.return_type
+            if args_overriden_by_return[register_index]:
+                # Only instrument a register before the call if it's overwritten by the move result
+                skip_instr_after = True
+                # TODO: in the future, we may want to use an extra variable(s) to store the up to two overwritten variables to check them after
+
+
+                
+
+
+            # if is_arg_register:
+            #     register_type_before = invocation_statement.arg_types_pre(register_index)
+            #     if is_return_register:
+            #         register_type_after = invocation_statement.return_type
+            #     else:
+            #         register_type_after = register_type_before
+            # else:
+            #     # If not an argument, then it's a return register that wasn't used as an argument
+            #     skip_instr_before = True
+            #     register_type_before = ""
+            #     register_type_after = invocation_statement.return_type
 
             # If the invocation move-result is moving a wide data type, the register after the return register will change type
-            if invocation_statement.move_result_register != "" and SmaliMethodInvocation.is_wide_datatype(invocation_statement.return_type):
-                if method.get_next_register(invocation_statement.move_result_register) == register:
-                    register_type_after = invocation_statement.return_type
+            # if invocation_statement.move_result_register != "" and SmaliMethodInvocation.is_wide_datatype(invocation_statement.return_type):
+            #     if method.get_next_register(invocation_statement.move_result_register) == register:
+            #         register_type_after = invocation_statement.return_type
 
-            # Skip Primitive types
-            if not register_type_before.startswith("L"):
-                skip_instr_before = True
-            if not register_type_after.startswith("L"):
-                skip_instr_after = True
                 
 
             ### End checks
-
             if not skip_instr_before:
-                report = InstrumentationReport(
-                    invoke_signature=invocation_statement.get_signature(),
-                    invoke_id=invocation_id,
-                    is_arg_register=is_arg_register,
-                    is_return_register=is_return_register,
-                    register_index=register_index,
-                    is_before_invoke=True,
-                    register_name=register,
-                    register_type=register_type_before,
-                    is_static=invocation_statement.is_static_invoke(),
-                )
-
+                report.register_index = register_index
+                report.is_before_invoke = True
+                report.register_name = register
+                report.register_type = invocation_statement.arg_types_pre[register_index]
                 code = invoke_static_heapsnapshot_function(report,
                                                            register,
                                                            method_instr_registers[0],
@@ -1291,42 +1402,86 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
                                                           method_instr_registers))
 
             if not skip_instr_after:
-                if is_return_register:
-                    report = InstrumentationReport(
-                        invoke_signature=invocation_statement.get_signature(),
-                        invoke_id=invocation_id,
-                        is_arg_register=is_arg_register,
-                        is_return_register=is_return_register, # True
-                        register_index=-1,
-                        is_before_invoke=False,
-                        register_name=register,
-                        register_type=register_type_after,
-                        is_static=invocation_statement.is_static_invoke(),
-                    )
-                else:
-                    report = InstrumentationReport(
-                        invoke_signature=invocation_statement.get_signature(),
-                        invoke_id=invocation_id,
-                        is_arg_register=is_arg_register,
-                        is_return_register=is_return_register, # False
-                        register_index=register_index,
-                        is_before_invoke=False,
-                        register_name=register,
-                        register_type=register_type_after,
-                        is_static=invocation_statement.is_static_invoke(),
-                    )
+                # if is_return_register:
+                #     # report = InstrumentationReport(
+                #     #     invoke_signature=invocation_statement.get_signature(),
+                #     #     invoke_id=invocation_id,
+                #     #     is_arg_register=is_arg_register,
+                #     #     is_return_register=is_return_register, # True
+                #     #     register_index=-1,
+                #     #     is_before_invoke=False,
+                #     #     register_name=register,
+                #     #     register_type=register_type_after,
+                #     #     is_static=invocation_statement.is_static_invoke(),
+                #     # )
+                #     report.register_index=-1
+                #     report.is_before_invoke=False
+                # else:
+                # report = InstrumentationReport(
+                #     invoke_signature=invocation_statement.get_signature(),
+                #     invoke_id=invocation_id,
+                #     is_arg_register=is_arg_register,
+                #     is_return_register=is_return_register, # False
+                #     register_index=register_index,
+                #     is_before_invoke=False,
+                #     register_name=register,
+                #     register_type=register_type_after,
+                #     is_static=invocation_statement.is_static_invoke(),
+                # )
 
-                code = invoke_static_heapsnapshot_function(report,
-                                                           register,
-                                                           method_instr_registers[0],
-                                                           self.static_function_signature)
+                """
+                is_arg_register=True, # Needs tweaked
+                is_return_register=False, # Needs tweaked
+                register_index=register_index, # Needs tweaked
+                is_before_invoke=True, # Needs tweaked
+                register_name=register, # Needs tweaked
+                register_type=invocation_statement.arg_types_pre[register_index], # Needs tweaked
+                """
+                report.register_index = register_index
+                report.is_before_invoke=False
+                report.register_name = register
+                report.register_type = invocation_statement.arg_types_pre[register_index]
 
-                # Place code after move_result if there is one, otherwise place code after invoke
-                target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
+                add_code_insertion(report, register)
+                # code = invoke_static_heapsnapshot_function(report,
+                #                                            register,
+                #                                            method_instr_registers[0],
+                #                                            self.static_function_signature)
 
-                code_insertions.append(CodeInsertionModel(code, method_index,
-                                                          target_line_number,
-                                                          method_instr_registers))
+                # # Place code after move_result if there is one, otherwise place code after invoke
+                # target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
+
+                # code_insertions.append(CodeInsertionModel(code, method_index,
+                #                                           target_line_number,
+                #                                           method_instr_registers))
+                
+        # Next, consider the return register
+        if invocation_statement.invoke_line_number > -1:
+            report = InstrumentationReport(
+                    invoke_signature=invocation_statement.get_signature(),
+                    invoke_id=invocation_id,
+                    is_arg_register=False,
+                    is_return_register=True,
+                    register_index=-1,
+                    is_before_invoke=False,
+                    register_name=invocation_statement.move_result_register,
+                    register_type=invocation_statement.return_type,
+                    is_static=invocation_statement.is_static_invoke(),
+                )
+            
+            add_code_insertion(report, invocation_statement.move_result_register)
+
+            # code = invoke_static_heapsnapshot_function(report,
+            #                                                ,
+            #                                                method_instr_registers[0],
+            #                                                self.static_function_signature)
+
+            # # Place code after move_result if there is one, otherwise place code after invoke
+            # target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
+
+            # code_insertions.append(CodeInsertionModel(code, method_index,
+            #                                             target_line_number,
+            #                                             method_instr_registers))
 
         return code_insertions
 
