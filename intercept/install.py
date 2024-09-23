@@ -15,32 +15,21 @@ from subprocess import CalledProcessError
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-# def check_adb_connection() -> bool: # Should this throw an exception?
-#     cmd = ["adb", "devices"]
-
-#     result = run_command(cmd)
-
-#     if result.splitlines()[1].strip() == "":
-
-#         logger.error(result)
-#         return False
-#         # raise AssertionError("Adb can't find device")
-
-#     return True
-
 
 def uninstall_apk(package_name):
     cmd="adb uninstall {}".format(package_name)
     logger.debug(cmd)
-    cmd_result = getCmdExecuteResult(cmd)
+    cmd_result = execute_cmd_for_result(cmd)
 
 
-def getCmdExecuteResult(cmd):
-    tmp = os.popen(cmd).readlines()
-    return tmp
+def execute_cmd_for_result(cmd: str) -> str:
+    result = run_command(cmd.split(), redirect_stderr_to_stdout=True)
+    return result
 
 
-def get_package_name(apk_path):
+def get_package_name(apk_path, apk_model: ApkModel=None):
+    # apk_model is optional parameter to save off additional information from the dump badging operation.
+
     cmd = ["aapt", "dump", "badging", apk_path]
     logger.debug(" ".join(cmd))
     result = run_command(cmd)
@@ -73,9 +62,24 @@ densities: '160' '240' '320' '480'
     """
 
     result = result.split('\n')[0].split(" ")[1]
+    # name='de.ecspride'
+    package_name = result[6:-1]
 
-    # str= getCmdExecuteResult(cmd)[0].split(" ")[1]
-    return result[6:-1]
+    if apk_model is not None:
+      for line in result.splitlines():
+          if line.strip().startswith("application-label:'"):
+              # Name of the app in the phone
+              # application-label:'StaticInitialization1'     
+              application_label = line[20:-1]
+              apk_model.apk_application_label = application_label
+              break
+
+    return package_name
+
+
+
+
+
 
 
 def getApkMainIntent(packageName):
@@ -88,7 +92,7 @@ def getApkMainIntent(packageName):
 
     cmd='adb shell dumpsys package {}'.format(packageName)
     logger.debug(cmd)
-    exeResult= getCmdExecuteResult(cmd)
+    exeResult= execute_cmd_for_result(cmd)
 
     # Example Output:
     """
@@ -172,7 +176,7 @@ def startApk(packageName):
     logger.debug(packagename_mainActivity)
     cmd = "adb shell am start {}".format(packagename_mainActivity)
     logger.debug(cmd)
-    logger.debug(getCmdExecuteResult(cmd))
+    logger.debug(execute_cmd_for_result(cmd))
 
 
 def install_apk(apk_path: str):
@@ -206,95 +210,43 @@ def check_device_is_ready() -> bool:
     if not devices_found:
         logger.error("No devices found. adb devices output: \n" + result)
 
+    # TODO: If multiple devices, make sure ANDROID_SERIAL env variable is set or something
+
     return devices_found
 
-def list_installed_apps():
-    "adb shell cmd package list packages -3"
-    pass
+def list_installed_3rd_party_apps() -> List[str]:
+    # Return package names of installed 3rd party apps 
 
-# def batch(apkNameList,index):
-#     packageNameList=[]
-#     count_installed = 0
-#     print("the {}dth batch:".format(index))
-#     for i in range(0,len(apkNameList)):
-#         print(apkNameList[i][:-4])
-#
-#     apkName_installed=[]
-#     for apkName in apkNameList:                      # install 10apk
-#         # print "%s installing"%apkName
-#         if ((installApk(apkName)) == 0):
-#             count_installed += 1
-#             print("apk_installed: %d" % count_installed)
-#             print(apkName[:-4])
-#             apkName_installed.append(apkName)
-#     print(" the appInstalled in this bath:")
-#     print(apkName_installed)
-#     for apkName in apkName_installed:
-#         packageName = getPackageName(apkName, signedApkPath)
-#         packageNameList.append(packageName)
-#         # packageNameListALL.append(packageName)
-#
-#     # print "start Apk..........................."
-#     # # start APK
-#     # for packageName in packageNameList:
-#     #     startApk(packageName)
-#     # time.sleep(30)
-#     print("login to the app....................")
-#     # time.sleep(180)
-#     console=input("delete all apk in this batch,enter y")
-#     if console =='y':
-#         for packageName in packageNameList:
-#             uninstall_apk(packageName)
+    cmd = "adb shell cmd package list packages -3"
+    result = execute_cmd_for_result(cmd)
 
+    """Expected output like:
+package:io.appium.settings
+package:io.appium.uiautomator2.server
+package:edu.utsa.sefm.heapsnapshot
+package:io.appium.uiautomator2.server.test
+package:com.lexa.fakegps
+    """
 
-# def installAndStart():
-#     apkNameList=[]       # complete list
-#     apkNameList10N=[]        # 10 apks
-#     apkNameList_lastbatch = []
-#     count = 0
-#     # # get from folder
-#     # for i in os.listdir(apk_signedPath):
-#     #     if os.path.isfile(os.path.join(apk_signedPath, i)):
-#     #         if i[-4:] == '.apk':
-#     #             apkName = i
-#     #             apkNameList.append(apkName)
-#     # print len(apkNameList)
-#     #
-#     # index=1
-#     # for apkName in apkNameList:
-#     #     apkNameList10N.append(apkName)
-#     #     count+=1
-#     #     if count%10 == 0:
-#     #         # print apkNameList10N
-#     #         batch(apkNameList10N, index)            #rank every 10 apks
-#     #         index += 1
-#     #         apkNameList10N = []
-#     #
-#     #     if (len(apkNameList) - count) < (len(apkNameList)%10):
-#     #         apkNameList_lastbatch.append(apkName)
-#     #
-#     #     if len(apkNameList_lastbatch) > 0 and count == len(apkNameList):
-#     #         batch(apkNameList_lastbatch, index)
-#     #
-#     # print apkNameList10N
-#
-#
-#     # get from temp
-#     temp = open("/home/xueling/apkAnalysis/invokeDetection/temp").readlines()
-#     print(len(temp))
-#     list2 = []
-#     for line in temp:
-#         line = line.strip() + ".apk"
-#         list2.append(line.strip())
-#     batch(list2, 0)
+    package_names = [line.strip().split(":")[1] for line in result.splitlines()]
+
+    return package_names
+
+def clean_apps_off_phone():
+    package_names_to_keep = [
+        "package:com.lexa.fakegps",
+        "package:io.appium.uiautomator2.server.test",
+        "package:io.appium.uiautomator2.server",
+        "package:io.appium.settings",
+        ]
+
+    package_names = list_installed_3rd_party_apps()
+
+    for package_name in  package_names:
+      if package_name not in package_names_to_keep:
+        uninstall_apk(package_name)
+
 
 if __name__ == '__main__':
 
-    # apk_path = "/Users/calix/Documents/programming/TaintASet/com.ladywoodi.herbarium.apk"
-    # # installApk(apk_path)
-
-    # package_name = "com.ladywoodi.herbarium"
-    # uninstall_apk(package_name)
-
-    # check_adb_connection()
     pass

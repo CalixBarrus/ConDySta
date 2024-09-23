@@ -17,6 +17,7 @@ logger = util.logger.get_logger(__name__)
 
 def instrument_test_wild_benchmarks_few():
     apks_subset = [0, 1]
+    apks_subset = [0]
     instrument_test_wild_benchmarks(apks_subset)
     
 def instrument_test_wild_benchmarks_full():
@@ -26,9 +27,9 @@ def instrument_test_wild_benchmarks_full():
 def instrument_test_wild_benchmarks(apks_subset):
     fossdroid_apks_dir = external_path.fossdroid_benchmark_apks_dir_path
     gpbench_apks_dir = external_path.gpbench_apks_dir_path
-    
 
     for apks_dir_path, name in [(fossdroid_apks_dir, "fossdroid"), (gpbench_apks_dir, "gpbench")]:
+    # for apks_dir_path, name in [(fossdroid_apks_dir, "fossdroid")]:
         description = f"Testing instrumentation on {name} benchmark"
         instrument_test_generic(apks_dir_path, "instrument-test-" + name, description, apks_subset)
 
@@ -70,7 +71,7 @@ def instrument_test_generic(apks_dir_path: str, experiment_name: str, experiment
     # end debug
 
     config._rebuilt_apks_path = setup_additional_directories(experiment_dir_path, ["rebuilt-apks"])[0]
-    rebuild.rebuild_batch(config, apks, clean=False)
+    rebuild.rebuild_batch(config, apks, clean=True)
     
     config._keys_dir_path = setup_additional_directories(experiment_dir_path, ["keystores"])[0]
     keygen.generate_keys_batch(config, apks)

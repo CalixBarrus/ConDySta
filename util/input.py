@@ -110,6 +110,7 @@ class ApkModel:
     apk_name: str
     apk_path: str
     apk_package_name: str
+    apk_application_label: str
 
     def __init__(self, apk_path: str):
         self.apk_path = apk_path
@@ -119,6 +120,7 @@ class ApkModel:
             raise ValueError(f"The path {self.apk_path} isn't an apk.")
         
         self.apk_package_name = None
+        self.apk_application_label = None
 
     def apk_name_no_suffix(self):
         # Drop the ".apk" on the end
