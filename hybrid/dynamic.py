@@ -1,11 +1,11 @@
-import os
+from abc import ABC
 import re
 import shutil
 from typing import Set, List, Optional, Dict
 
-from hybrid import results
-from hybrid.hybrid_config import HybridAnalysisConfig, modified_source_sink_path
-from hybrid.source_sink import MethodSignature, SourceSinkXML
+from experiment.common import modified_source_sink_path
+from hybrid import results, sensitive_information
+from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures, SourceSinkXML
 from intercept.instrument import InstrumentationReport, SmaliMethodInvocation
 
 
@@ -15,112 +15,59 @@ import util.logger
 logger = util.logger.get_logger(__name__)
 
 
-class AbstractDynamicLogProcessingStrategy:
+class LogcatProcessingStrategy(ABC):
     """
     Class encapsulates different strategies for processing the logs produced by an instrumented dynamic run of an app.
 
-    Different strategies correspond with different instrumentation schemes.
+    Different strategies correspond to different instrumentation schemes.
     """
 
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, input_model: InputModel, grouped_apk_idx: int=-1):
-        """
-        Produce sources that have been identified as sensitive methods based on reports in the logs provided by log_path.
-        """
+    def sources_from_log(self, logcat_path: str) -> SourceSink:
+        # Produce sources that have been identified as sensitive methods based on reports in the logs provided by log_path.
         raise NotImplementedError("Interface not implemented")
 
-    def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sources, input_model: InputModel, grouped_apk_idx: int=-1) -> str:
-        """
-        Create a new source sink file using the given sources. Returns a path to the
-        created file. `
-        """
-        raise NotImplementedError("Interface not implemented")
-
-    def _get_sources_from_file(self, source_and_sink_path: str) -> List[
-        "MethodSignature"]:
-        """
-        Read in the source/sink text file, and produce a list of MethodSignatures.
-        """
-        # Open the file at the given path.
-        # Iterate through each line. If a line ends with "-> _SOURCE_", it should
-        # be a source.
-        # Parse each source line and create a FlowdroidSourceModel object. Collect
-        # all the model objects and return them in a list.
-
-        with open(source_and_sink_path, 'r') as file:
-            lines = file.readlines()
-            resultSources = []
-            for line in lines:
-                """
-    Example line: 
-    <javax.servlet.ServletRequest: java.lang.String getParameter(java.lang.String)> -> _SOURCE_
-                """
-                if line.startswith('%'):
-                    # '%' are used as comments
-                    continue
-                if "'" in line:
-                    continue
-                if line.strip().endswith("-> _SOURCE_"):
-                    resultSources.append(MethodSignature.from_source_string(line))
-
-        return resultSources
-
-
-def dynamic_log_processing_strategy_factory(
-        hybrid_config: HybridAnalysisConfig) -> AbstractDynamicLogProcessingStrategy:
+def logcat_processing_strategy_factory(
+        logcat_processing_strategy: str) -> LogcatProcessingStrategy:
     """
-    Return the correct instantiation of an AbstractDynamicLogProcessingStrategy based on the
-    dynamic_log_processing_strategy field of the provided config.
-    """
+    Return the correct instantiation of a LogcatProcessingStrategy.
 
-    if hybrid_config.dynamic_log_processing_strategy == \
+    a_priori_personally_identifiable_information is pulled from sensitive_information by default.
+    """
+    # dynamic_log_processing_strategy = hybrid_config.dynamic_log_processing_strategy
+
+    if logcat_processing_strategy == \
             "StringReturnDynamicLogProcessingStrategy":
-        return StringReturnDynamicLogProcessingStrategy()
-    elif hybrid_config.dynamic_log_processing_strategy == \
+        a_priori_personally_identifiable_information = sensitive_information.personally_identifiable_information
+        return StringReturnDynamicLogProcessingStrategy(a_priori_personally_identifiable_information)
+    elif logcat_processing_strategy == \
             "InstrReportReturnOnlyDynamicLogProcessingStrategy":
         return InstrReportReturnOnlyDynamicLogProcessingStrategy()
-    elif hybrid_config.dynamic_log_processing_strategy == "InstrReportReturnAndArgsDynamicLogProcessingStrategy":
+    elif logcat_processing_strategy == "InstrReportReturnAndArgsDynamicLogProcessingStrategy":
         return InstrReportReturnAndArgsDynamicLogProcessingStrategy()
     else:
-        raise AssertionError("Unexpected strategy name: " + hybrid_config.dynamic_log_processing_strategy)
+        raise AssertionError("Unexpected strategy name: " + logcat_processing_strategy)
 
 
-class StringReturnDynamicLogProcessingStrategy(AbstractDynamicLogProcessingStrategy):
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, input_model: InputModel, grouped_apk_idx: int=-1) -> Set[MethodSignature]:
+class StringReturnDynamicLogProcessingStrategy(LogcatProcessingStrategy):
+    def __init__(self, target_PII) -> None:
+        super().__init__()
+        self.target_PII = target_PII
 
+    
+    def sources_from_log(self, logcat_path: str) -> Set[MethodSignature]:
 
-        unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
-        target_PII = hybrid_config.target_PII
+        target_PII = self.target_PII
 
         observed_sources: set[MethodSignature] = set(
-            self._get_sources_from_log(log_path, target_PII))
+            self._get_sources_from_log(logcat_path, target_PII))
 
-        existing_sources: set[MethodSignature] = set(self._get_sources_from_file(
-            unmodified_source_and_sink_path))
+        # existing_sources: set[MethodSignature] = set(self._get_sources_from_file(
+        #     unmodified_source_sink_list_path))
 
         # Set minus, only append new sources not in unmodified source/sink list.
-        new_sources: set[MethodSignature] = observed_sources - existing_sources
+        # new_sources: set[MethodSignature] = observed_sources - existing_sources
 
-        # Report new sources
-        results.HybridAnalysisResult.report_new_sources_count(hybrid_config,
-                                                              len(new_sources), input_model, grouped_apk_idx)
-        logger.info(f"Discovered {len(new_sources)} new source(s) "
-                    f"from {input_model.input_identifier(grouped_apk_idx)}.")
-
-        return new_sources
-
-    def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sources: Set[MethodSignature], input_model: InputModel, grouped_apk_idx: int=-1) -> str:
-        unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
-
-        modified_source_and_sink_path = modified_source_sink_path(hybrid_config, input_model)
-
-        shutil.copyfile(unmodified_source_and_sink_path, modified_source_and_sink_path)
-        with open(modified_source_and_sink_path, 'a') as result_file:
-            result_file.writelines(
-                list(map(lambda s: s.get_source_string(), sources)))
-
-        return modified_source_and_sink_path
+        return SourceSinkSignatures(source_signatures=observed_sources)
 
     def _get_sources_from_log(self, log_path: str, target_PII: List[str]) -> List["MethodSignature"]:
 
@@ -140,52 +87,28 @@ class StringReturnDynamicLogProcessingStrategy(AbstractDynamicLogProcessingStrat
         return sources_in_log
 
 
-class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProcessingStrategy):
+class InstrReportReturnOnlyDynamicLogProcessingStrategy(LogcatProcessingStrategy):
     """
     Identify and deserialize InstrumentationReport python objects from the log
     All logging is done tagged.
     Only create sources from function returns.
     """
 
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str, input_model: InputModel, grouped_apk_idx: int=-1) -> Set[
+    
+    def sources_from_log(self, logcat_path: str) -> Set[
         MethodSignature]:
 
-        log = LogcatLogFileModel(log_path)
+        log = LogcatLogFileModel(logcat_path)
 
         instr_reports = log.scan_log_for_instrumentation_reports()
 
         observed_sources = self._instr_reports_to_sources(instr_reports)
 
-        existing_sources: set[MethodSignature] = set(self._get_sources_from_file(
-            hybrid_config.unmodified_source_sink_list_path))
-
-        # Set minus, only append new sources not in unmodified source/sink list.
-        new_sources: set[MethodSignature] = observed_sources - existing_sources
-
-        # Report new sources
-        results.HybridAnalysisResult.report_new_sources_count(hybrid_config, len(new_sources), input_model, grouped_apk_idx)
-        logger.info(f"Discovered {len(new_sources)} new source(s) "
-                    f"from {input_model.input_identifier(grouped_apk_idx)}.")
-
-        return new_sources
-
-    def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sources: Set[MethodSignature], input_model: InputModel, grouped_apk_idx: int=-1):
-
-        unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
-
-        modified_source_and_sink_path = modified_source_sink_path(hybrid_config, input_model, grouped_apk_idx)
-
-        shutil.copyfile(unmodified_source_and_sink_path, modified_source_and_sink_path)
-        with open(modified_source_and_sink_path, 'a') as result_file:
-            result_file.writelines(
-                list(map(lambda s: s.get_source_string(), sources)))
-
-        return modified_source_and_sink_path
-
-        # raise NotImplementedError("Interface not implemented")
+        return SourceSinkSignatures(source_signatures=observed_sources)
 
     def _instr_reports_to_sources(self, instr_reports: List[InstrumentationReport]) -> Set[MethodSignature]:
+        # But only grabs instr reports for function returns.
+
         post_invoke_arg_masks = dict()
         pre_invoke_arg_masks = dict()
         signatures_by_id = dict()
@@ -198,13 +121,13 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProces
             if not post_invoke_arg_masks.keys().__contains__(instr_report.invoke_id):
                 pre_invoke_arg_masks[instr_report.invoke_id] = []
                 post_invoke_arg_masks[instr_report.invoke_id] = [False]
-                signatures_by_id[instr_report.invoke_id] = instr_report.invoke_signature
+                signatures_by_id[instr_report.invoke_id] = instr_report.invocation_java_signature
             # The exact number of registers in an invoke is tricky to know. On the
             # fly, expand the arg masks so there is room for whatever arg registers
             # get reported as tainted.
             if instr_report.is_arg_register and (
-                    instr_report.register_index >= len(pre_invoke_arg_masks[instr_report.invoke_id])):
-                additional_mask_length = (instr_report.register_index + 1) - len(
+                    instr_report.invocation_argument_register_index >= len(pre_invoke_arg_masks[instr_report.invoke_id])):
+                additional_mask_length = (instr_report.invocation_argument_register_index + 1) - len(
                     pre_invoke_arg_masks[instr_report.invoke_id])
                 pre_invoke_arg_masks[instr_report.invoke_id] = ([False] * additional_mask_length) + \
                                                                pre_invoke_arg_masks[instr_report.invoke_id]
@@ -223,7 +146,7 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProces
                                          "value before the invocation")
                 else:
                     pre_invoke_arg_masks[instr_report.invoke_id][
-                        instr_report.register_index] = True
+                        instr_report.invocation_argument_register_index] = True
 
         source_signatures: Set[str] = set()
         for invocation_id in post_invoke_arg_masks.keys():
@@ -245,180 +168,39 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(AbstractDynamicLogProces
                 #             break
 
         # Change collected source_signatures to source models
-        return set([MethodSignature.from_signature_string(signature) for signature in source_signatures])
+        return set([MethodSignature.from_java_style_signature(signature) for signature in source_signatures])
 
 
-class InstrReportReturnAndArgsDynamicLogProcessingStrategy(AbstractDynamicLogProcessingStrategy):
+class InstrReportReturnAndArgsDynamicLogProcessingStrategy(LogcatProcessingStrategy):
     """
     Identify and deserialize InstrumentationReport python objects from the log
     All logging is done tagged.
     Create sources from function returns and args
     """
+    
+    def sources_from_log(self, logcat_path: str) -> SourceSink:
 
-    def sources_from_log(self, hybrid_config: HybridAnalysisConfig, log_path: str,
-                         input_model: InputModel, grouped_apk_idx: int=-1) -> SourceSinkXML:
-
-        log: LogcatLogFileModel = LogcatLogFileModel(log_path)
+        log: LogcatLogFileModel = LogcatLogFileModel(logcat_path)
 
         instr_reports: List[InstrumentationReport] = log.scan_log_for_instrumentation_reports()
 
-        source_sink_xml: SourceSinkXML = self._instr_reports_to_source_sink(instr_reports)
-        discovered_sources_count: int = source_sink_xml.source_count
+        # todo: what if there are reports from multiple runs? 
+        source_sink: SourceSinkSignatures = self._instr_reports_to_source_sink(instr_reports)
+        discovered_sources_count: int = source_sink.source_count
 
-        existing_sources: Set[MethodSignature] = set(self._get_sources_from_file(
-            hybrid_config.unmodified_source_sink_list_path))
+        return source_sink
+    
+    def _instr_reports_to_source_sink(self, instrumentation_reports: List[InstrumentationReport]) -> SourceSinkSignatures:
 
-        # only append new sources not in unmodified source/sink list.
-        source_sink_xml.remove_return_sources(list(existing_sources))
-        duplicate_sources_count = discovered_sources_count - source_sink_xml.source_count
+        observation = ExecutionObservation()
+        for instrumentation_report in instrumentation_reports:
+            observation.parse_instrumentation_result(instrumentation_report)
 
-        # Report new sources
-        results.HybridAnalysisResult.report_new_sources_count(hybrid_config, source_sink_xml.source_count, input_model, grouped_apk_idx)
-        logger.info(f"Discovered {str(source_sink_xml.source_count)} new source(s) "
-                    f"from {input_model.input_identifier()}.")
+        tainting_invocation_ids: List[int] = observation.get_tainting_invocation_ids()
 
-        return source_sink_xml
+        tainting_signatures: List[MethodSignature] = [MethodSignature.from_java_style_signature(observation.invocation_java_signatures[id]) for id in tainting_invocation_ids]
 
-    def source_sink_file_from_sources(self, hybrid_config: HybridAnalysisConfig,
-                                      sourceSinks: SourceSinkXML, input_model: InputModel, grouped_apk_idx: int=-1) -> str:
-
-        unmodified_source_and_sink_path = hybrid_config.unmodified_source_sink_list_path
-
-        modified_source_and_sink_path = modified_source_sink_path(hybrid_config, input_model, grouped_apk_idx, is_xml=True)
-
-        sourceSinks.add_sinks_from_file(unmodified_source_and_sink_path)
-
-        sourceSinks.write_to_file(modified_source_and_sink_path)
-
-        return modified_source_and_sink_path
-
-    def _instr_reports_to_source_sink(self, instr_reports: List[InstrumentationReport]) -> SourceSinkXML:
-
-        # Create data structures to note what was tainted before and after a given function.
-        # For each dict the key is the invocation ID.
-        base_tainted_before_dict: Dict[int, bool] = dict()
-        base_tainted_after_dict: Dict[int, bool] = dict()
-        args_tainted_before_dict: Dict[int, List[bool]] = dict()
-        args_tainted_after_dict: Dict[int, List[bool]] = dict()
-        return_tainted_after_dict: Dict[int, bool] = dict()
-        signatures_by_id: Dict[int, MethodSignature] = dict()
-
-        # before_invoke_arg_masks = dict()
-        # after_invoke_arg_masks = dict()
-
-        # check for invocations with some base/arg/return tainted after the invoke
-        for instr_report in instr_reports:
-
-            ### Start interpret instr_report
-            is_base = instr_report.register_index == 0 and (not instr_report.is_static)
-            is_return = (not instr_report.is_before_invoke) and instr_report.is_return_register
-            is_arg = not (is_base or is_return)
-
-            signature_model = MethodSignature.from_signature_string(instr_report.invoke_signature)
-            if not (instr_report.invoke_id in signatures_by_id.keys()):
-                signatures_by_id[instr_report.invoke_id] = signature_model
-
-            if is_arg:
-                arg_index = SmaliMethodInvocation.register_index_to_arg_index(instr_report.is_static,
-                                                                              instr_report.register_index,
-                                                                              signature_model.arg_types)
-                if is_arg and arg_index is None:
-                    raise AssertionError("Unable to determine index of argument")
-            ### End interpret instr_report
-
-            if instr_report.is_before_invoke:
-                if is_base:
-                    base_tainted_before_dict[instr_report.invoke_id] = True
-                elif is_arg:
-                    if not instr_report.invoke_id in args_tainted_before_dict.keys():
-                        args_tainted_before_dict[instr_report.invoke_id] = [False] * len(signature_model.arg_types)
-                    args_tainted_before_dict[instr_report.invoke_id][arg_index]
-                elif is_return:
-                    raise AssertionError("Unexpected Case, shouldn't have return report before invoke. Examine earlier checks for logic errors.")
-                else:
-                    raise AssertionError("Unexpected Case. One of is_base, is_arg, or is_return should be true.")
-
-            else:  # After invoke
-                if is_base:
-                    base_tainted_after_dict[instr_report.invoke_id] = True
-                elif is_arg:
-                    if not instr_report.invoke_id in args_tainted_before_dict.keys():
-                        args_tainted_before_dict[instr_report.invoke_id] = [False] * len(signature_model.arg_types)
-                    args_tainted_before_dict[instr_report.invoke_id][arg_index]
-                elif is_return:
-                    return_tainted_after_dict[instr_report.invoke_id] = True
-                else:
-                    raise AssertionError("Unexpected Case. One of is_base, is_arg, or is_return should be true.")
-
-        base_source_signatures: List[MethodSignature] = []
-        arg_source_signatures: List[MethodSignature] = []
-        arg_source_indices: List[int] = []
-        return_source_signatures: List[MethodSignature] = []
-
-        # Go through base dicts
-        for invocation_id in base_tainted_after_dict.keys():
-            # Invocation is a leak if the method name is "<init>" and the base is tainted after the invoke,
-            # or if the base was not tainted before the invoke, and is tainted after the invoke.
-            signature_model = signatures_by_id[invocation_id]
-            if signature_model.method_name == "<init>":
-                base_source_signatures.append(signature_model)
-            else:
-                if invocation_id not in base_tainted_before_dict.keys():
-                    base_source_signatures.append(signature_model)
-                else:
-                    if not base_tainted_before_dict[invocation_id]:
-                        base_source_signatures.append(signature_model)
-
-        # Go through args dicts
-        for invocation_id in args_tainted_after_dict.keys():
-            # Invocation is only a leak if arg was tainted and the specified arg was not tainted before
-
-            signature_model = signatures_by_id[invocation_id]
-            args_tainted_after = args_tainted_after_dict[invocation_id]
-
-            if invocation_id not in args_tainted_before_dict:
-                for arg_index in range(len(args_tainted_after)):
-                    if args_tainted_after[arg_index]:
-                        arg_source_signatures.append(signature_model)
-                        arg_source_indices.append(arg_index)
-            else:
-                args_tainted_before = args_tainted_before_dict[invocation_id]
-
-                for arg_index in range(len(args_tainted_after)):
-                    if args_tainted_after[arg_index] and not args_tainted_before[arg_index]:
-                        arg_source_signatures.append(signature_model)
-                        arg_source_indices.append(arg_index)
-
-        # Go through return dict
-        for invocation_id in return_tainted_after_dict:
-            signature_model = signatures_by_id[invocation_id]
-            return_source_signatures.append(signature_model)
-
-            # # Was the return value tainted?
-            # if after_invoke_arg_masks[invocation_id][-1]:
-            #     return_source_signatures.append(signatures_by_id[invocation_id])
-            # # Was an arg tainted after, but not before, the invocation?
-            # else:
-            #     for arg_index in range(len(before_invoke_arg_masks[invocation_id])):
-            #         if after_invoke_arg_masks[invocation_id][arg_index]:
-            #             if not before_invoke_arg_masks[invocation_id][arg_index]:
-            #                 arg_source_signatures.append(signatures_by_id[invocation_id])
-            #                 arg_source_indices.append(arg_index)
-
-        result_source_sinks = SourceSinkXML()
-
-        for base_source_signature in base_source_signatures:
-            result_source_sinks.add_base_source(base_source_signature)
-
-        for arg_source_signature, arg_source_index in zip(arg_source_signatures, arg_source_indices):
-            result_source_sinks.add_arg_source(MethodSignature.from_signature_string(arg_source_signature),
-                                               arg_source_index)
-
-        for return_source_signature in return_source_signatures:
-            result_source_sinks.add_return_source(return_source_signature)
-
-        return result_source_sinks
-
+        return SourceSinkSignatures(source_signatures=tainting_signatures)
 
 class LogcatLogFileModel:
     lines: List[str]
@@ -484,14 +266,21 @@ class LogcatLogFileModel:
                 if re_result is None:
                     raise AssertionError("Log did not parse correctly")
 
+
                 instr_report_string, access_path, private_string = re_result.group(1), re_result.group(
                     2), re_result.group(3)
-                # instr_report_string should be a working constructor for an
-                # InstrumentationReport object.
+                # instr_report_string should be a working constructor for an InstrumentationReport object.
+                # access_path is the str representation of a List<FieldInfo> object, defined in Snapshot.Java
+                # private_string is the listed string of PII that was detected by the Snapshot code
                 instr_report = eval(instr_report_string)
                 instr_reports.append(instr_report)
 
         return instr_reports
+
+
+    def scan_log_for_stack_traces(self):
+        # TODO: not needed yet
+        pass
 
 def filter_exceptions_by_header(target_strings: List[str], exceptions) -> \
         List["ExceptionModel"]:
@@ -637,7 +426,96 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
     result.arg_types = arg_types
     return result
 
+class ExecutionObservation:
+    # InvocationObservation
+    # information for a given invocation that was observed to result in tainted values on 1 or more access paths
 
+    def __init__(self) -> None:
+        self._observed_invocation_ids: Set[int] = set()
+
+        self.argument_register_tainted_before: Dict[int, Dict[int, bool]] = dict()
+        self.argument_register_tainted_after: Dict[int, Dict[int, bool]] = dict()
+        self.argument_register_newly_tainted: Dict[int, Dict[int, bool]] = dict()
+
+        self.return_tainted_after: Dict[int, bool] = dict()
+
+        self.invocation_java_signatures: Dict[int, str] = dict()
+
+
+    def parse_instrumentation_result(self, instrumentation_report: InstrumentationReport): 
+        invocation_id = instrumentation_report.invoke_id
+
+        # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
+        if invocation_id not in self._observed_invocation_ids:
+            self._observed_invocation_ids.add(invocation_id)
+            self.invocation_java_signatures[invocation_id] = instrumentation_report.invocation_java_signature
+            for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
+                if invocation_id not in dictionary.keys():
+                    dictionary[invocation_id] = dict()
+
+        # update observation data structures
+        if instrumentation_report.is_arg_register:    
+            invocation_argument_register_index = instrumentation_report.invocation_argument_register_index
+
+            if instrumentation_report.is_before_invoke:
+                self.argument_register_tainted_before[invocation_id][invocation_argument_register_index] = True
+
+            else: # report is from after invoke
+                self.argument_register_tainted_after[invocation_id][invocation_argument_register_index] = True
+
+            # If the register not observed to be tainted before, but is observed to be tainted after, then the register is newly tainted.
+            # If the register is observed to be tainted before, and is observed to be tainted after, then the register is not newly tainted. 
+            # If the register is not observed after, then we don't make conclusions.
+            if (invocation_argument_register_index in self.argument_register_tainted_after[invocation_id].keys()
+                        and self.argument_register_tainted_after[invocation_id][invocation_argument_register_index] is True):
+                    if invocation_argument_register_index in self.argument_register_tainted_before[invocation_id].keys():
+                        if self.argument_register_tainted_before[invocation_id][invocation_argument_register_index] is True:
+                            self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = True
+                        else: 
+                            # This branch is important for cases when a post report is processed before a pre report.
+                            self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = False
+            # newly_tainted = True if: not pre && post || post; False if: pre && post; blank if not post || pre || not pre, that is, if post if false or there is no pre observation. 
+
+        elif instrumentation_report.is_return_register:
+            self.return_tainted_after[invocation_id] = True
+        else: 
+            assert False
+
+    def get_tainting_invocation_ids(self) -> Set[int]:
+        # Returns ids for every invocation in which an argument became tainted, or the return was observed to be tainted.
+
+        tainting_invocation_ids = set()
+
+        for invocation_id, value in self.return_tainted_after.items():
+            if value:
+                tainting_invocation_ids.add(invocation_id)
+        
+        for invocation_id, arguments in self.argument_register_newly_tainted.items():
+            for invocation_argument_register_index, value in arguments.items():
+                if value:
+                    tainting_invocation_ids.add(invocation_id)
+        
+        return tainting_invocation_ids
+    
+    # def signature_from_invocation_id(self, invocation_id) -> str:
+    #     return self.invocation_signatures[invocation_id]
+
+
+
+    # class ReturnObservation: -> information for a given function return that saw a tainted value (as in original ConDySTA approach)
+
+    # function signature -> so FD s/s list can be augmented
+    # observed private string -> could eventually be mapped to a source function or smthng
+    # 
+    # could be subclassed into invocation observation vs return observation vs heap observation
+    # call stack context -> for condysta type filtering
+    # access chain information (a.f.g.h) -> for field sensitive tainting
+    # arg vs.return
+    #
+    # TODO: this should be an intermediate between log processing, and using the info in the static analysis.
+    
+
+# TODO: get tests to actually work. Setup a test dir and move them there.
 def test_exception_parsing():
     log = LogcatLogFileModel("../data/test-resources/FieldSensitivity3.apk.log")
     exceptions = log.filter_exceptions_by_header(["8901240197155182897"])
@@ -645,12 +523,6 @@ def test_exception_parsing():
     assert exceptions[0].lines[
                0] == "04-25 10:44:05.273  7232  7232 W System.err: java.lang.Exception: 8901240197155182897\n"
 
-
-def test_file_source_parsing():
-    file_path = "../data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
-    sources = StringReturnDynamicLogProcessingStrategy()._get_sources_from_file(
-        file_path)
-    print(list(map(lambda s: s.get_source_string(), sources)))
 
 
 def test_instr_report_parsing():

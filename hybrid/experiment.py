@@ -3,11 +3,11 @@ from typing import List
 
 import hybrid.clean
 import util
-from hybrid import hybrid_main, hybrid_config, results
+from hybrid import dysta_old, hybrid_config, results
 # from flowdroid import run_flowdroid_batch
 from hybrid.hybrid_config import HybridAnalysisConfig
 from intercept import intercept_config, intercept_main, monkey
-from intercept.instrument import extract_decompiled_smali_code
+from intercept.instrument import extract_decompiled_smali_code_to_heap_snapshot
 from util import input
 
 
@@ -44,30 +44,7 @@ from util.zip import zip_dir
 #
 #     intercept_main.main(configuration, do_clean=True)
 #
-#
-# def decompile_android_studio_apk():
-#     """
-#     Decompile an apk from android studio.
-#     """
-#     configuration = intercept_config.get_default_intercept_config()
-#
-#     configuration.input_apks = input.input_apks_from_dir(
-#         "~/Documents/programming/AndroidStudio/HeapSnapshot/app/build/outputs/apk/debug")
-#
-#     intercept_main.generate_smali_code(configuration)
-#
-#
-# def update_heap_snapshot_smali_files():
-#     """
-#     Decompile an apk from android studio and place some targeted smali files into
-#     intercept/smali-files/heap-snapshot. Replace existing files if necessary
-#     """
-#     configuration = intercept_config.get_default_intercept_config()
-#     configuration.input_apks = input.input_apks_from_dir("HeapSnapshot/app/build/outputs/apk/debug")
-#
-#     intercept_main.generate_smali_code(configuration)
-#
-#     extract_decompiled_smali_code(configuration)
+
 #
 #
 # def decompile_input_apks():
@@ -332,7 +309,7 @@ def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks():
 
     hybrid_analysis_configuration.use_monkey = False
 
-    hybrid_main.main(hybrid_analysis_configuration)
+    dysta_old.main(hybrid_analysis_configuration)
     results_path = os.path.join(results_path_prefix,
                                 "improved-dysta-on-recent-FD-fewer-leaks-no-monkey"
                                 ".csv")
@@ -366,7 +343,7 @@ def improved_dysta_on_recent_FD_and_RD_common_fewer_leaks_with_groups():
 
     hybrid_analysis_configuration.use_monkey = False
 
-    hybrid_main.main(hybrid_analysis_configuration)
+    dysta_old.main(hybrid_analysis_configuration)
     results_path = os.path.join(results_path_prefix,
                                 "improved-dysta-on-recent-FD-fewer-leaks-no-monkey"
                                 ".csv")
@@ -411,7 +388,7 @@ def dysta_with_groups(list_path: str, groups_list_path: str, experiment_name: st
 
     config.use_monkey = False
 
-    hybrid_main.main(config)
+    dysta_old.main(config)
 
     date = "9-22-23"
     full_experiment_name = date + "-" + experiment_name + "_no_monkey"
@@ -424,7 +401,7 @@ def dysta_with_groups(list_path: str, groups_list_path: str, experiment_name: st
     # hybrid_main.main(config, do_clean=False)
     # TODO: fix do_clean=False so it
     #  actually works
-    hybrid_main.main(config)
+    dysta_old.main(config)
 
     full_experiment_name = date + "-" + experiment_name + \
                       "_w_monkey"

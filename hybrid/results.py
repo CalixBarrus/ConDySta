@@ -2,8 +2,8 @@ import os
 import re
 from typing import List, Union, Dict
 
-from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_first_pass_logs_path, flowdroid_second_pass_logs_path
-from hybrid.log_process_fd import FlowdroidLogException, get_reported_num_leaks_in_flowdroid_log
+from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_logs_path, flowdroid_logs_path
+from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_reported_leaks_count
 from util.input import ApkModel, InputModel, BatchInputModel
 
 import util.logger
@@ -30,6 +30,7 @@ def print_csv_results_to_file(hybrid_config: HybridAnalysisConfig, outfile_path 
 
 
 class HybridAnalysisResult:
+    # TODO: This entire class would be better off split into: using pd.DataFrame & business logic handled/abstracted on the level of experiment logic
     """
     Each instance of HybridAnalysisResult should represent 1 line in a results spreadsheet.
     """
@@ -148,12 +149,14 @@ class HybridAnalysisResult:
             hybrid_config.results_dict[input_model.input_identifier()] = HybridAnalysisResult(input_model)
 
     @classmethod
-    def report_new_sources_count(cls, hybrid_config: HybridAnalysisConfig, new_sources_count: int, input_model: InputModel, grouped_apk_idx: int=-1):
+    def report_new_sources_count(cls, results_dict: Dict, new_sources_count: int, input_model: InputModel, grouped_apk_idx: int=-1):
+        # TODO: 
+
         if not input_model.is_group():
-            hybrid_config.results_dict[input_model.input_identifier()].number_added_sources = new_sources_count
+            results_dict[input_model.input_identifier()].number_added_sources = new_sources_count
         else:
             # number_added_sources can be incremented by different members of group
-            result_instance: 'HybridAnalysisResult' = hybrid_config.results_dict[input_model.input_identifier()]
+            result_instance: 'HybridAnalysisResult' = results_dict[input_model.input_identifier()]
             if result_instance.number_added_sources is None:
                 result_instance.number_added_sources = 0
             result_instance.number_added_sources += new_sources_count
@@ -168,25 +171,27 @@ class HybridAnalysisResult:
 
     @classmethod
     def _parse_leak_counts(cls, hybrid_config: HybridAnalysisConfig, input_apks: BatchInputModel) -> None:
-        # TODO: this method should get called at the tail end of all flowdroid invocations, then the flowdroid
-        #  invocation should just return the result info (# of leaks or a result object of some kind)
+        # TODO: This function needs a huge refactor. All of the experiment specific logic needs to abstracted to the main & experiment layer. The results_dict needs to be implemented as DataFrame.
+        # This can probably gets split into few functions that get reused.
 
         # Go through logs from flowdroid's first and second passes, and add the leak results
         # to the results dictionary.
         # results_dict should already be filled out with result models that will be mutated.
 
         results_dict = hybrid_config.results_dict
+        flowdroid_first_pass_logs_dir_path = hybrid_config._flowdroid_first_pass_logs_dir_path
+        flowdroid_second_pass_logs_dir_path = hybrid_config._flowdroid_second_pass_logs_dir_path
 
         for ungrouped_input in input_apks.ungrouped_inputs:
             try:
-                first_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(flowdroid_first_pass_logs_path(hybrid_config, ungrouped_input))
+                first_pass_leaks_count = get_flowdroid_reported_leaks_count(flowdroid_logs_path(flowdroid_first_pass_logs_dir_path, ungrouped_input))
 
                 results_dict[ungrouped_input.input_identifier()].first_pass_leaks = first_pass_leaks_count
             except FlowdroidLogException as e:
                 results_dict[ungrouped_input.input_identifier()].error_msg += str(e)
 
             try:
-                second_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(flowdroid_second_pass_logs_path(hybrid_config, ungrouped_input))
+                second_pass_leaks_count = get_flowdroid_reported_leaks_count(flowdroid_logs_path(flowdroid_second_pass_logs_dir_path, ungrouped_input))
 
                 results_dict[ungrouped_input.input_identifier()].second_pass_leaks = second_pass_leaks_count
             except FlowdroidLogException as e:
@@ -197,8 +202,8 @@ class HybridAnalysisResult:
 
             for grouped_apk_index, _ in grouped_input.apks():
                 try:
-                    first_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(
-                        flowdroid_first_pass_logs_path(hybrid_config, grouped_input,
+                    first_pass_leaks_count = get_flowdroid_reported_leaks_count(
+                        flowdroid_logs_path(flowdroid_first_pass_logs_dir_path, grouped_input,
                                                        grouped_apk_index))
 
                     if result_instance.first_pass_leaks is None:
@@ -212,8 +217,8 @@ class HybridAnalysisResult:
                     result_instance.grouped_apk_error_msg[grouped_input.input_identifier(grouped_apk_index)] += e.msg
 
                 try:
-                    second_pass_leaks_count = get_reported_num_leaks_in_flowdroid_log(
-                        flowdroid_second_pass_logs_path(hybrid_config, grouped_input, grouped_apk_index))
+                    second_pass_leaks_count = get_flowdroid_reported_leaks_count(
+                        flowdroid_logs_path(flowdroid_second_pass_logs_dir_path, grouped_input, grouped_apk_index))
 
                     if result_instance.second_pass_leaks is None:
                         result_instance.second_pass_leaks = 0

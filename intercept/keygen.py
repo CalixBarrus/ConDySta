@@ -11,16 +11,17 @@ from util.input import ApkModel
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def generate_keys_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
+def generate_keys_batch(keys_directory_path: str, apks: List[ApkModel]):
     for apk in apks:
-        generate_keys_single(config, apk)
+        generate_keys_single(keys_directory_path, apk)
 
-def generate_keys_single(config: HybridAnalysisConfig, apk: ApkModel):
-    if os.path.isfile(apk_key_path(config, apk)):
+def generate_keys_single(keys_directory_path: str, apk: ApkModel):
+
+    if os.path.isfile(apk_key_path(keys_directory_path, apk)):
         logger.debug(f"APK keystore {apk.apk_key_name()} already exists, skipping.")
         return
 
-    cmd = "keytool -genkey -alias abc.keystore -keyalg RSA -validity 20000 -keystore {}".format(apk_key_path(config, apk))
+    cmd = "keytool -genkey -alias abc.keystore -keyalg RSA -validity 20000 -keystore {}".format(apk_key_path(keys_directory_path, apk))
     logger.debug(cmd)
 
     # Todo: should some of this logic be in util.subprocess? It's fairly business logic specific, so it may be ok leaving it here

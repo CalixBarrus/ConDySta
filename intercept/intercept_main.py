@@ -2,9 +2,10 @@
 import os
 from typing import Union, List
 
+from experiment.common import setup_additional_directories, setup_experiment_dir
+from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig
-from intercept import decode, instrument, rebuild, keygen, \
-    intercept_config, sign, clean, monkey
+from intercept import decode, instrument, rebuild, keygen, sign, monkey
 
 from util.input import ApkModel, BatchInputModel, InputModel
 
@@ -28,11 +29,19 @@ def instrument_apks(config: HybridAnalysisConfig, unique_apks: List[ApkModel], d
     """
 
     logger.info("Starting code instrumentation...")
-    decode.decode_batch(config, unique_apks)
-    instrument.instrument_batch(config, unique_apks)
-    rebuild.rebuild_batch(config, unique_apks)
-    keygen.generate_keys_batch(config, unique_apks)
-    sign.assign_key_batch(config, unique_apks)
+
+    
+    decoded_apks_directory_path = config._decoded_apks_path
+    instrumentation_strategy = config._instrumentation_strategy
+    rebuilt_apks_directory_path = config._rebuilt_apks_path
+    keys_directory_path = config._keys_dir_path
+    signed_apks_directory_path = config._signed_apks_path
+
+    decode.decode_batch(decoded_apks_directory_path, unique_apks)
+    instrument.instrument_batch(decoded_apks_directory_path, instrumentation_strategy, unique_apks)
+    rebuild.rebuild_batch(decoded_apks_directory_path, rebuilt_apks_directory_path, unique_apks)
+    keygen.generate_keys_batch(keys_directory_path, unique_apks)
+    sign.assign_key_batch(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, unique_apks)
     logger.info("Code instrumentation finished.")
 
 def run_apks(config: HybridAnalysisConfig, input: BatchInputModel):
@@ -41,29 +50,30 @@ def run_apks(config: HybridAnalysisConfig, input: BatchInputModel):
     logger.info("Finished running APKs.")
 
 
-def generate_smali_code(config: HybridAnalysisConfig, do_clean=True):
-    if do_clean:
-        clean.clean(config)
+def generate_smali_code(apk_path: str, decode_output_directory_path: str):
+    # if do_clean:
+    #     clean.clean(config)
+    apk_model: ApkModel = ApkModel(apk_path)
+    
+    decode.decode_apk(decode_output_directory_path, apk_model)
 
-    decode.decode_batch(config, config.input_apks.unique_apks)
+def decompile_and_rebuild_apks(apks: List[ApkModel], experiment_directory_path):
+    clean = True
 
-def rebuild_smali_code(config: HybridAnalysisConfig):
+    decoded_apks_directory_path = setup_additional_directories(experiment_directory_path, ["decoded-apks"])[0]
+    decode.decode_batch(decoded_apks_directory_path, apks, clean=clean)
 
-    # Clean out rebuilt-apks, keys, and signed-apks.
-    # TODO: should probably change clean.py so this can live in there
-    for folder in [config.rebuilt_apks_path, config.signed_apks_path]:
-        cmd = f'rm {os.path.join(folder, "*.apk")}'
-        logger.debug(cmd)
-        os.system(cmd)
-    cmd = f'rm {os.path.join(config.keys_dir_path, "*.keystore")}'
-    logger.debug(cmd)
-    os.system(cmd)
+    rebuild_smali_code(apks, experiment_directory_path, decoded_apks_directory_path)
 
-    apks_list = config.input_apks.unique_apks
+def rebuild_smali_code(apks: List[ApkModel], experiment_directory_path: str, decoded_apks_directory_path: str):
 
-    rebuild.rebuild_batch(config, apks_list)
-    keygen.generate_keys_batch(config, apks_list)
-    sign.assign_key_batch(config, apks_list)
+
+    paths = setup_additional_directories(experiment_directory_path, ["rebuilt-apks", "keys", "signed-apks"])
+    rebuilt_apks_directory_path, keys_directory_path, signed_apks_directory_path = paths[0], paths[1], paths[2]
+
+    rebuild.rebuild_batch(decoded_apks_directory_path, rebuilt_apks_directory_path, apks)
+    keygen.generate_keys_batch(keys_directory_path, apks)
+    sign.assign_key_batch(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, apks)
 
 
 

@@ -8,7 +8,7 @@ from util import logger
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def get_reported_num_leaks_in_flowdroid_log(flowdroid_log_path: str) -> int:
+def get_flowdroid_reported_leaks_count(flowdroid_log_path: str) -> int:
     if not os.path.isfile(flowdroid_log_path):
         logger.error(f"Flowdroid did not execute; log file"
                         f" {flowdroid_log_path} does not exist.")
@@ -24,14 +24,14 @@ def get_reported_num_leaks_in_flowdroid_log(flowdroid_log_path: str) -> int:
             """
             if " - Found " in line:
                 # Pull number from phrase "Found n leaks"
-                num_leaks = int(re.search(r"Found (\d+) leaks", line).group(1))
-                return num_leaks
+                reported_leaks_count = int(re.search(r"Found (\d+) leaks", line).group(1))
+                return reported_leaks_count
 
     logger.error(f"Flowdroid did not execute as expected in log file"
             f" {flowdroid_log_path}")
     return None
 
-def get_flows_in_flowdroid_log(flowdroid_log_path: str, apk_path: str) -> List[Flow]:
+def get_flowdroid_flows(flowdroid_log_path: str, apk_path: str) -> List[Flow]:
 
     """
     Expecting log to contain section like 
@@ -93,7 +93,7 @@ def get_flows_in_flowdroid_log(flowdroid_log_path: str, apk_path: str) -> List[F
     return flows
 
 
-def get_analysis_error_in_flowdroid_log(flowdroid_log_path: str) -> str:
+def get_flowdroid_analysis_error(flowdroid_log_path: str) -> str:
     """
     Flowdroid errors often include an entry such as 
 [main] ERROR soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - Exception during data flow analysis

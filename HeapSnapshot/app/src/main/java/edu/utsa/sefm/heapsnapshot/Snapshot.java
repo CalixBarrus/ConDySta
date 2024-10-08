@@ -14,6 +14,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -21,10 +22,17 @@ import java.util.regex.Pattern;
 
 public class Snapshot {
     private static final int INSPECTION_DEPTH = 3;
-    private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396"); // mint_mobile_SIM_id, nexus_6_IMEI
+    // private static final int INSPECTION_DEPTH = 2;
+    // private static final int INSPECTION_DEPTH = 1;
+     // mint_mobile_SIM_id, nexus_6_IMEI, serial #, advertising ID, Wifi Mac Address, Bluetooth mac address, google account email, google account password
+    private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396", "ZX1H22KHQK", "b91481e8-4bfc-47ce-82b6-728c3f6bff60", "f8:cf:c5:d1:02:e8", "f8:cf:c5:d1:02:e7", "tester.sefm@gmail.com", "Class-Deliver-Put-Earn-5");
     private static final List<Class<?>> EXCLUDED_CLASSES = Arrays.asList(Integer.class, Long.class, Double.class, Boolean.class);
     private static final String TAG = "Snapshot";
-    private static int callID = 0;
+    private static final String DEBUG_TAG = "Snap-Debug";
+    // This can only be accessed/updated in synchronized blocks
+    private static int callId = 0;
+    // TODO: Should this be a synchronized HashMap? I think i can get away without it, since it's keyed by threadId
+    private static Map<Long, Boolean> isThreadCheckingObjectMap = new HashMap<>();
 
     public static JSONObject takeSnapshot(Object obj, int inspectionDepth) throws JSONException {
         JSONObject resultJson = new JSONObject();
@@ -108,15 +116,81 @@ public class Snapshot {
 
         Returns an ID number associated with the logged message or -1 if no PII was found.
          */
-        int currentInspectionDepth = 0;
-        List<FieldInfo> accessPath = new ArrayList<>();
-        callID += 1;
 
-        if (instance == null) {
+        // This needs to be thread safe
+        int localCallId = 0;
+        synchronized (Snapshot.class) {
+            callId += 1;
+            localCallId = callId;
+        }
+
+
+        // How often does this function get called? 
+        int div = 100;
+        if (localCallId % div == 0) {
+            Log.d(DEBUG_TAG, "Calls to checkObjectForPII :" + localCallId);
+        }
+
+        // This needs to be done in a thread safe way
+        // TODO: can i get away without using a synchronized map? And without using synchronized blocks? 
+        //      I think so. Intuition dictates that keying in using the ThreadId *shouldn't* lead to any bad behavior.
+        // start thread safe
+        Long threadId = Thread.currentThread().getId();
+        if (!Snapshot.isThreadCheckingObjectMap.containsKey(threadId)) {
+            Snapshot.isThreadCheckingObjectMap.put(threadId, false);
+            // Debug
+            Log.e(DEBUG_TAG, "Creating entry in thread map, Thread ID is " + threadId); 
+            // End Debug
+        }
+
+
+        Boolean isCheckingObject = Snapshot.isThreadCheckingObjectMap.get(threadId);
+
+        // // Debug
+        // Log.e(DEBUG_TAG, "Checking thread map, Thread ID is " + threadId + " and result is " + isCheckingObject); 
+        // // End Debug
+        
+        // end thread safe
+
+        // If for some reason the instrumentation code is triggered while we are already checking an object, don't enter an infinite recursion.
+        if (isCheckingObject) {
+            Log.d(DEBUG_TAG, "Avoided Infinite recursion at invocation: " + invocationDescription);
+
+            // TODO: add stacktrace info here so we can what in the instr code is causing the recursion; its probably instance.getClass(), and 
+            
+            // Debug
+            Log.e(DEBUG_TAG, "Thread ID is " + threadId + ", Printing stacktrace:"); 
+            (new Exception(DEBUG_TAG)).printStackTrace(); // This will print to stderr
+            // End Debug
+
             return -1;
         }
 
-        return checkObjectForPIIRecursive(instance, ".", currentInspectionDepth, accessPath, invocationDescription);
+        int currentInspectionDepth = 0;
+        List<FieldInfo> accessPath = new ArrayList<>();
+
+        if (instance == null) {
+            return -1;
+        }                
+                
+        // start thread safe
+        Snapshot.isThreadCheckingObjectMap.put(threadId, true);
+        // end thread safe
+        // // Debug
+        // Log.e(DEBUG_TAG, "Setting entry in thread map to true, Thread ID is " + threadId); 
+        // // End Debug
+        
+
+        int result = checkObjectForPIIRecursive(instance, ".", currentInspectionDepth, accessPath, invocationDescription, localCallId);
+
+        // start thread safe
+        Snapshot.isThreadCheckingObjectMap.put(threadId, false);
+        // end thread safe
+        // // Debug
+        // Log.e(DEBUG_TAG, "Setting entry in thread map to false, Thread ID is " + threadId); 
+        // // End Debug
+
+        return result;
 
         // Can't get the address of an object in Dalvik using this function
 //        resultJson.put("current_address", VM.current().addressOf(obj));
@@ -126,7 +200,8 @@ public class Snapshot {
                                                   String instanceName,
                                                   int curDepth,
                                                   List<FieldInfo> accessPath,
-                                                  String invocationDescription) {
+                                                  String invocationDescription,
+                                                  int localCallID) {
         if (instance == null) {
             return -1;
         }
@@ -157,7 +232,7 @@ public class Snapshot {
         if (!(curDepth < INSPECTION_DEPTH)) {
             accessPath.remove(accessPath.size()-1);
             if (childFoundLeak) {
-                return callID;
+                return localCallID;
             }
             else {
                 return -1;
@@ -225,7 +300,7 @@ public class Snapshot {
                         accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
 
                         for (Object o : collectionInstance) {
-                            int result = checkObjectForPIIRecursive(o, "collectionElement", curDepth+1, accessPath, invocationDescription);
+                            int result = checkObjectForPIIRecursive(o, "collectionElement", curDepth+1, accessPath, invocationDescription, localCallID);
                             if (result != -1) {
                                 childFoundLeak = true;
                             }
@@ -236,13 +311,13 @@ public class Snapshot {
                         Map<?, ?> mapInstance = (Map<?, ?>) fieldInstance;
                         accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
                         for (Object o : mapInstance.keySet()) {
-                            int result = checkObjectForPIIRecursive(o, "mapKey", curDepth+1, accessPath, invocationDescription);
+                            int result = checkObjectForPIIRecursive(o, "mapKey", curDepth+1, accessPath, invocationDescription, localCallID);
                             if (result != -1) {
                                 childFoundLeak = true;
                             }
                         }
                         for (Object o : mapInstance.values()) {
-                            int result = checkObjectForPIIRecursive(o, "mapValue", curDepth+1, accessPath, invocationDescription);
+                            int result = checkObjectForPIIRecursive(o, "mapValue", curDepth+1, accessPath, invocationDescription, localCallID);
                             if (result != -1) {
                                 childFoundLeak = true;
                             }
@@ -250,7 +325,7 @@ public class Snapshot {
                         accessPath.remove(accessPath.size()-1);
                     }
                     else {
-                        int result = checkObjectForPIIRecursive(fieldInstance, field.getName(), curDepth+1, accessPath, invocationDescription);
+                        int result = checkObjectForPIIRecursive(fieldInstance, field.getName(), curDepth+1, accessPath, invocationDescription, localCallID);
                         if (result != -1) {
                             childFoundLeak = true;
                         }
@@ -264,7 +339,7 @@ public class Snapshot {
         // Pop off most recent accessPath entry
         accessPath.remove(accessPath.size()-1);
         if (childFoundLeak) {
-            return callID;
+            return localCallID;
         }
         else {
             return -1;

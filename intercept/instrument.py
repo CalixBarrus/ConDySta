@@ -1,3 +1,5 @@
+from abc import ABC
+from dataclasses import dataclass, field
 import os
 import re
 import shutil
@@ -10,7 +12,7 @@ from util.subprocess import run_command
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-class InformalInstrumentationStrategyInterface:
+class SmaliInstrumentationStrategy(ABC):
     def instrument_file(self, smali_file: 'SmaliFile'):
         """Hook gets called on each SmaliFile model in a given DecodedApkModel"""
         raise NotImplementedError("Interface not implemented")
@@ -31,19 +33,22 @@ class InformalInstrumentationStrategyInterface:
         """
         raise NotImplementedError("Interface not implemented")
 
-def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
+# def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
+def instrument_batch(decoded_apks_directory_path: str, instrumentation_strategy: str, apks: List[ApkModel]):
 
     # Read in and parse decoded apks
     decoded_apk_models: List[DecodedApkModel] = []
     for apk in apks:
-        decoded_apk_models.append(instrument_apk(config, apk))
+        decoded_apk_models.append(instrument_apk(decoded_apks_directory_path, instrumentation_strategy, apk))
 
     # We may later decide to save the decoded_apk_models for use in interpreting dynamic analysis results
 
-def instrument_apk(config: HybridAnalysisConfig, apk: ApkModel) -> 'DecodedApkModel':
-    instrumentation_strategy: InformalInstrumentationStrategyInterface = instr_strategy_from_strategy_name(config.instrumentation_strategy)
+# def instrument_apk(config: HybridAnalysisConfig, apk: ApkModel) -> 'DecodedApkModel':
+def instrument_apk(decoded_apks_directory_path: str, instrumentation_strategy: str, apk: ApkModel) -> 'DecodedApkModel':
+    instrumentation_strategy: SmaliInstrumentationStrategy = instrumentation_strategy_factory(instrumentation_strategy)
+    # decoded_apks_directory_path = config._decoded_apks_path
 
-    decoded_apk_model = DecodedApkModel(decoded_apk_path(config._decoded_apks_path, apk))
+    decoded_apk_model = DecodedApkModel(decoded_apk_path(decoded_apks_directory_path, apk))
 
     decoded_apk_model.instrument(instrumentation_strategy)
 
@@ -189,7 +194,7 @@ class DecodedApkModel:
 
     #     return result_smali_files
 
-    def instrument(self, instrumenter: InformalInstrumentationStrategyInterface):
+    def instrument(self, instrumenter: SmaliInstrumentationStrategy):
         if instrumenter.needs_to_insert_directory():
             self.insert_smali_directory(instrumenter.path_to_directory())
 
@@ -227,6 +232,8 @@ class SmaliFile:
     limited parsing/update logic.
     """
     file_path: str
+    class_name: str
+    class_keywords: List[str]
     methods: List['SmaliMethod']
 
     def __init__(self, smali_file_path):
@@ -237,13 +244,66 @@ class SmaliFile:
             lines = file.readlines()
 
         for i, line in enumerate(lines):
-            if line.startswith(".method"):
-                self.methods.append(self.parse_smali_method(lines, i, self.file_path))
+            if line.startswith(".class"):
+                # for example, 
+                # .class public Lanupam/acrylic/AboutActivity;
+                split_class_header = line.strip().split()
+                _ = split_class_header[0] # ".class"
+                self.class_name = split_class_header[-1]
+                if len(split_class_header) > 2:
+                    self.class_keywords = split_class_header[1:-1]
+                else: 
+                    self.class_keywords = []
 
-    def parse_smali_method(self, lines, function_start_index, parent_file_path) -> 'SmaliMethod':
-        result_method = SmaliMethod()
+            if line.startswith(".method"):
+                self.methods.append(self.parse_smali_method(lines, i, self.class_name))
+        
+        """
+        Example of header of normal class
+.class public Lanupam/acrylic/AboutActivity;
+.super Landroid/app/Activity;
+.source "AboutActivity.java"
+
+        Example of header of inner class
+.class Lanupam/acrylic/EasyPaint$MyView$MultiLinePathManager;
+.super Ljava/lang/Object;
+.source "EasyPaint.java"
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingClass;
+    value = Lanupam/acrylic/EasyPaint$MyView;
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x2
+    name = "MultiLinePathManager"
+.end annotation
+
+        Example of header of anonymous class
+.class Lanupam/acrylic/EasyPaint$1;
+.super Ljava/lang/Object;
+.source "EasyPaint.java"
+
+# interfaces
+.implements Landroid/content/DialogInterface$OnClickListener;
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Lanupam/acrylic/EasyPaint;->onCreate(Landroid/os/Bundle;)V
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x0
+    name = null
+.end annotation
+        """
+
+    def parse_smali_method(self, lines: List[str], function_start_index: int, enclosing_class_name: str) -> 'SmaliMethod':
+        # TODO: This should prolly get moved to Smali Method
+
+        result_method: SmaliMethod = SmaliMethod()
         result_method.start_line_number = function_start_index
-        result_method.parent_file_path = parent_file_path
+        result_method.enclosing_class_name = enclosing_class_name
 
         self.parse_method_signature(result_method, lines[function_start_index])
 
@@ -267,8 +327,8 @@ class SmaliFile:
                     # "return v[n]" where n is the number of the return register
                     result_method.return_registers.append(line.split(" ")[1])
             elif SmaliMethodInvocation.is_invocation(line):
-                result_method.invocation_statements.append(
-                    self.parse_invocation_line(i, line))
+                new_invocation = SmaliMethodInvocation.parse_invocation_line(i, line)
+                result_method.invocation_statements.append(new_invocation)
             elif SmaliMethodInvocation.is_move_result(line):
                 # Move result always occurs after a method invoke or a filled-new-array instruction. We want to ignore move_results due to filled-new-array instructions
                 j, prev_instr_line = SmaliMethodInvocation.get_prev_instruction(i, lines)
@@ -318,11 +378,11 @@ class SmaliFile:
 
         method.return_type = signature_end.split(")")[1]
 
-    def parse_method_signature_args(self, method_args):
+    def parse_method_signature_args(self, method_args: str) -> List[str]:
         """
-        :param method_args: String, expected to be the string between the
+        method_args: String, expected to be the string between the
         left and right parentheses of a smali method signature
-        :return: List of strings, each string being the type of each formal
+        return: List of strings, each string being the type of each formal
         argument, and the length of the list being the number of arguments of the method.
         """
         # Each argument is either a primitive (Z, B, S, C, I, J, F, D) or an
@@ -360,117 +420,6 @@ class SmaliFile:
 
         return args
 
-    def parse_invocation_line(self, line_number: int,
-                              line: str) -> 'SmaliMethodInvocation':
-
-        """
-        Examples: 
-        invoke-super {p0, p1, p2, p3, p4}, Landroid/widget/TextView;->onSizeChanged(IIII)V
-        invoke-virtual/range {v0 .. v5}, Landroid/graphics/Canvas;->drawArc(Landroid/graphics/RectF;FFZLandroid/graphics/Paint;)V
-        invoke-static/range {v0 .. v5}, Lrx/Observable;->interval(JJLjava/util/concurrent/TimeUnit;Lrx/Scheduler;)Lrx/Observable;
-        """
-        result_invocation = SmaliMethodInvocation.get_empty_object()
-
-        result_invocation.invoke_line_number = line_number
-
-        # First word is invoke-[kind]
-        result_invocation.invoke_kind = line.split()[0]
-        if result_invocation.invoke_kind.find("range") >= 0:
-            result_invocation.is_range_kind = True
-        else:
-            result_invocation.is_range_kind = False
-
-        # find and capture the contents of matched curly braces
-        arg_registers_string = re.search(r"\{(.*)\}", line).group(1)
-        result_invocation.arg_registers = self.parse_arg_registers_str(arg_registers_string)
-        # "invoke-virtual {v0, v1, p1, v2}, Leu/kanade/tachiyomi/util/LocaleHelper;->updateConfiguration(Landroid/app/Application;Landroid/content/res/Configuration;Z)V"
-        # Note that the first register here is *this* iff the invoke is not static
-
-        if len(result_invocation.arg_registers) == 1 and result_invocation.arg_registers[0].strip() == '':
-            result_invocation.arg_registers = []
-
-        # find and capture the class name and method name which are between "},
-        # " and "->"; and "->" and "(", respectively
-        match = re.search(r"\}, (.*)->(.*)\(", line)
-        result_invocation.class_name = match.group(1)
-        result_invocation.method_name = match.group(2)
-
-        # find and capture the arg types,
-        # between a left and right paren
-        arg_types_str = re.search(r"\((.*)\)", line).group(1)
-        result_invocation.arg_types_pre = self.parse_arg_types_str(arg_types_str)
-        if not result_invocation.is_static_invoke():
-            # Type of first argument is implicit
-            result_invocation.arg_types_pre = [result_invocation.class_name] + result_invocation.arg_types_pre
-
-        assert len(result_invocation.arg_types_pre) == len(result_invocation.arg_registers)
-
-        
-        # find and capture the return type, between a right paren and the end of the
-        # string.
-        result_invocation.return_type = re.search(r"\)(.*)$", line).group(1).strip()
-
-        return result_invocation
-
-    def parse_arg_types_str(self, arg_types_str: str) -> List[str]:
-        if arg_types_str == "":
-            return []
-        elif arg_types_str[0] in ['Z', 'B', 'S', 'C', 'I', 'F']:
-            return [arg_types_str[0]] + self.parse_arg_types_str(arg_types_str[1:])
-        elif arg_types_str[0] in ['J','D']:
-            # Long or Double type are 64 bits, these take up two registers
-            return [arg_types_str[0]] + [arg_types_str[0]] + self.parse_arg_types_str(arg_types_str[1:])
-        elif arg_types_str[0] == '[':
-            result = self.parse_arg_types_str(arg_types_str[1:])
-            if len(result) == 0:
-                raise AssertionError("Array with no type: " + arg_types_str)
-            if result[0] in ['J', 'D']:
-                # There will be two of these in a row, but array pointers only take 1 register. Truncate the extra type entry.
-                result[1] = '[' + result[1]
-                return result[1:]
-            else: 
-                result[0] = '[' + result[0]
-                return result
-        elif arg_types_str[0] == 'L':
-            # Find the first semicolon, and split the string up accordingly
-            semicolon_index = arg_types_str.find(';')
-            if semicolon_index == -1:
-                raise AssertionError("Object type has no ending semicolon: " + arg_types_str)
-            return [arg_types_str[:semicolon_index + 1]] + self.parse_arg_types_str(
-                arg_types_str[semicolon_index + 1:])
-        else:
-            raise AssertionError("Unexpected case when parsing arg types string: " + arg_types_str)
-        
-    def parse_arg_registers_str(self, arg_registers_string):
-        if arg_registers_string.__contains__(" .. "):
-            # Range case
-            # "v0 .. v9" or "p0 .. p9"
-            if arg_registers_string.startswith("v"):
-                prefix = "v"
-                regex_result = re.search(r"v(\d+) \.\. v(\d+)",
-                                         arg_registers_string)
-            elif arg_registers_string.startswith("p"):
-                prefix = "p"
-                regex_result = re.search(r"p(\d+) \.\. p(\d+)",
-                                         arg_registers_string)
-            else:
-                raise AssertionError(
-                    "Range registers did not parse as expected: " +
-                    arg_registers_string)
-
-            if regex_result is None:
-                raise AssertionError(
-                    "Range registers did not parse as expected: " +
-                    arg_registers_string)
-            
-            arg_start = int(regex_result.group(1))
-            arg_end = int(regex_result.group(2))
-            arg_registers = [prefix + str(i) for i in
-                             range(arg_start, arg_end + 1)]
-        else:
-            arg_registers = arg_registers_string.split(", ")
-
-        return arg_registers
 
     def parse_move_result(self, prev_method_invocation: 'SmaliMethodInvocation',
                           line_number: int, move_result_line: str):
@@ -609,7 +558,7 @@ class SmaliMethod:
     responsibility to ensure that modifications to the file are updated in
     this object and vice versa.
     """
-    smali_file_path: str
+    enclosing_class_name: str
     method_name: str
     is_static: bool
     is_abstract: bool
@@ -618,7 +567,6 @@ class SmaliMethod:
     invocation_statements: List['SmaliMethodInvocation']
     return_line_numbers: List[int]
     end_line_number: int
-    name: str
     number_of_locals: int
     args: List[str]
     return_type: str
@@ -685,7 +633,7 @@ class SmaliMethod:
 
     
 
-
+@dataclass
 class SmaliMethodInvocation:
     """
     Class representing a single line of smali code containing a method invocation.
@@ -695,56 +643,58 @@ class SmaliMethodInvocation:
     responsibility to ensure that modifications to the file are updated in
     this object and vice versa.
     """
-    invoke_line_number: int
-    invoke_kind: str  # could be an enum
-    is_range_kind: bool
-    arg_registers: List[str]
-    class_name: str
-    method_name: str
-    arg_types_pre: List[str]
-    return_type: str
-    move_result_line_number: int
-    move_result_kind: str
-    move_result_register: str
+    invoke_line_number: int = -1
+    invoke_kind: str = ""           # TODO: could be an enum
+    is_range_kind: bool = False
+    argument_registers: List[str] = field(default_factory=list)
+    class_name: str = ""
+    method_name: str = ""
+    argument_register_types_pre: List[str] = field(default_factory=list)
+    return_type: str = ""
 
-    def __init__(self,
-                 invoke_line_number: int,
-                 invoke_kind: str,
-                 is_range_kind: bool,
-                 arg_registers: List[str],
-                 class_name: str,
-                 method_name: str,
-                 arg_types_pre: List[str],
-                 return_type: str,
-                 move_result_line_number: int,
-                 move_result_kind: str,
-                 move_result_register: str,
-                 ):
-        self.invoke_line_number = invoke_line_number
-        self.invoke_kind = invoke_kind
-        self.is_range_kind = is_range_kind
-        self.arg_registers = arg_registers
-        self.class_name = class_name
-        self.method_name = method_name
-        self.arg_types_pre = arg_types_pre
-        self.return_type = return_type
-        self.move_result_line_number = move_result_line_number
-        self.move_result_kind = move_result_kind
-        self.move_result_register = move_result_register
+    move_result_line_number: int = -1
+    move_result_kind: str = ""
+    move_result_register: str = ""
 
-    def __repr__(self):
-        return f"SmaliMethodInvocation(invoke_line_number={repr(self.invoke_line_number)}," \
-                f"invoke_kind={repr(self.invoke_kind)}," \
-                f"is_range_kind={repr(self.is_range_kind)}," \
-                f"arg_registers={repr(self.arg_registers)}," \
-                f"class_name={repr(self.class_name)},method_name={repr(self.method_name)}," \
-                f"arg_types_pre={repr(self.arg_types_pre)}," \
-                f"return_type={repr(self.return_type)}," \
-                f"move_result_line_number={repr(self.move_result_line_number)},move_result_kind={repr(self.move_result_kind)},move_result_register={repr(self.move_result_register)},)"
+    # def __init__(self,
+    #              invoke_line_number: int,
+    #              invoke_kind: str,
+    #              is_range_kind: bool,
+    #              argument_registers: List[str],
+    #              class_name: str,
+    #              method_name: str,
+    #              argument_register_types_pre: List[str],
+    #              return_type: str,
+    #              move_result_line_number: int,
+    #              move_result_kind: str,
+    #              move_result_register: str,
+    #              ):
+    #     self.invoke_line_number = invoke_line_number
+    #     self.invoke_kind = invoke_kind
+    #     self.is_range_kind = is_range_kind
+    #     self.argument_registers = argument_registers
+    #     self.class_name = class_name
+    #     self.method_name = method_name
+    #     self.argument_register_types_pre = argument_register_types_pre
+    #     self.return_type = return_type
+    #     self.move_result_line_number = move_result_line_number
+    #     self.move_result_kind = move_result_kind
+    #     self.move_result_register = move_result_register
+
+    # def __repr__(self):
+    #     return f"SmaliMethodInvocation(invoke_line_number={repr(self.invoke_line_number)}," \
+    #             f"invoke_kind={repr(self.invoke_kind)}," \
+    #             f"is_range_kind={repr(self.is_range_kind)}," \
+    #             f"arg_registers={repr(self.arg_registers)}," \
+    #             f"class_name={repr(self.class_name)},method_name={repr(self.method_name)}," \
+    #             f"arg_types_pre={repr(self.arg_types_pre)}," \
+    #             f"return_type={repr(self.return_type)}," \
+    #             f"move_result_line_number={repr(self.move_result_line_number)},move_result_kind={repr(self.move_result_kind)},move_result_register={repr(self.move_result_register)},)"
 
     @staticmethod
     def get_empty_object() -> 'SmaliMethodInvocation':
-        return SmaliMethodInvocation(-1, "", False, [], "", "", [], "", -1, "", "")
+        return SmaliMethodInvocation()
+        # return SmaliMethodInvocation(-1, "", False, [], "", "", [], "", -1, "", "")
 
     @staticmethod
     def is_invocation(line: str) -> bool:
@@ -767,62 +717,47 @@ class SmaliMethodInvocation:
     def _is_type_primitive(self, type: str):
         return not type.startswith("L")
 
-    def get_signature(self) -> str:
+    def get_java_style_signature(self) -> str:
         # TODO: move this method to source_sink.py
+
+        method_name = self.method_name
+        java_style_class_name = self.smali_type_to_java_type(self.class_name)
+        java_style_return_type = self.smali_type_to_java_type(self.return_type)
+        listed_argument_types = self.explicit_argument_types_to_listed_argument_types()
+        java_style_listed_argument_types = [self.smali_type_to_java_type(arg_type) for arg_type in listed_argument_types]
+
+        # Return Method Invocation in the style found in Flowdroid source/sink lists and Flowdroid log output
         # Example
         # <[full package name]: [return type] [method name]([arg types,])>
-        #
+        
         # Note the change from smali types to flowdroid types.
+        listed_argument_types = []
         # TODO: self.arg_types_pre won't match up precisely with the function's signature!!
-        return f"<{self.smali_type_to_flowdroid_type(self.class_name)}: " \
-               f"{self.smali_type_to_flowdroid_type(self.return_type)}" \
-               f" {self.method_name}({','.join([self.smali_type_to_flowdroid_type(arg_type) for arg_type in self.arg_types_pre])})>"
+        return f"<{java_style_class_name}: " \
+               f"{java_style_return_type}" \
+               f" {method_name}({','.join(java_style_listed_argument_types)})>"
+    
+    def explicit_argument_types_to_listed_argument_types(self) -> List[str]:
+        smali_argument_register_types: List[str] = self.argument_register_types_pre
+        is_static: bool = self.is_static_invoke
 
-    # def register_type(self, register_index):
-    #     # is_static = self.invoke_kind.startswith("invoke-static")
-    #     # base_type = self.class_name
-    #     # signature_arg_types = self.arg_types_pre
+        # Change wide types to take 1 register instead of two
+        result_types = smali_argument_register_types.copy()
+        i = 0
+        current_length = len(result_types)
+        while i < current_length:
+            if SmaliMethodInvocation.is_wide_datatype(result_types[i]):
+                result_types.pop(i + 1)
+                current_length = len(result_types)
+            i += 1
 
-    #     return self.arg_types_pre[register_index]
+        # Pull off the first type if the the invocation wasn't static (*this* type is not listed)
+        if not is_static:
+            result_types.pop(0)
 
-        # return self.register_index_to_type(is_static, register_index, base_type, signature_arg_types)
+        return result_types
 
-        # arg_type_index = self.arg_type_register_index_map()[register_index]
-        # if arg_type_index is None:
-        #     register_type: str = self.class_name
-        # else:
-        #     register_type: str = self.arg_types[arg_type_index]
-        #
-        # return register_type
 
-    # def arg_register_index_to_arg_index(self, arg_register_index):
-    #     arg_type_index = self.arg_type_register_index_map()[arg_register_index]
-    #     if arg_type_index is None:
-    #         raise AssertionError("Expected arg register")
-    #     return arg_type_index
-
-    # def arg_type_register_index_map(self) -> List[int]:
-    #     # arg_type = arg_types[map[arg_register_index]]
-    #     map = []
-    #     if not self.invoke_kind.startswith("invoke-static"):
-    #         map = [None]
-    #     for arg_type_index, arg_type in enumerate(self.arg_types):
-    #         if arg_type == 'J' or arg_type == 'D':
-    #             # J (Long) and D (Double) take up two registers
-    #             map.append(arg_type_index)
-    #             map.append(arg_type_index)
-    #         else:
-    #             map.append(arg_type_index)
-    #
-    #     return map
-
-    # @staticmethod
-    # def register_index_to_type(is_static, register_index, base_type, signature_arg_types):
-    #     arg_index = SmaliMethodInvocation.register_index_to_arg_index(is_static, register_index, signature_arg_types)
-    #     if arg_index is None:
-    #         return base_type
-    #     else:
-    #         return signature_arg_types[arg_index]
 
     @staticmethod
     def register_index_to_arg_index(is_static, register_index, signature_arg_types):
@@ -865,7 +800,7 @@ class SmaliMethodInvocation:
             self.move_result_line_number += increment
 
     @staticmethod
-    def smali_type_to_flowdroid_type(smali_type: str):
+    def smali_type_to_java_type(smali_type: str):
         if smali_type.startswith("L"):
             if smali_type[-1] != ";":
                 raise AssertionError("Smali type not formatted as expected: " + smali_type)
@@ -938,59 +873,157 @@ class SmaliMethodInvocation:
 
     def args_overriden_by_return(self, parent_method: SmaliMethod) -> List[bool]:
         # return list matching dimension of self.arg_registers stating if register is over written by move-result
-        result = [False] * len(self.arg_registers)
+        result = [False] * len(self.argument_registers)
         
         if self.move_result_line_number == -1:
             return result
         
-        if self.move_result_register in self.arg_registers:
-            result[self.arg_registers.index(self.move_result_register)] = True
+        if self.move_result_register in self.argument_registers:
+            result[self.argument_registers.index(self.move_result_register)] = True
         
         if SmaliMethodInvocation.is_wide_datatype(self.return_type):
             next_register = parent_method.get_next_register(self.move_result_register)
-            if next_register in self.arg_registers:
-                result[self.arg_registers.index(next_register)] = True
+            if next_register in self.argument_registers:
+                result[self.argument_registers.index(next_register)] = True
 
         return result
+    
+    @staticmethod
+    def parse_argument_registers(argument_registers: str) -> List[str]:
+        if argument_registers.__contains__(" .. "):
+            # Range case
+            # "v0 .. v9" or "p0 .. p9"
+            if argument_registers.startswith("v"):
+                prefix = "v"
+                regex_result = re.search(r"v(\d+) \.\. v(\d+)",
+                                         argument_registers)
+            elif argument_registers.startswith("p"):
+                prefix = "p"
+                regex_result = re.search(r"p(\d+) \.\. p(\d+)",
+                                         argument_registers)
+            else:
+                raise AssertionError(
+                    "Range registers did not parse as expected: " +
+                    argument_registers)
+
+            if regex_result is None:
+                raise AssertionError(
+                    "Range registers did not parse as expected: " +
+                    argument_registers)
+            
+            arg_start = int(regex_result.group(1))
+            arg_end = int(regex_result.group(2))
+            arg_registers = [prefix + str(i) for i in
+                             range(arg_start, arg_end + 1)]
+        else:
+            arg_registers = argument_registers.split(", ")
+
+        return arg_registers
+
+    @staticmethod
+    def parse_smali_argument_types(smali_argument_types: str) -> List[str]:
+        if smali_argument_types == "":
+            return []
+        elif smali_argument_types[0] in ['Z', 'B', 'S', 'C', 'I', 'F']:
+            return [smali_argument_types[0]] + SmaliMethodInvocation.parse_smali_argument_types(smali_argument_types[1:])
+        elif smali_argument_types[0] in ['J','D']:
+            # Long or Double type are 64 bits, these take up two registers
+            return [smali_argument_types[0]] + [smali_argument_types[0]] + SmaliMethodInvocation.parse_smali_argument_types(smali_argument_types[1:])
+        elif smali_argument_types[0] == '[':
+            result = SmaliMethodInvocation.parse_smali_argument_types(smali_argument_types[1:])
+            if len(result) == 0:
+                raise AssertionError("Array with no type: " + smali_argument_types)
+            if result[0] in ['J', 'D']:
+                # There will be two of these in a row, but array pointers only take 1 register. Truncate the extra type entry.
+                result[1] = '[' + result[1]
+                return result[1:]
+            else: 
+                result[0] = '[' + result[0]
+                return result
+        elif smali_argument_types[0] == 'L':
+            # Find the first semicolon, and split the string up accordingly
+            semicolon_index = smali_argument_types.find(';')
+            if semicolon_index == -1:
+                raise AssertionError("Object type has no ending semicolon: " + smali_argument_types)
+            return [smali_argument_types[:semicolon_index + 1]] + SmaliMethodInvocation.parse_smali_argument_types(
+                smali_argument_types[semicolon_index + 1:])
+        else:
+            raise AssertionError("Unexpected case when parsing arg types string: " + smali_argument_types)
+        
+    @staticmethod
+    def parse_invocation_line(line_number: int, line: str) -> 'SmaliMethodInvocation':
+        # TODO: this should probably be moved to SmaliMethodInvocation
+
+        """
+        Examples: 
+        invoke-super {p0, p1, p2, p3, p4}, Landroid/widget/TextView;->onSizeChanged(IIII)V
+        invoke-virtual/range {v0 .. v5}, Landroid/graphics/Canvas;->drawArc(Landroid/graphics/RectF;FFZLandroid/graphics/Paint;)V
+        invoke-static/range {v0 .. v5}, Lrx/Observable;->interval(JJLjava/util/concurrent/TimeUnit;Lrx/Scheduler;)Lrx/Observable;
+        """
+        result_invocation = SmaliMethodInvocation.get_empty_object()
+
+        result_invocation.invoke_line_number = line_number
+
+        # First word is invoke-[kind]
+        result_invocation.invoke_kind = line.split()[0]
+        if result_invocation.invoke_kind.find("range") >= 0:
+            result_invocation.is_range_kind = True
+        else:
+            result_invocation.is_range_kind = False
+
+        # find and capture the contents of matched curly braces
+        argument_registers: str = re.search(r"\{(.*)\}", line).group(1)
+        result_invocation.argument_registers = SmaliMethodInvocation.parse_argument_registers(argument_registers)
+        # "invoke-virtual {v0, v1, p1, v2}, Leu/kanade/tachiyomi/util/LocaleHelper;->updateConfiguration(Landroid/app/Application;Landroid/content/res/Configuration;Z)V"
+        # Note that the first register here is *this* iff the invoke is not static
+
+        if len(result_invocation.argument_registers) == 1 and result_invocation.argument_registers[0].strip() == '':
+            result_invocation.argument_registers = []
+
+        # find and capture the class name and method name which are between "},
+        # " and "->"; and "->" and "(", respectively
+        match = re.search(r"\}, (.*)->(.*)\(", line)
+        result_invocation.class_name = match.group(1)
+        result_invocation.method_name = match.group(2)
+
+        # find and capture the arg types,
+        # between a left and right paren
+        smali_argument_types: str = re.search(r"\((.*)\)", line).group(1)
+        result_invocation.argument_register_types_pre = SmaliMethodInvocation.parse_smali_argument_types(smali_argument_types)
+        if not result_invocation.is_static_invoke():
+            # Type of first argument is implicit
+            result_invocation.argument_register_types_pre = [result_invocation.class_name] + result_invocation.argument_register_types_pre
+
+        assert len(result_invocation.argument_register_types_pre) == len(result_invocation.argument_registers)
+
+        
+        # find and capture the return type, between a right paren and the end of the
+        # string.
+        result_invocation.return_type = re.search(r"\)(.*)$", line).group(1).strip()
+
+        return result_invocation
 
 
-
+# dataclass requires Python 3.10+
+# kw_only -> constructor calls have to use keywords
+# slots -> errors will be thrown if any fields not declared here are accessed
+@dataclass(kw_only=True,slots=True)
 class InstrumentationReport:
     """ This model class is intended to contain information that will be left 
-    in hard coded strings in the instrumented code, to be later recovered and reconstructed by a log analysis."""
-    invoke_signature: str
+    in hard coded strings in the instrumented code, to be later recovered and reconstructed by a log analysis.
+    It is meant to contain all the info that the Static Analysis-based Instrumentation code knows.
+    """
+    invocation_java_signature: str
     invoke_id: int
+    enclosing_method_name: str
+    enclosing_class_name: str
     is_arg_register: bool
     is_return_register: bool
-    register_index: int
+    invocation_argument_register_index: int
     is_before_invoke: bool
-    register_name: str
-    register_type: str
+    invocation_argument_register_name: str
+    invocation_argument_register_type: str
     is_static: bool
-
-    def __init__(self,
-                 invoke_signature: str,
-                 invoke_id: int,
-                 is_arg_register: bool,
-                 is_return_register: bool,
-                 register_index: int,
-                 is_before_invoke: bool,
-                 register_name: str,
-                 register_type: str,
-                 is_static: bool,
-                 ):
-        self.invoke_signature = invoke_signature
-        self.invoke_id = invoke_id
-        self.is_arg_register = is_arg_register
-        self.is_return_register = is_return_register
-        self.register_index = register_index
-        self.is_before_invoke = is_before_invoke
-        self.register_name = register_name
-        self.register_type = register_type
-        self.is_static = is_static
-
-    def __repr__(self):
-        return f"InstrumentationReport(invoke_signature={repr(self.invoke_signature)},invoke_id={repr(self.invoke_id)},is_arg_register={repr(self.is_arg_register)},is_return_register={repr(self.is_return_register)},register_index={repr(self.register_index)},is_before_invoke={repr(self.is_before_invoke)},register_name={repr(self.register_name)},register_type={repr(self.register_type)},is_static={repr(self.is_static)})"
 
 ### End Model Classes
 
@@ -999,7 +1032,7 @@ class InstrumentationReport:
 
 
 
-class StringReturnInstrumentationStrategy(InformalInstrumentationStrategyInterface):
+class StringReturnInstrumentationStrategy(SmaliInstrumentationStrategy):
     def instrument(self, contents: List[str]) -> List[str]:
         """Print out stack traces right before
         the return statement of all functions that return strings"""
@@ -1120,7 +1153,7 @@ class StringReturnInstrumentationStrategy(InformalInstrumentationStrategyInterfa
         return contents
 
 
-class LogStringReturnInstrumentationStrategy(InformalInstrumentationStrategyInterface):
+class LogStringReturnInstrumentationStrategy(SmaliInstrumentationStrategy):
 
     def instrument_file(self, smali_file: 'SmaliFile'):
         SMALI_STRING_CLASS_NAME = "Ljava/lang/String;"
@@ -1176,7 +1209,7 @@ class LogStringReturnInstrumentationStrategy(InformalInstrumentationStrategyInte
 
 
 class StringReturnValuesInstrumentationStrategy(
-    InformalInstrumentationStrategyInterface):
+    SmaliInstrumentationStrategy):
 
     def instrument_file(self, smali_file: 'SmaliFile'):
         SMALI_STRING_CLASS_NAME = "Ljava/lang/String;"
@@ -1241,7 +1274,7 @@ class StringReturnValuesInstrumentationStrategy(
 
 
 class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
-    InformalInstrumentationStrategyInterface):
+    SmaliInstrumentationStrategy):
 
     static_function_signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPII(Ljava/lang/Object;Ljava/lang/String;)I"
 
@@ -1290,15 +1323,18 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
         
         args_overriden_by_return = invocation_statement.args_overriden_by_return(method)
 
+        # TODO add enclosing method, class, & original line number to the Instr report
         report = InstrumentationReport(
-                invoke_signature=invocation_statement.get_signature(), 
+                invocation_java_signature=invocation_statement.get_java_style_signature(), 
                 invoke_id=invocation_id,
+                enclosing_method_name=method.method_name,
+                enclosing_class_name=method.enclosing_class_name,
                 is_arg_register=True, # Needs tweaked
                 is_return_register=False, # Needs tweaked
-                register_index=-1, # Needs tweaked
+                invocation_argument_register_index=-1, # Needs tweaked
                 is_before_invoke=True, # Needs tweaked
-                register_name="", # Needs tweaked
-                register_type="", # Needs tweaked
+                invocation_argument_register_name="", # Needs tweaked
+                invocation_argument_register_type="", # Needs tweaked
                 is_static=invocation_statement.is_static_invoke(), 
             )
         
@@ -1317,7 +1353,7 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
 
         # First consider invocation argument registers
         is_arg_register = True
-        for register_index, register in enumerate(invocation_statement.arg_registers):
+        for register_index, register in enumerate(invocation_statement.argument_registers):
 
             ### Begin Checks
             skip_instr_before = False
@@ -1325,7 +1361,7 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
 
             # Skip Primitive types
             
-            if not SmaliMethodInvocation.is_object_datatype(invocation_statement.arg_types_pre[register_index]):
+            if not SmaliMethodInvocation.is_object_datatype(invocation_statement.argument_register_types_pre[register_index]):
                 continue
 
             # If it's a constructor, the first register will be unallocated before the invocation
@@ -1341,10 +1377,10 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
 
             ### End checks
             if not skip_instr_before:
-                report.register_index = register_index
+                report.invocation_argument_register_index = register_index
                 report.is_before_invoke = True
-                report.register_name = register
-                report.register_type = invocation_statement.arg_types_pre[register_index]
+                report.invocation_argument_register_name = register
+                report.invocation_argument_register_type = invocation_statement.argument_register_types_pre[register_index]
                 code = invoke_static_heapsnapshot_function(report,
                                                            register,
                                                            method_instr_registers[0],
@@ -1355,24 +1391,26 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
                                                           method_instr_registers))
 
             if not skip_instr_after:
-                report.register_index = register_index
+                report.invocation_argument_register_index = register_index
                 report.is_before_invoke=False
-                report.register_name = register
-                report.register_type = invocation_statement.arg_types_pre[register_index]
+                report.invocation_argument_register_name = register
+                report.invocation_argument_register_type = invocation_statement.argument_register_types_pre[register_index]
 
                 add_code_insertion(report, register)
                 
         # Next, consider the return register
         if invocation_statement.move_result_line_number > -1 and SmaliMethodInvocation.is_object_datatype(invocation_statement.return_type):
             report = InstrumentationReport(
-                    invoke_signature=invocation_statement.get_signature(),
+                    invocation_java_signature=invocation_statement.get_java_style_signature(),
                     invoke_id=invocation_id,
+                    enclosing_method_name=method.method_name,
+                    enclosing_class_name=method.enclosing_class_name,
                     is_arg_register=False,
                     is_return_register=True,
-                    register_index=-1,
+                    invocation_argument_register_index=-1,
                     is_before_invoke=False,
-                    register_name=invocation_statement.move_result_register,
-                    register_type=invocation_statement.return_type,
+                    invocation_argument_register_name=invocation_statement.move_result_register,
+                    invocation_argument_register_type=invocation_statement.return_type,
                     is_static=invocation_statement.is_static_invoke(),
                 )
             
@@ -1388,21 +1426,6 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
         # files = ["Snapshot.smali", "Snapshot$FieldInfo.smali"]
         dest = os.path.join("data/intercept/smali-files/heap-snapshot")
         return dest
-
-def extract_decompiled_smali_code(config: HybridAnalysisConfig):
-    config.decoded_apks_path
-    target_directory_prefix = "app-debug/smali_classes3"
-    target_directory_suffix = "edu/utsa/sefm/heapsnapshot"
-    files = ["Snapshot.smali", "Snapshot$FieldInfo.smali"]
-    dest = os.path.join("data/intercept/smali-files/heap-snapshot",
-                        target_directory_suffix)
-    src_files = [os.path.join(config.decoded_apks_path, target_directory_prefix,
-                              target_directory_suffix, file_name) for file_name in files]
-
-    if not os.path.isdir(dest):
-        run_command(["mkdir", dest])
-
-    run_command(["cp"] + src_files + [dest])
 
 
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,
@@ -1511,9 +1534,9 @@ def invoke_static_heapsnapshot_function(report: InstrumentationReport,
 """
 
 
-def instr_strategy_from_strategy_name(
+def instrumentation_strategy_factory(
         strategy_name: str) -> \
-        'InformalInstrumentationStrategyInterface':
+        'SmaliInstrumentationStrategy':
     
     if strategy_name == \
             "LogStringReturnInstrumentationStrategy":

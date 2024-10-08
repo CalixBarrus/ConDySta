@@ -1,20 +1,66 @@
 import os
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 
-from experiment.common import setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
+from experiment import fossdroid
+from experiment.common import benchmark_df_from_benchmark_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
+from experiment.flowdroid_experiment import experiment_setup, observation_processing_experiment
+from experiment.instrument import rebuild_apps_no_instrumentation
 import hybrid.hybrid_config
 from hybrid.flowdroid import run_flowdroid_paper_settings
 from hybrid.ic3 import run_ic3_on_apk, run_ic3_on_apk_direct
-from hybrid.log_process_fd import get_reported_num_leaks_in_flowdroid_log
+from hybrid.log_process_fd import get_flowdroid_reported_leaks_count
 from hybrid.results import HybridAnalysisResult
-from hybrid.source_sink import format_source_sink_signatures
+from hybrid.source_sink import create_source_sink_file_ssbench
 from util.input import BatchInputModel, input_apks_from_dir, InputModel
 import pandas as pd
 
 import util.logger
 logger = util.logger.get_logger(__name__)
+
+def full_observation_processing():
+    observation_processing("full", None)
+
+def test_observation_processing():
+    observation_processing("small", [0, 1])
+
+def observation_processing(size: str, ids_subset: List[int]):
+    experiment_args = {}
+    experiment_args["experiment_name"] = f"logcat-processing-{size}"
+    experiment_args["experiment_description"] = "test logcat processing"
+    experiment_args["always_new_experiment_directory"] = True
+
+    experiment_args["ids_subset"] = ids_subset
+    experiment_args = experiment_args | fossdroid.fossdroid_file_paths()
+
+    experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+    experiment_args["logcat_directory_path"] = recent_execution_test_logs_directory_path(size)
+    experiment_args["always_new_output_directory"] = False
+
+    experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
+
+    results_df = observation_processing_experiment(experiment_dir_path, benchmark_df, **experiment_args)
+
+    print(results_df)
+
+    results_df.to_csv(os.path.join(experiment_dir_path, "source_sink_paths.csv"))
+
+def recent_execution_test_logs_directory_path(size: str) -> str:
+    # TODO: this should be less hard coded 
+    experiments_directory_path = "/home/calix/programming/ConDySta/data/experiments/"
+
+    filtered_names = [directory_name for directory_name in os.listdir(experiments_directory_path) if "execution-test-" in directory_name and size in directory_name]
+    filtered_names.sort()
+    return os.path.join(experiments_directory_path, filtered_names[-1], "logcat-output")
+
+def rebuild_fossdroid_apks_small():
+    file_paths = fossdroid.fossdroid_file_paths()
+    experiment_name = "rebuilt-and-unmodified-apks"
+    experiment_description = "rebuild apks with no further changes"
+    ids_subset = [0, 1]
+
+    rebuild_apps_no_instrumentation(file_paths["benchmark_dir_path"], experiment_name, experiment_description, ids_subset)
 
 def icc_bench_mac():
     benchmark_folder_path: str = "/Users/calix/Documents/programming/research-programming/benchmarks/gpbench/apks"
@@ -124,7 +170,7 @@ Run Flowdroid on ICC Bench using same settings as zhang_2021_gpbench
                          fd_log_path,
                          verbose_path_info=True)
 
-        leaks_count = get_reported_num_leaks_in_flowdroid_log(fd_log_path)
+        leaks_count = get_flowdroid_reported_leaks_count(fd_log_path)
         results_df.loc[input.benchmark_id, "Detected Flows"] = leaks_count
 
 
@@ -166,7 +212,7 @@ def icc_bench_no_ic3(flowdroid_jar_path: str, android_path: str, icc_bench_dir_p
                          fd_log_path,
                          verbose_path_info=True)
 
-        leaks_count = get_reported_num_leaks_in_flowdroid_log(fd_log_path)
+        leaks_count = get_flowdroid_reported_leaks_count(fd_log_path)
         results_df.loc[input.benchmark_id, "Detected Flows"] = leaks_count
 
 
@@ -208,7 +254,7 @@ Run Flowdroid on a subset of Droidbench apps
                          fd_log_path,
                          verbose_path_info=True)
 
-        leaks_count = get_reported_num_leaks_in_flowdroid_log(fd_log_path)
+        leaks_count = get_flowdroid_reported_leaks_count(fd_log_path)
         results_df.loc[input.benchmark_id, "Detected Flows"] = leaks_count
 
 
@@ -438,32 +484,5 @@ def check_ss_bench_list() -> str:
 
     return ss_bench_list_path
 
-def create_source_sink_file_ssbench(file_path):
-    contents = source_sink_file_ssbench_string()
-    with open(file_path, 'w') as file:
-        file.write(contents)
-
-def source_sink_file_ssbench_string() -> str:
-    sources = ["android.telephony.TelephonyManager: java.lang.String getDeviceId()",
-               "android.telephony.TelephonyManager: java.lang.String getSimSerialNumber()",
-               "android.location.Location: double getLatitude()",
-               "android.location.Location: double getLongitude()",
-               "android.telephony.TelephonyManager: java.lang.String getSubscriberId()"
-               ]
-
-    sinks = ["android.telephony.SmsManager: void sendTextMessage(java.lang.String,java.lang.String,java.lang.String, android.app.PendingIntent,android.app.PendingIntent)",
-             "android.util.Log: int i(java.lang.String,java.lang.String)",
-             "android.util.Log: int e(java.lang.String,java.lang.String)",
-             "android.util.Log: int v(java.lang.String,java.lang.String)",
-             "android.util.Log: int d(java.lang.String,java.lang.String)",
-             "java.lang.ProcessBuilder: java.lang.Process start()",
-             "android.app.Activity: void startActivityForResult(android.content.Intent,int)",
-             "android.app.Activity: void setResult(int,android.content.Intent)",
-             "android.app.Activity: void startActivity(android.content.Intent)",
-             "java.net.URL: java.net.URLConnection openConnection()",
-             "android.content.ContextWrapper: void sendBroadcast(android.content.Intent)",
-             ]
-
-    return format_source_sink_signatures(sources, sinks)
 
 

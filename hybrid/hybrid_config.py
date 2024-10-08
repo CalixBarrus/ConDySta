@@ -11,7 +11,7 @@ class HybridAnalysisConfig:
 
 
     input_apks: BatchInputModel # TODO: input should not be tagging along with the experiment config
-    unmodified_source_sink_list_path: str
+    unmodified_source_sink_path: str
 
     # Used for Flowdroid Runner
     android_platform_path: str
@@ -19,8 +19,8 @@ class HybridAnalysisConfig:
 
     # Used for instrumentation and interpretation of instrumentation results
     target_PII: List[str]
-    instrumentation_strategy: str
-    dynamic_log_processing_strategy: str
+    _instrumentation_strategy: str
+    logcat_processing_strategy: str
 
     # Used for app runner
     use_monkey: bool
@@ -43,13 +43,13 @@ class HybridAnalysisConfig:
     _rebuilt_apks_path: str = "data/intercept/rebuilt-apks/"
     _keys_dir_path: str = "data/intercept/apk-keys/"
 
-    _modified_source_sink_directory: str = "data/sources-and-sinks/modified"
+    _modified_source_sink_directory_path: str = "data/sources-and-sinks/modified"
 
     _logs_path: str = "data/logs/"
-    _logcat_dump_dir_path: str = "data/logs/logcat-dump"
-    _flowdroid_first_pass_logs_path: str = "data/logs/flowdroid-first-run"
-    _flowdroid_second_pass_logs_path: str = "data/logs/flowdroid-second-run"
-    _flowdroid_misc_logs_path: str = "data/logs/flowdroid-misc-run"
+    _logcat_dir_path: str = "data/logs/logcat-dump"
+    _flowdroid_first_pass_logs_dir_path: str = "data/logs/flowdroid-first-run"
+    _flowdroid_second_pass_logs_dir_path: str = "data/logs/flowdroid-second-run"
+    _flowdroid_misc_logs_dir_path: str = "data/logs/flowdroid-misc-run"
 
     def __init__(self,
                  input_apks: BatchInputModel,
@@ -69,15 +69,15 @@ class HybridAnalysisConfig:
                  data_dir_path: str,
                  ):
         self.input_apks = input_apks
-        self.unmodified_source_sink_list_path = unmodified_source_sink_list_path
+        self.unmodified_source_sink_path = unmodified_source_sink_list_path
 
 
         self.android_platform_path = android_platform_path
         self.flowdroid_jar_path = flowdroid_jar_path
         self.target_PII = target_PII
-        self.dynamic_log_processing_strategy = dynamic_log_processing_strategy
+        self.logcat_processing_strategy = dynamic_log_processing_strategy
 
-        self.instrumentation_strategy = instrumentation_strategy
+        self._instrumentation_strategy = instrumentation_strategy
 
         # If True, use monkey to send random commands to the app. If False,
         # launch the app but do not send commands to it.
@@ -101,13 +101,13 @@ class HybridAnalysisConfig:
         self._keys_dir_path = "data/intercept/apk-keys/"
 
         self._source_sink_directory = "data/sources-and-sinks"
-        self._modified_source_sink_directory = "data/sources-and-sinks/modified"
+        self._modified_source_sink_directory_path = "data/sources-and-sinks/modified"
 
         self._logs_path = "data/logs/"
-        self._logcat_dump_dir_path = "data/logs/logcat-dump"
-        self._flowdroid_first_pass_logs_path = "data/logs/flowdroid-first-run"
-        self._flowdroid_second_pass_logs_path = "data/logs/flowdroid-second-run"
-        self._flowdroid_misc_logs_path = "data/logs/flowdroid-misc-run"
+        self._logcat_dir_path = "data/logs/logcat-dump"
+        self._flowdroid_first_pass_logs_dir_path = "data/logs/flowdroid-first-run"
+        self._flowdroid_second_pass_logs_dir_path = "data/logs/flowdroid-second-run"
+        self._flowdroid_misc_logs_dir_path = "data/logs/flowdroid-misc-run"
 
 def get_default_hybrid_analysis_config() -> "HybridAnalysisConfig":
     # TODO: External dir paths should not be set (configured) here, but for now they can be stored here.
@@ -159,39 +159,28 @@ def get_target_PII() -> List[str]:
 def decoded_apk_path(decoded_apks_dir_path: str, apk: ApkModel) -> str:
     return os.path.join(decoded_apks_dir_path, apk.apk_name_no_suffix())
 
-def rebuilt_apk_path(config: HybridAnalysisConfig, apk: ApkModel) ->  str:
+def rebuilt_apk_path(rebuilt_apks_directory_path: str, apk: ApkModel) ->  str:
     # Rebuilt apk keeps the ".apk" suffix
-    return os.path.join(config._rebuilt_apks_path, apk.apk_name)
+    return os.path.join(rebuilt_apks_directory_path, apk.apk_name)
 
-def apk_key_path(config: HybridAnalysisConfig, apk: ApkModel) -> str:
-    return os.path.join(config._keys_dir_path, apk.apk_key_name())
+def apk_key_path(keys_directory_path: str, apk: ApkModel) -> str:
+    return os.path.join(keys_directory_path, apk.apk_key_name())
 
-def signed_apk_path(config: HybridAnalysisConfig, apk: ApkModel) -> str:
-    return os.path.join(config._signed_apks_path, apk.apk_name)
+def signed_apk_path(signed_apks_directory_path: str, apk: ApkModel) -> str:
+    return os.path.join(signed_apks_directory_path, apk.apk_name)
 
 def apk_logcat_output_path(logcat_dump_dir_path: str, apk: InputModel, grouped_apk_idx: int=-1) -> str:
 
     return os.path.join(logcat_dump_dir_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
 
-def flowdroid_first_pass_logs_path(config: HybridAnalysisConfig, apk: InputModel, grouped_apk_idx: int=-1) -> str:
-    return os.path.join(config._flowdroid_first_pass_logs_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
+def flowdroid_logs_path(flowdroid_first_pass_logs_dir_path: str, apk: InputModel, grouped_apk_idx: int=-1) -> str:
+    return os.path.join(flowdroid_first_pass_logs_dir_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
 
-def flowdroid_second_pass_logs_path(config: HybridAnalysisConfig, apk: InputModel, grouped_apk_idx: int=-1) -> str:
-    return os.path.join(config._flowdroid_second_pass_logs_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
-
-def flowdroid_misc_pass_logs_path(config: HybridAnalysisConfig, apk: InputModel) -> str:
-    return os.path.join(config._flowdroid_first_pass_logs_path, _apk_log_file_name(apk.input_identifier()))
+def source_sink_file_path(source_sink_dir_path: str, input: InputModel, grouped_apk_index: int=-1) -> str:
+    return os.path.join(source_sink_dir_path, input.input_identifier(grouped_apk_index) + ".txt")
 
 def _apk_log_file_name(identifier: str) -> str:
     return identifier + ".log"
-
-# TODO: fix usages
-def modified_source_sink_path(config: HybridAnalysisConfig, input_model: InputModel, grouped_apk_idx: int=-1, is_xml: bool = False):
-
-    return os.path.join(
-        config._modified_source_sink_directory,
-        input_model.input_identifier(grouped_apk_idx) + "source-and-sinks") + (".xml" if is_xml else ".txt")
-
 
 def data_dir_path(config: HybridAnalysisConfig):
     return config.data_dir_path

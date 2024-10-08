@@ -102,7 +102,7 @@ def get_flowdroid_callgraph(hybrid_analysis_config: HybridAnalysisConfig,
                             ) -> str:
     flowdroid_jar = hybrid_analysis_config.flowdroid_jar_path
     android_platform_path = hybrid_analysis_config.android_platform_path
-    source_and_sink_path = hybrid_analysis_config.unmodified_source_sink_list_path
+    source_and_sink_path = hybrid_analysis_config.unmodified_source_sink_path
 
     cmd = ["java", "-jar", flowdroid_jar, ' -a ', apk_path, ' -p ', android_platform_path, ' -s ', source_and_sink_path, "--callgraphonly"]
 

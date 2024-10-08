@@ -11,35 +11,39 @@ from util.input import ApkModel
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def assign_key_batch(config: HybridAnalysisConfig, apks: List[ApkModel], clean: bool=False):
+def assign_key_batch(signed_apks_directory_path: str, rebuilt_apks_directory_path: str, keys_directory_path: str, apks: List[ApkModel], clean: bool=False):
     for apk in apks:
-        assign_key_single(config, apk, clean)
+        assign_key_single(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, apk, clean=clean)
 
-def assign_key_single(config: HybridAnalysisConfig, apk: ApkModel, clean: bool):
+def assign_key_single(signed_apks_directory_path: str, rebuilt_apks_directory_path: str, keys_directory_path: str, apk: ApkModel, clean: bool):
+
     # If the apk is already signed, don't sign it again.
-    if os.path.exists(signed_apk_path(config, apk)):
+    if os.path.exists(signed_apk_path(signed_apks_directory_path, apk)):
         if not clean:
             logger.debug(f"APK {apk.apk_name} already signed, skipping.")
             return
         else: 
             logger.debug(f"APK {apk.apk_name} already signed, deleting.")
-            os.remove(signed_apk_path(config, apk))
+            os.remove(signed_apk_path(signed_apks_directory_path, apk))
 
 
     # Make sure the apk being signed exists
-    if not os.path.exists(rebuilt_apk_path(config, apk)):
-        logger.error(f"Rebuilt APK {apk.apk_name} is not found at {rebuilt_apk_path(config, apk)}")
+    if not os.path.exists(rebuilt_apk_path(rebuilt_apks_directory_path, apk)):
+        logger.error(f"Rebuilt APK {apk.apk_name} is not found at {rebuilt_apk_path(rebuilt_apks_directory_path, apk)}")
         return
 
     # cmd = "jarsigner -verbose -keystore {}{} -storepass 123456 -signedjar {}{} {}{} abc.keystore".format(keyPath, apkKeyName, signedApksPath, apkName, rebuiltApksPath, apkName)
     # In theory, this should be "zipalign"ed and verified before signing. It seems to work OK without that step though.
     apksigner_path = "apksigner"
     # apksigner_path = external_path.apksigner_path
+
+
+
     cmd = [apksigner_path, "sign",
-           "--ks", apk_key_path(config, apk),
+           "--ks", apk_key_path(keys_directory_path, apk),
            "--ks-pass", "pass:123456",
-           "--in", rebuilt_apk_path(config, apk),
-           "--out", signed_apk_path(config, apk)]
+           "--in", rebuilt_apk_path(rebuilt_apks_directory_path, apk),
+           "--out", signed_apk_path(signed_apks_directory_path, apk)]
     logger.debug(" ".join(cmd))
 
     # Use the first line if you want to see the output of the signing process

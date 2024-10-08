@@ -7,7 +7,7 @@ logger = util.logger.get_logger(__name__)
 
 
 def run_command(args: List['str'], redirect_stdout: str = "",
-                redirect_stderr_to_stdout=False, timeout=None, cwd=None) -> str:
+                redirect_stderr_to_stdout=False, timeout=None, cwd=None, verbose=False) -> str:
     """
     Run the provided commandline command using the subprocess library.
     :param args: List of strings consisting of the desired command.
@@ -18,6 +18,8 @@ def run_command(args: List['str'], redirect_stdout: str = "",
     """
 
     debug_cmd = " ".join(args)
+    if verbose:
+        logger.debug(debug_cmd)
 
 
     if redirect_stdout == "":

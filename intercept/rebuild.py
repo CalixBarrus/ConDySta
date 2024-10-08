@@ -17,28 +17,33 @@ from util.subprocess import run_command
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def rebuild_batch(config: HybridAnalysisConfig, apks: List[ApkModel], clean: bool=False):
+def rebuild_batch(decoded_apks_directory_path: str, rebuilt_apks_directory_path: str, apks: List[ApkModel], clean: bool=False):
     logger.info("Rebuilding instrumented smali code...")
+
+    # decoded_apks_directory_path = config._decoded_apks_path
+    # rebuilt_apks_directory_path = config._rebuilt_apks_path
 
     for apk in apks:
         try:
-            rebuild_apk(config, apk, clean=clean)
+            rebuild_apk(decoded_apks_directory_path, rebuilt_apks_directory_path, apk, clean=clean)
         except subprocess.CalledProcessError as e:
             logger.error(f"Error rebuilding apk {apk.apk_name} with message: " + e.stderr)
 
-def rebuild_apk(config: HybridAnalysisConfig, apk: ApkModel, clean: bool):
+def rebuild_apk(decoded_apks_directory_path: str, rebuilt_apks_directory_path: str, apk: ApkModel, clean: bool):
+    # decoded_apks_directory_path = config._decoded_apks_path
+    # rebuilt_apks_directory_path = config._rebuilt_apks_path
     
-    if os.path.isfile(rebuilt_apk_path(config, apk)):
+    if os.path.isfile(rebuilt_apk_path(rebuilt_apks_directory_path, apk)):
         if not clean:
             logger.debug(f"Instrumented APK {apk.apk_name} already present, skipping.")
             return
         else: 
-            os.remove(rebuilt_apk_path(config, apk))
+            os.remove(rebuilt_apk_path(rebuilt_apks_directory_path, apk))
             logger.debug(f"Instrumented APK {apk.apk_name} already present, deleting.")
 
     cmd = ["apktool",  "-JXmx1g", "--quiet",
-           "b", decoded_apk_path(config._decoded_apks_path, apk),
-           "-o", rebuilt_apk_path(config, apk),
+           "b", decoded_apk_path(decoded_apks_directory_path, apk),
+           "-o", rebuilt_apk_path(rebuilt_apks_directory_path, apk),
            "--use-aapt2"]
 
     logger.debug(" ".join(cmd))
