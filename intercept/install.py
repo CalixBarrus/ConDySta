@@ -27,7 +27,7 @@ def execute_cmd_for_result(cmd: str) -> str:
     return result
 
 
-def get_package_name(apk_path, apk_model: ApkModel=None):
+def get_package_name(apk_path, output_apk_model: ApkModel=None):
     # apk_model is optional parameter to save off additional information from the dump badging operation.
 
     cmd = ["aapt", "dump", "badging", apk_path]
@@ -65,13 +65,15 @@ densities: '160' '240' '320' '480'
     # name='de.ecspride'
     package_name = result[6:-1]
 
-    if apk_model is not None:
+    if output_apk_model is not None:
+      output_apk_model.apk_package_name = package_name
+
       for line in result.splitlines():
           if line.strip().startswith("application-label:'"):
               # Name of the app in the phone
               # application-label:'StaticInitialization1'     
               application_label = line[20:-1]
-              apk_model.apk_application_label = application_label
+              output_apk_model.apk_application_label = application_label
               break
 
     return package_name

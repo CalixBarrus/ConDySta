@@ -8,8 +8,8 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 
 from experiment import external_path
-from experiment.common import benchmark_df_base_from_batch_input_model, format_num_secs, get_project_root_path, setup_additional_directories, setup_dirs_with_dependency_info, setup_experiment_dir
-from experiment.flowdroid_experiment import experiment_setup_and_teardown_temp, flowdroid_file_paths, flowdroid_experiment
+from experiment.common import benchmark_df_base_from_batch_input_model, get_flowdroid_file_paths, format_num_secs, get_fossdroid_files, get_project_root_path, setup_additional_directories, setup_dirs_with_dependency_info, setup_experiment_dir
+from experiment.flowdroid_experiment import experiment_setup_and_teardown_temp, flowdroid_experiment
 from hybrid.flow import Flow
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
 from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_reported_leaks_count, get_flowdroid_analysis_error, get_flowdroid_memory, get_flowdroid_flows
@@ -17,23 +17,11 @@ import util.logger
 from util.input import BatchInputModel, InputModel, find_apk_paths_in_dir_recursive, input_apks_from_dir
 logger = util.logger.get_logger(__name__)
 
-#### Start External File Paths Settings
-
-def fossdroid_file_paths():
-    fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
-    fossdroid_ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/fossdroid_ground_truth.xml"
-
-    return {
-            "benchmark_dir_path":fossdroid_benchmark_dir_path, 
-            "ground_truth_xml_path":fossdroid_ground_truth_xml_path, 
-            }
-
-#### End External & Data File Paths Settings
 
 #### Start fossdroid Settings Hierarchy
 
 def fossdroid_experiment_setup_base() -> Dict[str, typing.Any]:
-    file_paths = fossdroid_file_paths() | flowdroid_file_paths()
+    file_paths = get_fossdroid_files() | get_flowdroid_file_paths()
     
     experiment_args = file_paths.copy()
 
@@ -77,7 +65,7 @@ def fossdroid_experiment_setup_misc(**file_paths) -> Dict[str, typing.Any]:
 
 def fossdroid_main():
     # This rewrites the source sink list
-    file_paths = fossdroid_file_paths() | flowdroid_file_paths()
+    file_paths = get_fossdroid_files() | get_flowdroid_file_paths()
     fossdroid_experiment_15min_fd_configs(**file_paths)
 
 def fossdroid_validation_experiment():

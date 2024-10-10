@@ -4,11 +4,56 @@ import typing
 import pandas as pd
 import os
 
+from experiment import external_path
 from hybrid.flowdroid import FlowdroidArgs
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
 
 import util.logger
 logger = util.logger.get_logger(__name__)
+
+#### Start External File Paths Settings
+
+def get_fossdroid_files() -> Dict[str, str]:
+    fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
+    fossdroid_ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/fossdroid_ground_truth.xml"
+
+    return {
+            "benchmark_name": "fossdroid",
+            "benchmark_dir_path": fossdroid_benchmark_dir_path, 
+            "ground_truth_xml_path": fossdroid_ground_truth_xml_path, 
+            }
+
+def get_gpbench_files() -> Dict[str,str]:
+    gpbench_apks_dir_path: str = external_path.gpbench_apks_dir_path
+    ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/gpbench_ground_truth.xml"
+    gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
+    return {
+            "benchmark_name": "gpbench",
+            "benchmark_dir_path": gpbench_apks_dir_path, 
+            "ground_truth_xml_path": ground_truth_xml_path, 
+            "benchmark_description_path": gpbench_description_path,
+            }
+
+def get_flowdroid_file_paths() -> Dict[str, str]:
+    flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
+    android_path: str = "/home/calix/.android_sdk/platforms"
+    return {
+            "flowdroid_jar_path": flowdroid_jar_path,
+            "android_path": android_path,
+            }
+
+def get_wild_benchmarks() -> List[Dict[str, str]]:
+    fossdroid_files: Dict[str, str] = get_fossdroid_files()
+    gpbench_files: Dict[str, str] = get_gpbench_files()
+
+    # return [fossdroid_files]
+    return [gpbench_files]
+    # return [fossdroid_files, gpbench_files]
+
+#### End External & Data File Paths Settings
+
+def benchmark_description_path_from_benchmark_files(benchmark_files: Dict[str, str]) -> str:
+    return "" if "benchmark_description_path" not in benchmark_files.keys() else benchmark_files["benchmark_description_path"]
 
 def setup_dirs_with_ic3(experiment_name, experiment_description):
     # TODO: refactor this out
@@ -232,5 +277,21 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_descripti
         results_df[cols_to_copy] = description_df[cols_to_copy]
 
     return results_df
+
+
+def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: str) -> str:
+    experiments_directory_path = os.path.join(get_project_root_path(), "data", "experiments")
+
+    # directory_base_name = "execution-test-"
+
+    filtered_names = [directory_name for directory_name in os.listdir(experiments_directory_path) if base_name in directory_name and size in directory_name and benchmark_name in directory_name]
+    filtered_names.sort()
+
+    assert len(filtered_names) != 0
+
+    result = os.path.join(experiments_directory_path, filtered_names[-1])
+
+    logger.debug(f"Looked up recent directory: {result}")
+    return result
 
 

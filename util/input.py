@@ -94,12 +94,13 @@ class InputModel:
         else:
             return self._apks[grouped_apk_idx]
 
-    def apks(self) -> Iterable[Tuple[int, "ApkModel"]]:
+    def apks(self) -> List["ApkModel"]:
         """ Return list of tuples, grouped_apk_index and grouped_apk """
         if not self.is_group():
             raise AssertionError()
 
-        return enumerate(self._apks)
+        # return enumerate(self._apks)
+        return self._apks
 
 
 class ApkModel:

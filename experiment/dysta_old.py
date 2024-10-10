@@ -92,7 +92,7 @@ def dysta(config: HybridAnalysisConfig):
     for grouped_input in config.input_apks.grouped_inputs:
 
         # flowdroid 1st pass, use original apk and original source sink file
-        for grouped_apk_index, apk in grouped_input.apks():
+        for grouped_apk_index, apk in enumerate(grouped_input.apks()):
             run_flowdroid_config(config,
                                  apk.apk_path,
                                  unmodified_source_sink_path,
@@ -102,7 +102,7 @@ def dysta(config: HybridAnalysisConfig):
 
     strategy = logcat_processing_strategy_factory(logcat_processing_strategy)
     for grouped_input in input_apks.grouped_inputs:
-        for grouped_apk_index, apk in grouped_input.apks():
+        for grouped_apk_index, apk in enumerate(grouped_input.apks()):
             logcat_output_path = apk_logcat_output_path(logcat_dir_path, grouped_input, grouped_apk_index)
             new_sources: SourceSink = strategy.sources_from_log(logcat_output_path)
 

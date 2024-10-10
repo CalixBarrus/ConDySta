@@ -1,10 +1,10 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 
-from experiment import fossdroid
-from experiment.common import benchmark_df_from_benchmark_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
+from experiment import external_path, fossdroid
+from experiment.common import benchmark_df_from_benchmark_directory_path, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
 from experiment.flowdroid_experiment import experiment_setup, observation_processing_experiment
 from experiment.instrument import rebuild_apps_no_instrumentation
 import hybrid.hybrid_config
@@ -19,43 +19,77 @@ import pandas as pd
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-def full_observation_processing():
+
+
+def recent_instrumented_apps_for_wild_benchmark(benchmark_files: Dict[str, str], size: str) -> str:
+    # Right now, instrumented directories are named as f"instrument-{size}-{name}"
+    if benchmark_files["benchmark_name"] == "fossdroid":
+        instrumented_fossdroid_apks_dir_path = os.path.join(recent_experiment_directory_path(size, "instrument", "fossdroid"), "signed-apks")
+        instrumented_apks_directory_path = instrumented_fossdroid_apks_dir_path
+    elif benchmark_files["benchmark_name"] == "gpbench":
+        instrumented_gpbench_apks_dir_path = os.path.join(recent_experiment_directory_path(size, "instrument", "gpbench"), "signed-apks")
+        instrumented_apks_directory_path = instrumented_gpbench_apks_dir_path
+    else: 
+        assert False
+
+    return instrumented_apks_directory_path
+
+def recent_executions_for_wild_benchmark(benchmark_files: Dict[str, str], size: str) -> List[Tuple[Dict[str, str], str]]:
+    # fossdroid_logcat_directory_path = os.path.join(recent_experiment_directory_path(size, "execution", "fossdroid"), "logcat-output")
+    # gpbench_logcat_directory_path = os.path.join(recent_experiment_directory_path(size, "execution", "gpbench"), "logcat-output")
+
+    # return [(files, fossdroid_logcat_directory_path) if files["benchmark_name"] == "fossdroid" else (files, gpbench_logcat_directory_path) for files in get_wild_benchmarks()]
+
+    if benchmark_files["benchmark_name"] == "fossdroid":
+        fossdroid_logcat_directory_path = os.path.join(recent_experiment_directory_path(size, "execution", "fossdroid"), "logcat-output")
+        recent_execution_logcat_directory_path = fossdroid_logcat_directory_path
+    elif benchmark_files["benchmark_name"] == "gpbench":
+        gpbench_logcat_directory_path = os.path.join(recent_experiment_directory_path(size, "execution", "gpbench"), "logcat-output")
+        recent_execution_logcat_directory_path = gpbench_logcat_directory_path
+    else: 
+        assert False
+
+    return recent_execution_logcat_directory_path
+
+
+def test_full_observation_processing():
     observation_processing("full", None)
 
-def test_observation_processing():
-    observation_processing("small", [0, 1])
+def test_small_observation_processing():
+    observation_processing("small", [1, 2])
 
 def observation_processing(size: str, ids_subset: List[int]):
+    description = "test logcat processing"
+
+    for benchmark_files in get_wild_benchmarks():
+        logger.debug(benchmark_files)
+        logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, size)
+        name = benchmark_files["benchmark_name"]
+        description = f"Testing instrumentation on {name} benchmark"
+        observation_processing_generic(logcat_directory_path, benchmark_files, f"logcat-processing-{size}-{name}", description, ids_subset)
+
+
+def observation_processing_generic(logcat_directory_path: str, benchmark_files: Dict[str, str], experiment_name: str, experiment_description: str, ids_subset: List[int]):
     experiment_args = {}
-    experiment_args["experiment_name"] = f"logcat-processing-{size}"
-    experiment_args["experiment_description"] = "test logcat processing"
+    experiment_args["experiment_name"] = experiment_name
+    experiment_args["experiment_description"] = experiment_description
     experiment_args["always_new_experiment_directory"] = True
 
     experiment_args["ids_subset"] = ids_subset
-    experiment_args = experiment_args | fossdroid.fossdroid_file_paths()
+    experiment_args = experiment_args | benchmark_files
 
     experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
-    experiment_args["logcat_directory_path"] = recent_execution_test_logs_directory_path(size)
+    experiment_args["logcat_directory_path"] = logcat_directory_path
     experiment_args["always_new_output_directory"] = False
 
     experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
 
     results_df = observation_processing_experiment(experiment_dir_path, benchmark_df, **experiment_args)
 
-    print(results_df)
-
     results_df.to_csv(os.path.join(experiment_dir_path, "source_sink_paths.csv"))
 
-def recent_execution_test_logs_directory_path(size: str) -> str:
-    # TODO: this should be less hard coded 
-    experiments_directory_path = "/home/calix/programming/ConDySta/data/experiments/"
-
-    filtered_names = [directory_name for directory_name in os.listdir(experiments_directory_path) if "execution-test-" in directory_name and size in directory_name]
-    filtered_names.sort()
-    return os.path.join(experiments_directory_path, filtered_names[-1], "logcat-output")
-
 def rebuild_fossdroid_apks_small():
-    file_paths = fossdroid.fossdroid_file_paths()
+    file_paths = get_fossdroid_files()
     experiment_name = "rebuilt-and-unmodified-apks"
     experiment_description = "rebuild apks with no further changes"
     ids_subset = [0, 1]
@@ -483,6 +517,9 @@ def check_ss_bench_list() -> str:
         create_source_sink_file_ssbench(ss_bench_list_path)
 
     return ss_bench_list_path
+
+
+
 
 
 

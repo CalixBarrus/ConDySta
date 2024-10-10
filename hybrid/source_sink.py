@@ -75,10 +75,6 @@ class SourceSinkSignatures(SourceSink):
         sinks = [str(signature) for signature in self.sink_signatures]
         source_sink_formatted = format_source_sinks(sources, sinks)
 
-        # start debug
-        logger.debug(source_sink_formatted)
-        # end debug
-
         with open(target_file_path, 'w') as file:
             file.write(source_sink_formatted)
         

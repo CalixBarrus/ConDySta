@@ -24,7 +24,7 @@
     .end annotation
 .end field
 
-.field private static final INSPECTION_DEPTH:I = 0x3
+.field private static final INSPECTION_DEPTH:I = 0x1
 
 .field private static final PII:Ljava/util/List;
     .annotation system Ldalvik/annotation/Signature;
@@ -560,11 +560,9 @@
 
     .line 232
     :goto_2
-    const/4 v3, 0x3
-
     const/4 v15, 0x1
 
-    if-lt v2, v3, :cond_5
+    if-lt v2, v15, :cond_5
 
     .line 233
     invoke-interface/range {p3 .. p3}, Ljava/util/List;->size()I

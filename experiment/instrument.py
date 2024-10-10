@@ -2,10 +2,11 @@
 
 import os
 import time
-from typing import List
+from typing import Dict, List
 
 import pandas as pd
 from experiment import external_path
+from experiment.common import get_wild_benchmarks
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_project_root_path, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
 from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
@@ -17,39 +18,36 @@ from util.subprocess import run_command
 logger = util.logger.get_logger(__name__)
 
 
-
 def instrument_test_wild_benchmarks_few():
-    apks_subset = [0, 1]
+    apks_subset = [1, 2]
     # apks_subset = [0]
-    instrument_test_wild_benchmarks(apks_subset)
+    instrument_test_wild_benchmarks(apks_subset, "small")
     
 def instrument_test_wild_benchmarks_full():
     apks_subset = None
-    instrument_test_wild_benchmarks(apks_subset)
+    instrument_test_wild_benchmarks(apks_subset, "full")
 
-def instrument_test_wild_benchmarks(apks_subset):
-    fossdroid_apks_dir = external_path.fossdroid_benchmark_apks_dir_path
-    gpbench_apks_dir = external_path.gpbench_apks_dir_path
-
+def instrument_test_wild_benchmarks(apks_subset: List[int], size: str):
     # for apks_dir_path, name in [(fossdroid_apks_dir, "fossdroid"), (gpbench_apks_dir, "gpbench")]:
-    for apks_dir_path, name in [(fossdroid_apks_dir, "fossdroid")]:
+    for benchmark_files in get_wild_benchmarks():
+        name = benchmark_files["benchmark_name"]
+        apks_dir_path = benchmark_files["benchmark_dir_path"]
         description = f"Testing instrumentation on {name} benchmark"
-        instrument_test_generic(apks_dir_path, "instrument-test-" + name, description, apks_subset)
+        instrument_test_generic(benchmark_files, f"instrument-{size}-{name}", description, apks_subset)
 
-def instrument_test_generic(apks_dir_path: str, experiment_name: str, experiment_description: str, apks_subset: List[int]):
+def instrument_test_generic(benchmark_files: Dict[str, str], experiment_name: str, experiment_description: str, apks_subset: List[int]):
+    instrumentation_strategy = "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"
+
     # eventually may want to support benchmark description csv
-
+    benchmark_directory_path = benchmark_files["benchmark_dir_path"]
     always_new_experiment_directory = False
 
-    kwargs = {"apks_dir_path": apks_dir_path, "apks_subset": apks_subset}
-    experiment_id, experiment_dir_path = setup_experiment_dir(experiment_name, experiment_description, kwargs, always_new_experiment_directory)
+    experiment_id, experiment_dir_path = setup_experiment_dir(experiment_name, experiment_description, benchmark_files, always_new_experiment_directory)
 
-    config: HybridAnalysisConfig = hybrid_config.get_default_hybrid_analysis_config()
-    instrumentation_strategy = "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"
     decoded_apks_directory_path = setup_additional_directories(experiment_dir_path, ["decoded-apks"])[0]
     # config._decoded_apks_path = decoded_apks_directory_path
-
-    inputs_df = benchmark_df_from_benchmark_directory_path(apks_dir_path, ids_subset=apks_subset)
+    benchmark_description_csv_path = ("" if "benchmark_description_path" not in benchmark_files.keys() else benchmark_files["benchmark_description_path"])
+    inputs_df = benchmark_df_from_benchmark_directory_path(benchmark_directory_path, benchmark_description_csv_path=benchmark_description_csv_path, ids_subset=apks_subset)
 
     results_df = results_df_from_benchmark_df(inputs_df)
 

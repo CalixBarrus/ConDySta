@@ -116,7 +116,7 @@ class HybridAnalysisResult:
             group_second_pass_leaks = []
             group_error_msgs = []
 
-            for apk_idx, _ in self.input_model.apks():
+            for apk_idx, _ in enumerate(self.input_model.apks()):
                 if self.input_model.input_identifier(apk_idx) in self.grouped_apk_first_pass_leaks.keys():
                      group_first_pass_leaks.append(str(self.grouped_apk_first_pass_leaks[self.input_model.input_identifier(apk_idx)]))
                 if self.input_model.input_identifier(apk_idx) in self.grouped_apk_number_added_sources.keys():
@@ -128,8 +128,8 @@ class HybridAnalysisResult:
 
             return ",".join([
                 self.input_model.input_id,
-                ";".join(map(lambda _, apk_model: apk_model.apk_name, self.input_model.apks())),
-                ";".join(map(lambda _, apk_model: apk_model.apk_path, self.input_model.apks())),
+                ";".join(map(lambda _, apk_model: apk_model.apk_name, enumerate(self.input_model.apks()))),
+                ";".join(map(lambda _, apk_model: apk_model.apk_path, enumerate(self.input_model.apks()))),
                 str(self.first_pass_leaks) if self.first_pass_leaks is not None else "",
                 str(self.number_added_sources) if self.number_added_sources is not None else "",
                 str(self.second_pass_leaks) if self.second_pass_leaks is not None else "",
@@ -200,7 +200,7 @@ class HybridAnalysisResult:
         for grouped_input in input_apks.grouped_inputs:
             result_instance: HybridAnalysisResult = results_dict[grouped_input.input_identifier()]
 
-            for grouped_apk_index, _ in grouped_input.apks():
+            for grouped_apk_index, _ in enumerate(grouped_input.apks()):
                 try:
                     first_pass_leaks_count = get_flowdroid_reported_leaks_count(
                         flowdroid_logs_path(flowdroid_first_pass_logs_dir_path, grouped_input,

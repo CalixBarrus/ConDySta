@@ -6,7 +6,7 @@ import time
 from subprocess import CalledProcessError
 from typing import List
 
-from hybrid.hybrid_config import HybridAnalysisConfig, signed_apk_path, apk_logcat_output_path
+from hybrid.hybrid_config import HybridAnalysisConfig, apk_path, apk_logcat_output_path
 from intercept import install
 from intercept.install import get_package_name, getApkMainIntent
 
@@ -29,24 +29,25 @@ def run_ungrouped_instrumented_apks(config: HybridAnalysisConfig, apks: List[Apk
 
 def run_ungrouped_instrumented_apk(config: HybridAnalysisConfig, apk: ApkModel):
     signed_apks_directory_path = config._signed_apks_path
-    install.install_apk(signed_apk_path(signed_apks_directory_path, apk))
+    install.install_apk(apk_path(signed_apks_directory_path, apk))
 
-    apk_package_name = get_package_name(signed_apk_path(signed_apks_directory_path, apk))
+    apk_package_name = get_package_name(apk_path(signed_apks_directory_path, apk))
+    apk.apk_package_name = apk_package_name
 
     # Clear logcat so the log dump will only consist of statements relevant to this test
     _clear_logcat()
 
     seconds_to_test = config.seconds_to_test_each_app
     if not config.use_monkey:
-        test_apk_manual(apk_package_name, seconds_to_test)
+        test_apk_manual(apk, seconds_to_test)
     else:
         monkey_rng_seed = config.monkey_rng_seed
-        test_apk_monkey(apk_package_name, seconds_to_test,
+        test_apk_monkey(apk, seconds_to_test,
                                 seed=monkey_rng_seed)
 
     _dump_logcat(apk_logcat_output_path(config._logcat_dir_path, apk))
 
-    _uninstall_apk(signed_apk_path(signed_apks_directory_path, apk))
+    _uninstall_apk(apk_path(signed_apks_directory_path, apk))
 
 def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List[InputModel]):
     """
@@ -58,29 +59,30 @@ def run_grouped_instrumented_apks(config: HybridAnalysisConfig, apk_groups: List
 
     for apk_group in apk_groups:
         # TODO: update
-        for apk in apk_group.apks:
-            install.install_apk(signed_apk_path(signed_apks_directory_path, apk))
+        for apk in apk_group.apks():
+            install.install_apk(apk_path(signed_apks_directory_path, apk))
 
-        for apk in apk_group.apks:
+        for apk in apk_group.apks():
 
             # Clear logcat so the log dump will only consist of statements relevant to this test
             _clear_logcat()
 
-            apk_package_name = get_package_name(signed_apk_path(signed_apks_directory_path, apk))
+            apk_package_name = get_package_name(apk_path(signed_apks_directory_path, apk))
+            apk.apk_package_name = apk_package_name
             logcat_output_path = apk_logcat_output_path(config._logcat_dir_path, apk, apk_group.input_id)
 
             seconds_to_test = config.seconds_to_test_each_app
             if not use_monkey:
-                test_apk_manual(signed_apk_path(signed_apks_directory_path, apk), seconds_to_test)
+                test_apk_manual(apk, seconds_to_test)
             else:
                 monkey_rng_seed = config.monkey_rng_seed
-                test_apk_monkey(apk_package_name, seconds_to_test,
+                test_apk_monkey(apk, seconds_to_test,
                                 seed=monkey_rng_seed)
 
             _dump_logcat(logcat_output_path)
 
-        for apk in apk_group.apks:
-            _uninstall_apk(signed_apk_path(signed_apks_directory_path, apk))
+        for apk in apk_group.apks():
+            _uninstall_apk(apk_path(signed_apks_directory_path, apk))
 
 def _clear_logcat():
     cmd = ["adb", "logcat", "-c"]
@@ -111,81 +113,123 @@ def _uninstall_apk(apk_path):
     package_name = get_package_name(apk_path)
     install.uninstall_apk(package_name)
 
-def test_apk_manual(apk_package_name: str, block_duration: int, apk_main_intent: str="", logcat_output_path: str=""):
-    """
-    :param block_duration: Function will block for this number of seconds. The
-    logs are collected after this function returns; this blocking behavior
-    prevents the logs dump from grabbing the logs before it fills up from the
-    testing.
-    :return:
-    """
-
-    # apk_package_name = get_package_name(apk_path)
-    # apkPackageName = getPackageName(apkName, target_apks_path)
-    if not logcat_output_path == "":
-        _clear_logcat()
-
-    if apk_main_intent == "":
-        apk_main_intent = getApkMainIntent(apk_package_name)
-
-    # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
-    cmd = "adb shell am start {}".format(apk_main_intent)
-    cmd = ["adb", "shell", "am", "start", apk_main_intent]
-    logger.debug(" ".join(cmd))
-    run_command(cmd)
-
-    if block_duration > 0:
-        time.sleep(block_duration)
-    # if block_duration == -1: 
-    #   input("Press enter when finished testing")
-
-    # TODO: is there an adb command to quit/close the app? or notify the user?
-
-    if not logcat_output_path == "":
-        _dump_logcat(logcat_output_path)
 
 
-def test_apk_monkey(apk_package_name: str, seconds_to_test: int, logcat_output_path: str="", seed: int=-1, force_stop_when_finished=False):
+# def test_apk_manual(apk_package_name: str, block_duration: int, apk_main_intent: str="", logcat_output_path: str=""):
+#     """
+#     :param block_duration: Function will block for this number of seconds. The
+#     logs are collected after this function returns; this blocking behavior
+#     prevents the logs dump from grabbing the logs before it fills up from the
+#     testing.
+#     :return:
+#     """
+
+#     # apk_package_name = get_package_name(apk_path)
+#     # apkPackageName = getPackageName(apkName, target_apks_path)
+#     if not logcat_output_path == "":
+#         _clear_logcat()
+
+#     if apk_main_intent == "":
+#         apk_main_intent = getApkMainIntent(apk_package_name)
+
+#     # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
+#     cmd = "adb shell am start {}".format(apk_main_intent)
+#     cmd = ["adb", "shell", "am", "start", apk_main_intent]
+#     logger.debug(" ".join(cmd))
+#     run_command(cmd)
+
+#     if block_duration > 0:
+#         time.sleep(block_duration)
+#     # if block_duration == -1: 
+#     #   input("Press enter when finished testing")
+
+#     # TODO: is there an adb command to quit/close the app? or notify the user?
+
+#     if not logcat_output_path == "":
+#         _dump_logcat(logcat_output_path)
+
+
+def test_apk_monkey(apk_model: ApkModel, seconds_to_test: int, logcat_output_path: str="", seed: int=-1, force_stop_when_finished=False):
+    apk_package_name = apk_model.apk_package_name
     # There is not explicit option to run monkey for n seconds, but a time delay
     # between events can be used.
     # As fast as possible on a toy app, monkey generated an event ~once every
     # 2.5 ms on average
-    throttle_ms = 10
 
-    num_events = int(seconds_to_test * 1000 / throttle_ms)
 
     # TODO: assert the target package is already installed
 
     # apk_package_name = get_package_name(apk_path)
+    # if not logcat_output_path == "":
+    #     _clear_logcat()
+
+    throttle_ms = 10
+
+    num_events = int(seconds_to_test * 1000 / throttle_ms)
+
+
+    def temp_monkey_command():
+        # This command will block for the duration that monkey runs.
+        if seed == -1:
+            cmd = ["adb", "shell", "monkey",
+                "-p", apk_package_name,
+                "--throttle", str(throttle_ms), str(num_events)]
+        else:
+            cmd = ["adb", "shell", "monkey",
+                "-p", apk_package_name,
+                "-s", str(seed),
+                "--throttle", str(throttle_ms), str(num_events)]
+        logger.debug(" ".join(cmd))
+
+        try:
+            run_command(cmd)
+        except CalledProcessError as e:
+            error_msg = f"Error when running {apk_package_name}, check logcat dump"
+
+            logger.error(error_msg)
+
+            logger.debug(f"Forcing app {apk_package_name} to stop")
+            force_stop_app(apk_package_name)
+            # HybridAnalysisResult.report_error(config, apk_path.split("/")[-1], error_msg)
+        else:
+            if force_stop_when_finished:
+                logger.debug(f"Forcing app {apk_package_name} to stop")
+                force_stop_app(apk_package_name)
+
+    _dump_logcat_around_command(logcat_output_path, temp_monkey_command)
+    # if not logcat_output_path == "":
+    #     _dump_logcat(logcat_output_path)    
+
+def test_apk_manual(apk_model: ApkModel, seconds_to_test: int, logcat_output_path: str="", force_stop_when_finished=False):
+    apk_application_label: str = apk_model.apk_application_label
+    apk_package_name: str = apk_model.apk_package_name
+    assert apk_application_label != ""  # client needs to use optional param of get_package_name so this is filled out.
+
+    def temp_manual_command():
+        # if apk_main_intent == "":
+        #     apk_main_intent = getApkMainIntent(apk_package_name)
+
+        # # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
+        # cmd = "adb shell am start {}".format(apk_main_intent)
+        # cmd = ["adb", "shell", "am", "start", apk_main_intent]
+        # logger.debug(" ".join(cmd))
+        # run_command(cmd)
+
+        logger.info(f"Please Open App {apk_application_label} and test. Sleeping for {seconds_to_test} seconds.")
+        time.sleep(seconds_to_test)
+        logger.info("Testing finished. Please close app and press any key to continue. ")
+        input()
+        if force_stop_when_finished:
+            force_stop_app(apk_package_name)
+
+    _dump_logcat_around_command(logcat_output_path, temp_manual_command)
+
+
+def _dump_logcat_around_command(logcat_output_path, command):
     if not logcat_output_path == "":
         _clear_logcat()
 
-    # This command will block for the duration that monkey runs.
-    if seed == -1:
-        cmd = ["adb", "shell", "monkey",
-               "-p", apk_package_name,
-               "--throttle", str(throttle_ms), str(num_events)]
-    else:
-        cmd = ["adb", "shell", "monkey",
-               "-p", apk_package_name,
-               "-s", str(seed),
-               "--throttle", str(throttle_ms), str(num_events)]
-    logger.debug(" ".join(cmd))
-
-    try:
-        run_command(cmd)
-    except CalledProcessError as e:
-        error_msg = f"Error when running {apk_package_name}, check logcat dump"
-
-        logger.error(error_msg)
-
-        logger.debug(f"Forcing app {apk_package_name} to stop")
-        force_stop_app(apk_package_name)
-        # HybridAnalysisResult.report_error(config, apk_path.split("/")[-1], error_msg)
-
-    if force_stop_when_finished:
-        logger.debug(f"Forcing app {apk_package_name} to stop")
-        force_stop_app(apk_package_name)
+    command()
 
     if not logcat_output_path == "":
         _dump_logcat(logcat_output_path)

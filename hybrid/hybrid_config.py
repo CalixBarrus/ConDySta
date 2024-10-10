@@ -9,7 +9,6 @@ from util.input import BatchInputModel, input_apks_from_dir, ApkModel, InputMode
 
 class HybridAnalysisConfig:
 
-
     input_apks: BatchInputModel # TODO: input should not be tagging along with the experiment config
     unmodified_source_sink_path: str
 
@@ -159,15 +158,11 @@ def get_target_PII() -> List[str]:
 def decoded_apk_path(decoded_apks_dir_path: str, apk: ApkModel) -> str:
     return os.path.join(decoded_apks_dir_path, apk.apk_name_no_suffix())
 
-def rebuilt_apk_path(rebuilt_apks_directory_path: str, apk: ApkModel) ->  str:
-    # Rebuilt apk keeps the ".apk" suffix
-    return os.path.join(rebuilt_apks_directory_path, apk.apk_name)
-
 def apk_key_path(keys_directory_path: str, apk: ApkModel) -> str:
     return os.path.join(keys_directory_path, apk.apk_key_name())
 
-def signed_apk_path(signed_apks_directory_path: str, apk: ApkModel) -> str:
-    return os.path.join(signed_apks_directory_path, apk.apk_name)
+def apk_path(apk_directory_path: str, apk: ApkModel) -> str:
+    return os.path.join(apk_directory_path, apk.apk_name)
 
 def apk_logcat_output_path(logcat_dump_dir_path: str, apk: InputModel, grouped_apk_idx: int=-1) -> str:
 

@@ -8,8 +8,8 @@ import typing
 import numpy as np
 
 from experiment import external_path
-from experiment.common import benchmark_df_base_from_batch_input_model, format_num_secs, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
-from experiment.flowdroid_experiment import experiment_setup_and_teardown_temp, flowdroid_experiment, flowdroid_file_paths, groundtruth_df_from_xml, process_results_from_fd_log_single, results_df_from_benchmark_df
+from experiment.common import benchmark_df_base_from_batch_input_model, get_flowdroid_file_paths, format_num_secs, get_gpbench_files, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
+from experiment.flowdroid_experiment import experiment_setup_and_teardown_temp, flowdroid_experiment, groundtruth_df_from_xml, process_results_from_fd_log_single, results_df_from_benchmark_df
 import hybrid
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid, run_flowdroid_help, run_flowdroid_paper_settings, run_flowdroid_with_fdconfig
 from hybrid.ic3 import run_ic3_on_apk, run_ic3_script_on_apk
@@ -51,25 +51,13 @@ def gpbench_main():
     # gbpench_experiment_1hr_fd_configs(flowdroid_jar_path=flowdroid_jar_path, android_path=android_path, benchmark_dir_path=benchmark_folder_path, ground_truth_xml_path=ground_truth_xml_path, benchmark_description_path=gpbench_description_path)
     gpbench_experiment_test_fd_configs(flowdroid_jar_path=flowdroid_jar_path, android_path=android_path, benchmark_dir_path=benchmark_folder_path, ground_truth_xml_path=ground_truth_xml_path, benchmark_description_path=gpbench_description_path)
 
-#### Start External File Paths Settings
-
-def gpbench_file_paths() -> Dict[str,str]:
-    gpbench_apks_dir_path: str = external_path.gpbench_apks_dir_path
-    ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/gpbench_ground_truth.xml"
-    gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
-    return {
-            "benchmark_dir_path":gpbench_apks_dir_path, 
-            "ground_truth_xml_path":ground_truth_xml_path, 
-            "benchmark_description_path":gpbench_description_path,
-            } | flowdroid_file_paths()
-
-#### End External & Data File Paths Settings
-
 #### Start gpbench Settings Hierarchy
 
 def gpbench_experiment_setup_base() -> Dict[str, typing.Any]:
-    file_paths = gpbench_file_paths()
+    file_paths = get_gpbench_files()
     experiment_args = file_paths.copy()
+
+    experiment_args = experiment_args | get_flowdroid_file_paths()
 
     flowdroid_args = FlowdroidArgs(**FlowdroidArgs.gpbench_experiment_settings_modified) 
     # flowdroid_args = FlowdroidArgs.best_fossdroid_settings
