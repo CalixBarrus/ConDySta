@@ -1428,6 +1428,14 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
         return dest
 
 
+class ObserveSourceSinks(SmaliInstrumentationStrategy):
+    # Do sources / sink get hit during the dynamic run? 
+    # What do sources produce? What to sinks receive?
+    pass
+
+class HarnessSources(SmaliInstrumentationStrategy):
+    pass
+
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,
                                      method_number: int, instrumentation_id: int):
     v1 = empty_register_1

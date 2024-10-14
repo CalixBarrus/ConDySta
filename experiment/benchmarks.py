@@ -3,15 +3,13 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from experiment import external_path, fossdroid
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_flowdroid_file_paths, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
-from experiment.flowdroid_experiment import experiment_setup, flowdroid_comparison_with_observation_processing_experiment, observation_processing
+from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing
 from experiment.instrument import rebuild_apps_no_instrumentation
 import hybrid.hybrid_config
-from hybrid.flowdroid import run_flowdroid_paper_settings
+from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_paper_settings
 from hybrid.ic3 import run_ic3_on_apk, run_ic3_on_apk_direct
 from hybrid.log_process_fd import get_flowdroid_reported_leaks_count
-from hybrid.results import HybridAnalysisResult
 from hybrid.source_sink import create_source_sink_file_ssbench
 from util.input import BatchInputModel, input_apks_from_dir, InputModel
 import pandas as pd
@@ -147,8 +145,60 @@ def test_spot_check_flowdroid_comparison(benchmark_files: Dict[str, str], logcat
 
     flowdroid_comparison_with_observation_processing_experiment(**experiment_args)
     
+def test_small_flowdroid_on_wild_benchmarks():
+    flowdroid_on_wild_benchmarks("small")
 
-def rebuild_fossdroid_apks_small():
+def test_full_flowdroid_on_wild_benchmarks():
+    flowdroid_on_wild_benchmarks("full")
+
+def flowdroid_on_wild_benchmarks(size: str):
+    for benchmark_files in get_wild_benchmarks():
+        experiment_args = flowdroid_setup_generic(benchmark_files, size)
+
+        name = benchmark_files["benchmark_name"]
+        experiment_args["experiment_name"] = f"flowdroid-{size}-on-{name}"
+        description = f"Flowdroid on {name} benchmark"
+        experiment_args["experiment_description"] = description
+
+        experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
+
+
+
+def test_spot_check_flowdroid_on_wild_benchmarks(benchmark_files: Dict[str, str], logcat_directory_path: str, ids_subset=None):
+    experiment_args = flowdroid_setup_generic(benchmark_files, "misc")
+    experiment_args["timeout"] = 15 * 60
+    experiment_args["ids_subset"] = ids_subset
+    experiment_args["always_new_experiment_directory"] = True
+
+    name = benchmark_files["benchmark_name"]
+    experiment_args["experiment_name"] = f"flowdroid-spotcheck-{name}"
+    description = f"Flowdroid run on {name} benchmark."
+    description += "\nSpot Check"
+    experiment_args["experiment_description"] = description
+
+    experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
+
+
+def flowdroid_experiment_many_fd_configs(benchmark_files: Dict[str, str], size="full"):
+    benchmark_name = benchmark_files["benchmark_name"]
+    # size = "full"
+    experiment_args = flowdroid_setup_generic(benchmark_files, size)
+
+    for name_suffix, settings_description_suffix, fd_settings in [("default", "default FD settings", FlowdroidArgs.default_settings),
+                                                           ("modified-zhang-settings", "modified settings from gpbench study", FlowdroidArgs.gpbench_experiment_settings_modified),
+                                                           ("best-mordahl-settings", "best settings from Mordahl study's droidbench trial", FlowdroidArgs.best_fossdroid_settings)]:
+
+
+        experiment_args["flowdroid_args"] = FlowdroidArgs(**fd_settings)
+        experiment_args["experiment_name"] = f"fd-on-{benchmark_name}-{size}-{name_suffix}"
+        experiment_args["experiment_description"] = f"Run FlowDroid on the {size} {benchmark_name} dataset with Flowdroid settings: {settings_description_suffix}"
+
+
+
+        experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
+
+
+def test_rebuild_fossdroid_apks_small():
     file_paths = get_fossdroid_files()
     experiment_name = "rebuilt-and-unmodified-apks"
     experiment_description = "rebuild apks with no further changes"
@@ -577,7 +627,6 @@ def check_ss_bench_list() -> str:
         create_source_sink_file_ssbench(ss_bench_list_path)
 
     return ss_bench_list_path
-
 
 
 

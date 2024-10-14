@@ -23,6 +23,7 @@ def experiment_setup_and_save_csv_fixme(experiment_runnable, **kwargs):
     experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**kwargs)
 
     # passing all relevant kwargs to setup_experiment_dir only works if this runnable only takes stuff produced in setup + kwargs.
+    # Change the stuff after this to run_and_save_result
     results_df = experiment_runnable(experiment_dir_path, benchmark_df, **kwargs)
 
     results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")

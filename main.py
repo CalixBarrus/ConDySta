@@ -1,8 +1,8 @@
 import subprocess
 from experiment import run
-from experiment.benchmarks import test_full_flowdroid_comparison_wild_benchmarks, test_full_observation_processing, icc_bench_linux, rebuild_fossdroid_apks_small, test_small_flowdroid_comparison_wild_benchmarks, test_small_observation_processing, test_spot_check_flowdroid_comparison, test_spotcheck_observation_processing
+from experiment.benchmarks import test_full_flowdroid_comparison_wild_benchmarks, test_full_flowdroid_on_wild_benchmarks, test_full_observation_processing, icc_bench_linux, test_rebuild_fossdroid_apks_small, test_small_flowdroid_comparison_wild_benchmarks, test_small_flowdroid_on_wild_benchmarks, test_small_observation_processing, test_spot_check_flowdroid_comparison, test_spotcheck_observation_processing
 from experiment.common import get_fossdroid_files, get_gpbench_files
-from experiment.fossdroid import fossdroid_main, test_fossdroid_validation_experiment
+from experiment.fossdroid import test_fossdroid_validation_experiment
 from experiment.gpbench import run_ic3_on_apk
 
 from experiment.instrument import instrument_test_wild_benchmarks, instrument_test_wild_benchmarks_few, instrument_test_wild_benchmarks_full, update_heap_snapshot_smali_files
@@ -17,8 +17,9 @@ if __name__ == '__main__':
     # run_ic3_on_apk()
     # gpbench_linux()
     # ic3_linux()
-    gpbench_main()
-    fossdroid_main()
+
+    test_small_flowdroid_on_wild_benchmarks()
+    # test_full_flowdroid_on_wild_benchmarks()
 
     # update_heap_snapshot_smali_files()
 

@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 
 from experiment import external_path
+from experiment.benchmarks import flowdroid_experiment_many_fd_configs
 from experiment.common import benchmark_df_base_from_batch_input_model, flowdroid_setup_generic, get_flowdroid_file_paths, format_num_secs, get_fossdroid_files, get_fossdroid_source_sink_list_path, setup_additional_directories, setup_dirs_with_dependency_info, setup_experiment_dir
 from experiment.flowdroid_experiment import experiment_setup_and_save_csv_fixme, flowdroid_on_benchmark_df
 from hybrid.flow import Flow
@@ -50,11 +51,6 @@ def flowdroid_on_fossdroid_setup_misc() -> Dict[str, typing.Any]:
 
 #### End fossdroid Settings Hierarchy
 
-def fossdroid_main():
-    # This rewrites the source sink list
-    file_paths = get_fossdroid_files() | get_flowdroid_file_paths()
-    test_fossdroid_experiment_15min_fd_configs(**file_paths)
-
 def test_fossdroid_validation_experiment():
     experiment_args = flowdroid_on_fossdroid_setup_misc()
 
@@ -79,7 +75,6 @@ def test_fossdroid_validation_experiment():
 
     experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
 
-
 def single_fossdroid_experiment(**file_paths):
     # experiment_args = fossdroid_experiment_setup_misc(**file_paths)
     # experiment_args = fossdroid_experiment_setup_default_fd_full(**file_paths)
@@ -87,19 +82,22 @@ def single_fossdroid_experiment(**file_paths):
     
     experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
 
+def test_fossdroid_experiment_15min_fd_configs():
+    experiment_args = get_fossdroid_files()
+    experiment_args["timeout"] =  15 * 60
 
-def test_fossdroid_experiment_15min_fd_configs(**file_paths):
+    flowdroid_experiment_many_fd_configs(experiment_args, size="full")
 
-    for name_suffix, settings_description_suffix, fd_settings in [("default", "default FD settings", FlowdroidArgs.default_settings), 
-                                                           ("modified-zhang-settings", "modified settings from gpbench study", FlowdroidArgs.gpbench_experiment_settings_modified), 
-                                                           ("best-mordahl-settings", "best settings from Mordahl study's droidbench trial", FlowdroidArgs.best_fossdroid_settings)]:
+    # for name_suffix, settings_description_suffix, fd_settings in [("default", "default FD settings", FlowdroidArgs.default_settings), 
+    #                                                        ("modified-zhang-settings", "modified settings from gpbench study", FlowdroidArgs.gpbench_experiment_settings_modified), 
+    #                                                        ("best-mordahl-settings", "best settings from Mordahl study's droidbench trial", FlowdroidArgs.best_fossdroid_settings)]:
         
-        experiment_args = flowdroid_on_fossdroid_setup_full(**file_paths)
-        experiment_args["flowdroid_args"] = FlowdroidArgs(**fd_settings)
-        experiment_args["experiment_name"] = f"fd-on-fossdroid-{name_suffix}"
-        experiment_args["experiment_description"] = f"Run FlowDroid on the full Fossdroid dataset with {settings_description_suffix}"
-        experiment_args["timeout"] =  15 * 60
+    #     experiment_args = flowdroid_on_fossdroid_setup_full(**file_paths)
+    #     experiment_args["flowdroid_args"] = FlowdroidArgs(**fd_settings)
+    #     experiment_args["experiment_name"] = f"fd-on-fossdroid-{name_suffix}"
+    #     experiment_args["experiment_description"] = f"Run FlowDroid on the full Fossdroid dataset with {settings_description_suffix}"
+    #     experiment_args["timeout"] =  15 * 60
 
-        experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
+    #     experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
 
 
