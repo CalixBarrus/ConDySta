@@ -4,7 +4,7 @@ import importlib
 # from "6_install" import getPackageName
 import time
 from subprocess import CalledProcessError
-from typing import List
+from typing import Callable, Dict, List
 
 from hybrid.hybrid_config import HybridAnalysisConfig, apk_path, apk_logcat_output_path
 from intercept import install
@@ -114,40 +114,18 @@ def _uninstall_apk(apk_path):
     install.uninstall_apk(package_name)
 
 
+def test_apk_method_factory(execution_input_approach: str, monkey_kwargs: Dict[str, str]) -> Callable[[ApkModel, str], None]:
+    default_seconds_to_test = 5
+    default_force_stop_when_finished = True
 
-# def test_apk_manual(apk_package_name: str, block_duration: int, apk_main_intent: str="", logcat_output_path: str=""):
-#     """
-#     :param block_duration: Function will block for this number of seconds. The
-#     logs are collected after this function returns; this blocking behavior
-#     prevents the logs dump from grabbing the logs before it fills up from the
-#     testing.
-#     :return:
-#     """
+    if execution_input_approach == "monkey": 
+        f = lambda apk_model, logcat_output_path: test_apk_monkey(apk_model, seconds_to_test=default_seconds_to_test, logcat_output_path=logcat_output_path, force_stop_when_finished=default_force_stop_when_finished)
+    elif execution_input_approach == "manual":
+        f = lambda apk_model, logcat_output_path: test_apk_manual(apk_model, seconds_to_test=default_seconds_to_test, logcat_output_path=logcat_output_path, force_stop_when_finished=default_force_stop_when_finished)
+    else: 
+        assert False
 
-#     # apk_package_name = get_package_name(apk_path)
-#     # apkPackageName = getPackageName(apkName, target_apks_path)
-#     if not logcat_output_path == "":
-#         _clear_logcat()
-
-#     if apk_main_intent == "":
-#         apk_main_intent = getApkMainIntent(apk_package_name)
-
-#     # adb shell am start com.bignerdranch.android.buttonwithtoast/.MainActivity
-#     cmd = "adb shell am start {}".format(apk_main_intent)
-#     cmd = ["adb", "shell", "am", "start", apk_main_intent]
-#     logger.debug(" ".join(cmd))
-#     run_command(cmd)
-
-#     if block_duration > 0:
-#         time.sleep(block_duration)
-#     # if block_duration == -1: 
-#     #   input("Press enter when finished testing")
-
-#     # TODO: is there an adb command to quit/close the app? or notify the user?
-
-#     if not logcat_output_path == "":
-#         _dump_logcat(logcat_output_path)
-
+    return f
 
 def test_apk_monkey(apk_model: ApkModel, seconds_to_test: int, logcat_output_path: str="", seed: int=-1, force_stop_when_finished=False):
     apk_package_name = apk_model.apk_package_name

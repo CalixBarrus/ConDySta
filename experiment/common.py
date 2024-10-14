@@ -6,6 +6,7 @@ import os
 
 from experiment import external_path
 from hybrid.flowdroid import FlowdroidArgs
+from hybrid.source_sink import create_source_sink_file_ssgpl
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
 
 import util.logger
@@ -21,6 +22,7 @@ def get_fossdroid_files() -> Dict[str, str]:
             "benchmark_name": "fossdroid",
             "benchmark_dir_path": fossdroid_benchmark_dir_path, 
             "ground_truth_xml_path": fossdroid_ground_truth_xml_path, 
+            "source_sink_list_path": get_fossdroid_source_sink_list_path(),
             }
 
 def get_gpbench_files() -> Dict[str,str]:
@@ -32,11 +34,13 @@ def get_gpbench_files() -> Dict[str,str]:
             "benchmark_dir_path": gpbench_apks_dir_path, 
             "ground_truth_xml_path": ground_truth_xml_path, 
             "benchmark_description_path": gpbench_description_path,
+            "source_sink_list_path": get_ssgpl_list(),
             }
 
 def get_flowdroid_file_paths() -> Dict[str, str]:
     flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
     android_path: str = "/home/calix/.android_sdk/platforms"
+    android_path: str = "/home/calix/Android/Sdk/platforms"
     return {
             "flowdroid_jar_path": flowdroid_jar_path,
             "android_path": android_path,
@@ -51,6 +55,65 @@ def get_wild_benchmarks() -> List[Dict[str, str]]:
     # return [fossdroid_files, gpbench_files]
 
 #### End External & Data File Paths Settings
+
+#### Start Flowdroid Experiment Settings
+
+def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str, str]:
+    experiment_args = {} | get_flowdroid_file_paths()
+
+    experiment_args["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.default_settings)
+    
+    # benchmark_name = benchmark_files["benchmark_name"]
+    # if benchmark_name == "gpbench":
+    #     experiment_args = experiment_args | get_gpbench_files()
+    # elif benchmark_name == "fossdroid":
+    #     experiment_args = experiment_args | get_fossdroid_files()
+    # else:
+    #     assert False
+
+    experiment_args = experiment_args | benchmark_files
+    benchmark_name = benchmark_files["benchmark_name"]
+
+
+    if type == "small":
+        experiment_args["timeout"] = 5 * 60
+        if benchmark_name == "gpbench":
+            experiment_args["ids_subset"] = [2,13]
+        elif benchmark_name == "fossdroid":
+            experiment_args["ids_subset"] = [0,1]
+        experiment_args["always_new_experiment_directory"] = False
+    elif type == "full":
+        experiment_args["timeout"] = 60 * 60
+        if benchmark_name == "gpbench":
+            experiment_args["ids_subset"] = pd.Series(range(1,20))
+        elif benchmark_name == "fossdroid":
+            experiment_args["ids_subset"] = None
+        experiment_args["always_new_experiment_directory"] = True
+    elif type == "misc":
+        # Don't set anything. Errors will help users figure out what they need to set.
+        pass
+    else:
+        assert False
+
+    return experiment_args
+
+### End flowdroid experiment settings 
+
+
+#### Start Internal File Stuff
+def get_ssgpl_list():
+    """ Generate the file path where SS-GooglePlayLogin.txt is expected. Generate it if it's not present."""
+    sources_sinks_dir_path = source_sink_dir_path() # type: ignore
+    ssgpl_list_path = os.path.join(sources_sinks_dir_path, "SS-GooglePlayLogin.txt")
+
+    if not os.path.isfile(ssgpl_list_path):
+        create_source_sink_file_ssgpl(ssgpl_list_path)
+
+    return ssgpl_list_path
+
+def get_fossdroid_source_sink_list_path() -> str:
+    project_root = get_project_root_path()
+    return os.path.join(project_root, "data", "sources-and-sinks", "SS-from-fossdroid-ground-truth.txt")
 
 def benchmark_description_path_from_benchmark_files(benchmark_files: Dict[str, str]) -> str:
     return "" if "benchmark_description_path" not in benchmark_files.keys() else benchmark_files["benchmark_description_path"]
@@ -114,7 +177,7 @@ def setup_experiment_dir(experiment_name: str, experiment_description: str, depe
 
     return experiment_id, experiment_directory_path
 
-def setup_additional_directories(experiment_dir_path: str, dir_names: List[str], always_new_directory: bool=False) -> List[str]:
+def setup_additional_directories(experiment_dir_path: str, dir_names: List[str]) -> List[str]:
     # TODO: this should probably not act on lists; that's not any of the use cases I'm coding right now
     # setup new directories in the experiment directory. If a directory name is already taken, create and return one with a slightly tweaked name.
     dir_paths = []
@@ -122,14 +185,8 @@ def setup_additional_directories(experiment_dir_path: str, dir_names: List[str],
         dir_path = os.path.join(experiment_dir_path, dir_name)
 
 
-        if not always_new_directory and os.path.isdir(dir_path):
-            dir_paths.append(dir_path)
-            continue
-        elif always_new_directory and os.path.isdir(dir_path):
-            available_directory_name = next_available_directory_name(experiment_dir_path, dir_name)
-            dir_path = os.path.join(experiment_dir_path, available_directory_name)
-            
-        os.mkdir(dir_path)
+        if not os.path.isdir(dir_path):
+            os.mkdir(dir_path)
         dir_paths.append(dir_path)
     
     return dir_paths
@@ -152,9 +209,25 @@ def next_available_directory_name(base_directory_path: str, new_directory_name: 
 
     return available_directory_name
     
+def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: str) -> str:
+    experiments_directory_path = os.path.join(get_project_root_path(), "data", "experiments")
 
-# def flowdroid_experiment_generic(**kwargs):
-#     pass
+    # directory_base_name = "execution-test-"
+
+    filtered_names = [directory_name for directory_name in os.listdir(experiments_directory_path) if base_name in directory_name and size in directory_name and benchmark_name in directory_name]
+    filtered_names.sort()
+
+    assert len(filtered_names) != 0
+
+    result = os.path.join(experiments_directory_path, filtered_names[-1])
+
+    logger.debug(f"Looked up recent directory: {result}")
+    return result
+
+def source_sink_dir_path() -> str:
+    return "data/sources-and-sinks"
+
+#### End Internal File Stuff
 
 def format_num_secs(secs: int) -> str:
     td = pd.Timedelta(seconds=secs)
@@ -255,7 +328,8 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_descripti
     # Sets up new dataframe with index, Benchmark ID column, and APK Name column that match up with the benchmark_df.
     # Results data frames start with an empty Error Message column
 
-    results_df = benchmark_df[["Benchmark ID"]]
+    # results_df = benchmark_df[["Benchmark ID"]]
+    results_df = pd.DataFrame({}, index=benchmark_df["Benchmark ID"])
     results_df["APK Name"] = ""
     for i in benchmark_df.index:
         results_df.loc[i, "APK Name"] = benchmark_df.loc[i, "Input Model"].apk().apk_name # type: ignore
@@ -278,20 +352,5 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_descripti
 
     return results_df
 
-
-def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: str) -> str:
-    experiments_directory_path = os.path.join(get_project_root_path(), "data", "experiments")
-
-    # directory_base_name = "execution-test-"
-
-    filtered_names = [directory_name for directory_name in os.listdir(experiments_directory_path) if base_name in directory_name and size in directory_name and benchmark_name in directory_name]
-    filtered_names.sort()
-
-    assert len(filtered_names) != 0
-
-    result = os.path.join(experiments_directory_path, filtered_names[-1])
-
-    logger.debug(f"Looked up recent directory: {result}")
-    return result
 
 

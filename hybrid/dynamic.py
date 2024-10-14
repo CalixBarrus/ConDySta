@@ -1,7 +1,7 @@
 from abc import ABC
 import re
 import shutil
-from typing import Set, List, Optional, Dict
+from typing import Set, List, Optional, Dict, Tuple
 
 from experiment.common import modified_source_sink_path
 from hybrid import results, sensitive_information
@@ -200,9 +200,17 @@ class InstrReportReturnAndArgsDynamicLogProcessingStrategy(LogcatProcessingStrat
 
         tainting_signatures: List[MethodSignature] = [MethodSignature.from_java_style_signature(observation.invocation_java_signatures[id]) for id in tainting_invocation_ids]
 
-        return SourceSinkSignatures(source_signatures=tainting_signatures)
+        # TODO: we should output some frequency information about these tainting signatures; How many times each comes up
+
+        return SourceSinkSignatures(source_signatures=set(tainting_signatures))
+
+def get_selected_errors_from_logcat(logcat_path: str) -> str:
+    logcat_file_model = LogcatLogFileModel(logcat_path)
+
+    return ";".join(logcat_file_model.get_app_not_responding_errors()) + ";".join(logcat_file_model.get_class_not_found_errors())
 
 class LogcatLogFileModel:
+    path: str
     lines: List[str]
 
     # exceptions: List['ExceptionModel']
@@ -211,6 +219,8 @@ class LogcatLogFileModel:
         # Open the log and read the contents
         with open(log_path, 'r') as log_file:
             self.lines = log_file.readlines()
+
+        self.path = log_path
 
         # self.exceptions = self._scan_lines_for_exception_blocks()
 
@@ -254,12 +264,13 @@ class LogcatLogFileModel:
     def scan_log_for_instrumentation_reports(self) -> List['InstrumentationReport']:
         # "Example 07-21 12:46:10.902  7001  7001 D Snapshot: InstrumentationReport(invoke_signature='<Lc..."
 
-        report_preamble = " D Snapshot: "
+        report_tag = " D Snapshot: "
+        report_preamble = report_tag + "InstrumentationReport("
         instr_reports = []
 
         for line in self.lines:
             if report_preamble in line:
-                log_content = line.split(report_preamble)[1]
+                log_content = line.split(report_tag)[1]
 
                 # Parse the contents of the string according to the code written in Java
                 re_result = re.search(r"(InstrumentationReport\(.+\));(.+);(.+)", log_content.strip())
@@ -282,6 +293,31 @@ class LogcatLogFileModel:
         # TODO: not needed yet
         pass
 
+
+    def get_app_not_responding_errors(self) -> List[str]:
+        # Example line
+        # 10-08 10:15:31.142  1124  1437 I InputDispatcher: Application is not responding: AppWindowToken{4c9da02 token=Token{8068ee4 ActivityRecord{6fd5277 u0 eu.kanade.tachiyomi/.ui.main.MainActivity t2558}}}.  It has been 5006.4ms since event, 5004.4ms since wait started.  Reason: Waiting because no window has focus but there is a focused application that may eventually add a window when it finishes starting up.
+        log_tag = "I InputDispatcher: "
+        error_preamble = "Application is not responding: "
+        errors = [f"App Not Responding Error on line {i} in log {self.path}" for i, line in self._get_error_messages(self.lines, log_tag, error_preamble)]
+        return errors
+
+    def get_class_not_found_errors(self: str) -> List[str]:
+        # Example line
+        # 10-07 19:25:30.130  6540  6540 I art     : Caused by: java.lang.ClassNotFoundException: Didn't find class "android.os.ProxyFileDescriptorCallback" on path: DexPathList[[zip file "/data/app/com.google.android.gm-1/base.apk", zip file "/data/app/com.google.android.gm-1/split_config.armeabi_v7a.apk", zip file "/data/app/com.google.android.gm-1/split_config.en.apk", zip file "/data/app/com.google.android.gm-1/split_config.xxxhdpi.apk"],nativeLibraryDirectories=[/data/app/com.google.android.gm-1/lib/arm, /data/app/com.google.android.gm-1/base.apk!/lib/armeabi-v7a, /data/app/com.google.android.gm-1/split_config.armeabi_v7a.apk!/lib/armeabi-v7a, /data/app/com.google.android.gm-1/split_config.en.apk!/lib/armeabi-v7a, /data/app/com.google.android.gm-1/split_config.xxxhdpi.apk!/lib/armeabi-v7a, /system/lib, /vendor/lib]]
+        log_tag = " I art     : "
+        error_preamble = "Caused by: java.lang.ClassNotFoundException: Didn't find class "
+        errors = [f"Class Not Found Exception on line {i} in log {self.path}" for i, line in self._get_error_messages(self.lines, log_tag, error_preamble)]
+        return errors
+
+    def _get_error_messages(self, lines: str, log_tag: str, error_preamble: str) -> List[Tuple[int, str]]:
+        errors = []
+        for i, line in enumerate(lines):
+            if log_tag + error_preamble in line:
+                errors.append((i, line.split(log_tag)[1]))
+
+        return errors
+
 def filter_exceptions_by_header(target_strings: List[str], exceptions) -> \
         List["ExceptionModel"]:
     result_exceptions = []
@@ -298,6 +334,8 @@ def filter_exceptions_by_header(target_strings: List[str], exceptions) -> \
             result_exceptions.append(exception)
 
     return result_exceptions
+
+
 
 
 class ExceptionModel:

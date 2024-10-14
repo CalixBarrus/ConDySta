@@ -4,8 +4,8 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from experiment import external_path, fossdroid
-from experiment.common import benchmark_df_from_benchmark_directory_path, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
-from experiment.flowdroid_experiment import experiment_setup, observation_processing_experiment
+from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_flowdroid_file_paths, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir
+from experiment.flowdroid_experiment import experiment_setup, flowdroid_comparison_with_observation_processing_experiment, observation_processing
 from experiment.instrument import rebuild_apps_no_instrumentation
 import hybrid.hybrid_config
 from hybrid.flowdroid import run_flowdroid_paper_settings
@@ -22,6 +22,9 @@ logger = util.logger.get_logger(__name__)
 
 
 def recent_instrumented_apps_for_wild_benchmark(benchmark_files: Dict[str, str], size: str) -> str:
+    # TODO: this shouldn't necessarily care about the size keyword? It throws an error looking up "small" even if there's a recent "full"
+    # Maybe this is just a usage issue tho
+
     # Right now, instrumented directories are named as f"instrument-{size}-{name}"
     if benchmark_files["benchmark_name"] == "fossdroid":
         instrumented_fossdroid_apks_dir_path = os.path.join(recent_experiment_directory_path(size, "instrument", "fossdroid"), "signed-apks")
@@ -53,40 +56,97 @@ def recent_executions_for_wild_benchmark(benchmark_files: Dict[str, str], size: 
 
 
 def test_full_observation_processing():
-    observation_processing("full", None)
+    observation_processing_wild_benchmarks("full", None)
 
 def test_small_observation_processing():
-    observation_processing("small", [1, 2])
+    observation_processing_wild_benchmarks("small", [2, 13])
 
-def observation_processing(size: str, ids_subset: List[int]):
+def observation_processing_wild_benchmarks(size: str, ids_subset: List[int]):
     description = "test logcat processing"
 
     for benchmark_files in get_wild_benchmarks():
-        logger.debug(benchmark_files)
         logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, size)
         name = benchmark_files["benchmark_name"]
-        description = f"Testing instrumentation on {name} benchmark"
+        description = f"Testing observation processing on {name} benchmark"
         observation_processing_generic(logcat_directory_path, benchmark_files, f"logcat-processing-{size}-{name}", description, ids_subset)
 
+def test_spotcheck_observation_processing(benchmark_files: Dict[str, str], logcat_directory_path: str, ids_subset=None):
 
-def observation_processing_generic(logcat_directory_path: str, benchmark_files: Dict[str, str], experiment_name: str, experiment_description: str, ids_subset: List[int]):
+    name = benchmark_files["benchmark_name"]
+
+    if name == "gpbench":
+        ids_subset = pd.Series(range(1,20))
+    elif name == "fossdroid":
+        ids_subset = None
+
+    description = f"Spot check for observation processing on {name} benchmark, for the execution in {logcat_directory_path}"
+    observation_processing_generic(logcat_directory_path, benchmark_files, f"logcat-processing-spotcheck-{name}", description, ids_subset, True)
+
+    
+
+def observation_processing_generic(logcat_directory_path: str, benchmark_files: Dict[str, str], experiment_name: str, experiment_description: str, ids_subset: List[int], always_new_experiment_directory: bool=False):
     experiment_args = {}
     experiment_args["experiment_name"] = experiment_name
     experiment_args["experiment_description"] = experiment_description
-    experiment_args["always_new_experiment_directory"] = True
+    experiment_args["always_new_experiment_directory"] = always_new_experiment_directory
 
     experiment_args["ids_subset"] = ids_subset
     experiment_args = experiment_args | benchmark_files
 
     experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
     experiment_args["logcat_directory_path"] = logcat_directory_path
-    experiment_args["always_new_output_directory"] = False
 
     experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
 
-    results_df = observation_processing_experiment(experiment_dir_path, benchmark_df, **experiment_args)
-
+    results_df = observation_processing(experiment_dir_path, benchmark_df, **experiment_args)
+    # if this were a args setup layer, this logic shouldn't be here
     results_df.to_csv(os.path.join(experiment_dir_path, "source_sink_paths.csv"))
+
+def test_small_flowdroid_comparison_wild_benchmarks():
+    flowdroid_comparison_wild_benchmarks("small")
+
+def test_full_flowdroid_comparison_wild_benchmarks():
+    flowdroid_comparison_wild_benchmarks("full")
+
+def flowdroid_comparison_wild_benchmarks(size: str):
+
+    for benchmark_files in get_wild_benchmarks():
+        experiment_args = flowdroid_setup_generic(benchmark_files, size)
+
+        logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, size)
+        experiment_args["logcat_directory_path"] = logcat_directory_path
+        experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+
+        name = benchmark_files["benchmark_name"]
+        experiment_args["experiment_name"] = f"flowdroid-comparison-{size}-{name}"
+        description = f"Comparing flowdroid runs on {name} benchmark based on observations from {logcat_directory_path}"
+        experiment_args["experiment_description"] = description
+
+        flowdroid_comparison_with_observation_processing_experiment(**experiment_args)
+
+        # flowdroid_comparison_generic(logcat_directory_path, benchmark_files, f"flowdroid-comparison-{size}-{name}", description, ids_subset)
+
+def test_spot_check_flowdroid_comparison(benchmark_files: Dict[str, str], logcat_directory_path: str, ids_subset=None):
+    # benchmark_files = {} # get_gpbench_files() or get_fossdroid_files()
+
+    experiment_args = flowdroid_setup_generic(benchmark_files, "misc")
+    experiment_args["timeout"] = 15 * 60
+    experiment_args["ids_subset"] = ids_subset
+    experiment_args["always_new_experiment_directory"] = True
+
+    # logcat_directory_path = ""
+    experiment_args["logcat_directory_path"] = logcat_directory_path
+    experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+
+
+    name = benchmark_files["benchmark_name"]
+    experiment_args["experiment_name"] = f"flowdroid-comparison-spotcheck-DELETE-{name}"
+    description = f"Comparing flowdroid runs on {name} benchmark based on observations from {logcat_directory_path}"
+    description += "\nSpot Check"
+    experiment_args["experiment_description"] = description
+
+    flowdroid_comparison_with_observation_processing_experiment(**experiment_args)
+    
 
 def rebuild_fossdroid_apks_small():
     file_paths = get_fossdroid_files()

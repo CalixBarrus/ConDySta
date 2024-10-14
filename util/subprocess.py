@@ -7,7 +7,7 @@ logger = util.logger.get_logger(__name__)
 
 
 def run_command(args: List['str'], redirect_stdout: str = "",
-                redirect_stderr_to_stdout=False, timeout=None, cwd=None, verbose=False) -> str:
+                redirect_stderr_to_stdout=True, timeout=None, cwd=None, verbose=False) -> str:
     """
     Run the provided commandline command using the subprocess library.
     :param args: List of strings consisting of the desired command.
@@ -21,42 +21,47 @@ def run_command(args: List['str'], redirect_stdout: str = "",
     if verbose:
         logger.debug(debug_cmd)
 
+    try:
+        if redirect_stdout == "":
+            # TODO: how to view stderr with the exception that gets thrown?
+            completed_process = subprocess.run(args,
+                                            capture_output=True,
+                                            check=True,
+                                            # Raise a python exception if the process exits with exit code != 0
+                                            text=True,
+                                            # Have output be captured as a string (not bytes)
+                                            timeout=timeout,
+                                            cwd=cwd,
+                                            )
+            if completed_process.stderr != "":
+                logger.error(completed_process.stderr)
 
-    if redirect_stdout == "":
-        # TODO: how to view stderr with the exception that gets thrown?
-        completed_process = subprocess.run(args,
-                                           capture_output=True,
-                                           check=True,
-                                           # Raise a python exception if the process exits with exit code != 0
-                                           text=True,
-                                           # Have output be captured as a string (not bytes)
-                                           timeout=timeout,
-                                           cwd=cwd,
-                                           )
-        if completed_process.stderr != "":
-            logger.error(completed_process.stderr)
-
-        return completed_process.stdout
-    else:
-        if not redirect_stderr_to_stdout:
-            with open(redirect_stdout, 'w') as out_file:
-                completed_process = subprocess.run(args,
-                                                   stdout=out_file,
-                                                   check=True,
-                                                   timeout=timeout,
-                                                   cwd=cwd,
-                                                   )
-            return ""
+            return completed_process.stdout
         else:
-            with open(redirect_stdout, 'w') as out_file:
-                completed_process = subprocess.run(args,
-                                                    stderr=subprocess.STDOUT,
+            if not redirect_stderr_to_stdout:
+                with open(redirect_stdout, 'w') as out_file:
+                    completed_process = subprocess.run(args,
                                                     stdout=out_file,
                                                     check=True,
                                                     timeout=timeout,
                                                     cwd=cwd,
                                                     )
-            return ""
+                return ""
+            else:
+                with open(redirect_stdout, 'w') as out_file:
+                    completed_process = subprocess.run(args,
+                                                        stderr=subprocess.STDOUT,
+                                                        stdout=out_file,
+                                                        check=True,
+                                                        timeout=timeout,
+                                                        cwd=cwd,
+                                                        )
+                return ""
+    except subprocess.CalledProcessError as e:
+        logger.error("Error running command: " + debug_cmd)
+        logger.error("STDERR: " + str(e.stderr))
+        logger.debug("STDOUT:" + str(e.stdout))
+        raise e
 
 def run_command_direct(args: List['str']) -> None:
     """

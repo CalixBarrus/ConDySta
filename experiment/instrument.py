@@ -19,7 +19,7 @@ logger = util.logger.get_logger(__name__)
 
 
 def instrument_test_wild_benchmarks_few():
-    apks_subset = [1, 2]
+    apks_subset = [2, 13]
     # apks_subset = [0]
     instrument_test_wild_benchmarks(apks_subset, "small")
     

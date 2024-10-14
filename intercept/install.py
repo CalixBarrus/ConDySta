@@ -61,9 +61,9 @@ locales: '--_--'
 densities: '160' '240' '320' '480'
     """
 
-    result = result.split('\n')[0].split(" ")[1]
+    package_name_field = result.split('\n')[0].split(" ")[1]
     # name='de.ecspride'
-    package_name = result[6:-1]
+    package_name = package_name_field[6:-1]
 
     if output_apk_model is not None:
       output_apk_model.apk_package_name = package_name
@@ -72,9 +72,13 @@ densities: '160' '240' '320' '480'
           if line.strip().startswith("application-label:'"):
               # Name of the app in the phone
               # application-label:'StaticInitialization1'     
-              application_label = line[20:-1]
+              application_label = line[19:-1]
               output_apk_model.apk_application_label = application_label
               break
+
+    package_name_field = result.split('\n')[0].split(" ")[1]
+    # name='de.ecspride'
+    package_name = package_name_field[6:-1]
 
     return package_name
 

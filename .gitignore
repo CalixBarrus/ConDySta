@@ -41,3 +41,5 @@ HeapSnapshot/.cxx
 HeapSnapshot/local.properties
 
 *.zip
+
+.ipynb_checkpoints

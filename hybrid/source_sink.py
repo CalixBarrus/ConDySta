@@ -23,7 +23,7 @@ class SourceSink(ABC):
     #     pass
 
     @classmethod
-    def source_sink_signatures_from_txt(file_path: str) -> Tuple[List['MethodSignature'], List['MethodSignature']]:
+    def source_sink_signatures_from_txt(cls, file_path: str) -> Tuple[List['MethodSignature'], List['MethodSignature']]:
         
         source_signatures: List['MethodSignature'] = []
         sink_signatures: List['MethodSignature'] = []
@@ -77,16 +77,6 @@ class SourceSinkSignatures(SourceSink):
 
         with open(target_file_path, 'w') as file:
             file.write(source_sink_formatted)
-        
-
-    @classmethod
-    def from_file(file_path: str) -> 'SourceSinkSignatures':
-        # def add_sinks_from_file(self, file_path):
-        result = SourceSinkSignatures()
-
-        source_list, sink_list = SourceSink.source_sink_signatures_from_txt(file_path)
-        result.source_signatures, result.sink_signatures = set(source_list), set(sink_list)
-        return result
 
     def set_minus(self, other_source_sink: 'SourceSinkSignatures'):
         self.source_signatures - other_source_sink.source_signatures
@@ -95,6 +85,19 @@ class SourceSinkSignatures(SourceSink):
     def union(self, other_source_sink: 'SourceSinkSignatures'):
         self.source_signatures = self.source_signatures.union(other_source_sink.source_signatures)
         self.sink_signatures = self.sink_signatures.union(other_source_sink.sink_signatures)
+
+        return self
+
+
+    @classmethod
+    def from_file(cls, file_path: str) -> 'SourceSinkSignatures':
+        # def add_sinks_from_file(self, file_path):
+        result = SourceSinkSignatures()
+
+        source_list, sink_list = SourceSink.source_sink_signatures_from_txt(file_path)
+        result.source_signatures, result.sink_signatures = set(source_list), set(sink_list)
+        return result
+    
         
 
 

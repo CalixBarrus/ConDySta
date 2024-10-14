@@ -183,9 +183,6 @@ def data_dir_path(config: HybridAnalysisConfig):
 def results_csv_path(config: HybridAnalysisConfig, experiment_name: str):
     return os.path.join(config.results_dir_path, experiment_name + ".csv")
 
-def source_sink_dir_path() -> str:
-    return "data/sources-and-sinks"
-
 def ic3_output_dir_path() -> str:
     path = "data/ic3_output"
     _verify_internal_dir_path(path)
