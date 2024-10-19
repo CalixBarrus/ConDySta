@@ -6,8 +6,9 @@ from typing import Dict, List
 
 import pandas as pd
 from experiment import external_path
-from experiment.common import get_wild_benchmarks
+from experiment.common import get_wild_benchmarks, instrumentation_arguments_default, instrumentation_strategy_factory_wrapper, subset_setup_generic
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_project_root_path, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
+from experiment.flowdroid_experiment import experiment_setup
 from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from intercept import decode, instrument, intercept_main, keygen, rebuild, sign
@@ -19,63 +20,69 @@ logger = util.logger.get_logger(__name__)
 
 
 def instrument_test_wild_benchmarks_few():
-    apks_subset = [2, 13]
-    # apks_subset = [0]
-    instrument_test_wild_benchmarks(apks_subset, "small")
+    instrument_test_wild_benchmarks("small")
     
 def instrument_test_wild_benchmarks_full():
-    apks_subset = None
-    instrument_test_wild_benchmarks(apks_subset, "full")
+    instrument_test_wild_benchmarks("full")
 
-def instrument_test_wild_benchmarks(apks_subset: List[int], size: str):
+def instrument_test_wild_benchmarks(size: str):
+
     # for apks_dir_path, name in [(fossdroid_apks_dir, "fossdroid"), (gpbench_apks_dir, "gpbench")]:
     for benchmark_files in get_wild_benchmarks():
         name = benchmark_files["benchmark_name"]
-        apks_dir_path = benchmark_files["benchmark_dir_path"]
-        description = f"Testing instrumentation on {name} benchmark"
-        instrument_test_generic(benchmark_files, f"instrument-{size}-{name}", description, apks_subset)
+        # apks_dir_path = benchmark_files["benchmark_dir_path"]
 
-def instrument_test_generic(benchmark_files: Dict[str, str], experiment_name: str, experiment_description: str, apks_subset: List[int]):
-    instrumentation_strategy = "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"
+        experiment_args = subset_setup_generic(benchmark_files, size)
+
+        description = f"Testing instrumentation on {name} benchmark"
+        experiment_arguments = instrument_arguments_setup_generic(experiment_args, f"instrument-{size}-{name}", description)
+        instrument_experiment_generic(**experiment_arguments)
+
+def instrument_arguments_setup_generic(benchmark_files: Dict[str, str], experiment_name: str, experiment_description: str) -> Dict[str, str]:
+    # TODO This method is repeated code found elsewhere
+
+    # instrumentation_strategy = "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"
+    experiment_arguments = benchmark_files | instrumentation_arguments_default(benchmark_files)
+    # instrumentation_strategy = experiment_arguments["instrumentation_strategy"]
 
     # eventually may want to support benchmark description csv
-    benchmark_directory_path = benchmark_files["benchmark_dir_path"]
-    always_new_experiment_directory = False
+    # benchmark_directory_path = experiment_arguments["benchmark_dir_path"]
+    # always_new_experiment_directory = False
 
-    experiment_id, experiment_dir_path = setup_experiment_dir(experiment_name, experiment_description, benchmark_files, always_new_experiment_directory)
+    experiment_arguments["experiment_name"] = experiment_name
+    experiment_arguments["experiment_description"] = experiment_description
+    experiment_arguments["always_new_experiment_directory"] = False
+
+    return experiment_arguments
+
+def instrument_experiment_generic(**kwargs):
+    # TODO: this needs to get moved to a different file maybe (instrument_experiment??). Is this using the same setup/tear down automation as flowdroid experiments??
+    experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**kwargs)
 
     decoded_apks_directory_path = setup_additional_directories(experiment_dir_path, ["decoded-apks"])[0]
-    # config._decoded_apks_path = decoded_apks_directory_path
-    benchmark_description_csv_path = ("" if "benchmark_description_path" not in benchmark_files.keys() else benchmark_files["benchmark_description_path"])
-    inputs_df = benchmark_df_from_benchmark_directory_path(benchmark_directory_path, benchmark_description_csv_path=benchmark_description_csv_path, ids_subset=apks_subset)
 
-    results_df = results_df_from_benchmark_df(inputs_df)
+    results_df = results_df_from_benchmark_df(benchmark_df)
 
+    instrumentation_strategy = instrumentation_strategy_factory_wrapper(**kwargs)
 
-    apks = [inputs_df.loc[i, "Input Model"].apk() for i in inputs_df.index]
+    apks = [benchmark_df.loc[i, "Input Model"].apk() for i in benchmark_df.index]
 
     reinstrument = True
     if reinstrument:
         decode.decode_batch(decoded_apks_directory_path, apks, clean=reinstrument)
         t0 = time.time()
-        report_smali_LOC(results_df, inputs_df, decoded_apks_directory_path, report_col="Smali LOC Before Instrumentation")
+        report_smali_LOC(results_df, benchmark_df, decoded_apks_directory_path, report_col="Smali LOC Before Instrumentation")
 
         instrument.instrument_batch(decoded_apks_directory_path, instrumentation_strategy, apks)
-        report_smali_LOC(results_df, inputs_df, decoded_apks_directory_path, report_col="Smali LOC After Instrumentation")
+        report_smali_LOC(results_df, benchmark_df, decoded_apks_directory_path, report_col="Smali LOC After Instrumentation")
+
+
 
         results_df.loc[0, "Instrumentation Time (All APKs)"] = format_num_secs(time.time() - t0)
 
-    # debug
-    results_df.to_csv(os.path.join(experiment_dir_path, experiment_id + ".csv"))
-    # end debug
-
-    rebuilt_apks_directory_path = setup_additional_directories(experiment_dir_path, ["rebuilt-apks"])[0]
+    rebuilt_apks_directory_path, keys_directory_path, signed_apks_directory_path = setup_additional_directories(experiment_dir_path, ["rebuilt-apks", "keystores", "signed-apks"])
     rebuild.rebuild_batch(decoded_apks_directory_path, rebuilt_apks_directory_path, apks, clean=True)
-    
-    keys_directory_path = setup_additional_directories(experiment_dir_path, ["keystores"])[0]
     keygen.generate_keys_batch(keys_directory_path, apks)
-    
-    signed_apks_directory_path = setup_additional_directories(experiment_dir_path, ["signed-apks"])[0]
     sign.assign_key_batch(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, apks, clean=True)
 
     results_df.to_csv(os.path.join(experiment_dir_path, experiment_id + ".csv"))
@@ -133,21 +140,18 @@ def update_heap_snapshot_smali_files():
     experiment_id, experiment_dir_path = setup_experiment_dir("decompile-heap-snapshot", 
                                                               "Intermediate result, smali code for the currently built APK of HeapSnapshot", 
                                                               {}, 
-                                                              always_new_experiment_directory=True)
+                                                              always_new_experiment_directory=False)
 
     decompile_path = setup_additional_directories(experiment_dir_path, ["decompiled-smali"])[0]
     # configuration = intercept_config.get_default_intercept_config()
     # configuration.input_apks = input.input_apks_from_dir("HeapSnapshot/app/build/outputs/apk/debug")
 
     project_root = get_project_root_path()
-
-        
     heap_snapshot_apk_path = os.path.join(project_root, "HeapSnapshot", "app", "build", "outputs", "apk", "debug", "app-debug.apk")
     intercept_main.generate_smali_code(heap_snapshot_apk_path, decompile_path)
 
     heap_snapshot_apk_name = "app-debug"
     decompiled_apk_root_path = os.path.join(decompile_path, heap_snapshot_apk_name)
-
     extract_decompiled_smali_code_to_heap_snapshot(decompiled_apk_root_path)
 
 

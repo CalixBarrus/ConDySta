@@ -12,6 +12,10 @@
 
 
 # static fields
+.field private static final CHECK_COLLECTION_ELEMENTS:Z = false
+
+.field private static final CHECK_MAP_ELEMENTS:Z = false
+
 .field private static final DEBUG_TAG:Ljava/lang/String; = "Snap-Debug"
 
 .field private static final EXCLUDED_CLASSES:Ljava/util/List;
@@ -23,6 +27,8 @@
         }
     .end annotation
 .end field
+
+.field private static final HARNESSED_PII_PATTERN:Ljava/lang/String; = "\\*\\*\\*\\d{12}\\*\\*\\*"
 
 .field private static final INSPECTION_DEPTH:I = 0x1
 
@@ -56,7 +62,7 @@
 .method static constructor <clinit>()V
     .locals 8
 
-    .line 28
+    .line 32
     const-string v0, "8901240197155182897"
 
     const-string v1, "355458061189396"
@@ -83,7 +89,7 @@
 
     sput-object v0, Ledu/utsa/sefm/heapsnapshot/Snapshot;->PII:Ljava/util/List;
 
-    .line 29
+    .line 36
     const/4 v0, 0x4
 
     new-array v0, v0, [Ljava/lang/Class;
@@ -118,10 +124,10 @@
 
     sput-object v0, Ledu/utsa/sefm/heapsnapshot/Snapshot;->EXCLUDED_CLASSES:Ljava/util/List;
 
-    .line 33
+    .line 40
     sput v2, Ledu/utsa/sefm/heapsnapshot/Snapshot;->callId:I
 
-    .line 35
+    .line 42
     new-instance v0, Ljava/util/HashMap;
 
     invoke-direct {v0}, Ljava/util/HashMap;-><init>()V
@@ -145,16 +151,16 @@
     .param p0, "instance"    # Ljava/lang/Object;
     .param p1, "invocationDescription"    # Ljava/lang/String;
 
-    .line 121
+    .line 128
     const/4 v0, 0x0
 
-    .line 122
+    .line 129
     .local v0, "localCallId":I
     const-class v1, Ledu/utsa/sefm/heapsnapshot/Snapshot;
 
     monitor-enter v1
 
-    .line 123
+    .line 130
     :try_start_0
     sget v2, Ledu/utsa/sefm/heapsnapshot/Snapshot;->callId:I
 
@@ -164,24 +170,24 @@
 
     sput v2, Ledu/utsa/sefm/heapsnapshot/Snapshot;->callId:I
 
-    .line 124
+    .line 131
     move v0, v2
 
-    .line 125
+    .line 132
     monitor-exit v1
     :try_end_0
     .catchall {:try_start_0 .. :try_end_0} :catchall_0
 
-    .line 129
+    .line 136
     const/16 v1, 0x64
 
-    .line 130
+    .line 137
     .local v1, "div":I
     rem-int v2, v0, v1
 
     if-nez v2, :cond_0
 
-    .line 131
+    .line 138
     const-string v2, "Snap-Debug"
 
     new-instance v4, Ljava/lang/StringBuilder;
@@ -200,7 +206,7 @@
 
     invoke-static {v2, v4}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 138
+    .line 145
     :cond_0
     invoke-static {}, Ljava/lang/Thread;->currentThread()Ljava/lang/Thread;
 
@@ -214,7 +220,7 @@
 
     move-result-object v2
 
-    .line 139
+    .line 146
     .local v2, "threadId":Ljava/lang/Long;
     sget-object v4, Ledu/utsa/sefm/heapsnapshot/Snapshot;->isThreadCheckingObjectMap:Ljava/util/Map;
 
@@ -226,7 +232,7 @@
 
     if-nez v4, :cond_1
 
-    .line 140
+    .line 147
     sget-object v4, Ledu/utsa/sefm/heapsnapshot/Snapshot;->isThreadCheckingObjectMap:Ljava/util/Map;
 
     invoke-static {v10}, Ljava/lang/Boolean;->valueOf(Z)Ljava/lang/Boolean;
@@ -235,7 +241,7 @@
 
     invoke-interface {v4, v2, v5}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
 
-    .line 142
+    .line 149
     const-string v4, "Snap-Debug"
 
     new-instance v5, Ljava/lang/StringBuilder;
@@ -254,7 +260,7 @@
 
     invoke-static {v4, v5}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 147
+    .line 154
     :cond_1
     sget-object v4, Ledu/utsa/sefm/heapsnapshot/Snapshot;->isThreadCheckingObjectMap:Ljava/util/Map;
 
@@ -266,7 +272,7 @@
 
     check-cast v11, Ljava/lang/Boolean;
 
-    .line 156
+    .line 163
     .local v11, "isCheckingObject":Ljava/lang/Boolean;
     invoke-virtual {v11}, Ljava/lang/Boolean;->booleanValue()Z
 
@@ -276,7 +282,7 @@
 
     if-eqz v4, :cond_2
 
-    .line 157
+    .line 164
     const-string v3, "Snap-Debug"
 
     new-instance v4, Ljava/lang/StringBuilder;
@@ -295,7 +301,7 @@
 
     invoke-static {v3, v4}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 162
+    .line 169
     const-string v3, "Snap-Debug"
 
     new-instance v4, Ljava/lang/StringBuilder;
@@ -318,7 +324,7 @@
 
     invoke-static {v3, v4}, Landroid/util/Log;->e(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 163
+    .line 170
     new-instance v3, Ljava/lang/Exception;
 
     const-string v4, "Snap-Debug"
@@ -327,27 +333,27 @@
 
     invoke-virtual {v3}, Ljava/lang/Exception;->printStackTrace()V
 
-    .line 166
+    .line 173
     return v5
 
-    .line 169
+    .line 176
     :cond_2
     const/4 v12, 0x0
 
-    .line 170
+    .line 177
     .local v12, "currentInspectionDepth":I
     new-instance v7, Ljava/util/ArrayList;
 
     invoke-direct {v7}, Ljava/util/ArrayList;-><init>()V
 
-    .line 172
+    .line 179
     .local v7, "accessPath":Ljava/util/List;, "Ljava/util/List<Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;>;"
     if-nez p0, :cond_3
 
-    .line 173
+    .line 180
     return v5
 
-    .line 177
+    .line 184
     :cond_3
     sget-object v4, Ledu/utsa/sefm/heapsnapshot/Snapshot;->isThreadCheckingObjectMap:Ljava/util/Map;
 
@@ -357,7 +363,7 @@
 
     invoke-interface {v4, v2, v3}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
 
-    .line 184
+    .line 191
     const-string v5, "."
 
     move-object v4, p0
@@ -372,7 +378,7 @@
 
     move-result v3
 
-    .line 187
+    .line 194
     .local v3, "result":I
     sget-object v4, Ledu/utsa/sefm/heapsnapshot/Snapshot;->isThreadCheckingObjectMap:Ljava/util/Map;
 
@@ -382,10 +388,10 @@
 
     invoke-interface {v4, v2, v5}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
 
-    .line 193
+    .line 200
     return v3
 
-    .line 125
+    .line 132
     .end local v1    # "div":I
     .end local v2    # "threadId":Ljava/lang/Long;
     .end local v3    # "result":I
@@ -404,7 +410,7 @@
 .end method
 
 .method private static checkObjectForPIIRecursive(Ljava/lang/Object;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)I
-    .locals 23
+    .locals 22
     .param p0, "instance"    # Ljava/lang/Object;
     .param p1, "instanceName"    # Ljava/lang/String;
     .param p2, "curDepth"    # I
@@ -424,7 +430,7 @@
         }
     .end annotation
 
-    .line 205
+    .line 212
     .local p3, "accessPath":Ljava/util/List;, "Ljava/util/List<Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;>;"
     move-object/from16 v1, p0
 
@@ -432,54 +438,56 @@
 
     move-object/from16 v9, p3
 
-    const/4 v10, -0x1
+    move-object/from16 v10, p4
+
+    const/4 v11, -0x1
 
     if-nez v1, :cond_0
 
-    .line 206
-    return v10
+    .line 213
+    return v11
 
-    .line 208
+    .line 215
     :cond_0
     invoke-virtual/range {p0 .. p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
-    move-result-object v11
+    move-result-object v12
 
-    .line 209
-    .local v11, "objClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
+    .line 216
+    .local v12, "objClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
     new-instance v0, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;
 
-    invoke-virtual {v11}, Ljava/lang/Class;->getName()Ljava/lang/String;
+    invoke-virtual {v12}, Ljava/lang/Class;->getName()Ljava/lang/String;
 
     move-result-object v3
 
-    move-object/from16 v12, p1
+    move-object/from16 v13, p1
 
-    invoke-direct {v0, v3, v12}, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;-><init>(Ljava/lang/String;Ljava/lang/String;)V
+    invoke-direct {v0, v3, v13}, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;-><init>(Ljava/lang/String;Ljava/lang/String;)V
 
     invoke-interface {v9, v0}, Ljava/util/List;->add(Ljava/lang/Object;)Z
 
-    .line 210
+    .line 217
     const/4 v0, 0x0
 
-    .line 217
+    .line 224
     .local v0, "childFoundLeak":Z
     const-class v3, Ljava/lang/String;
 
-    invoke-virtual {v11, v3}, Ljava/lang/Object;->equals(Ljava/lang/Object;)Z
+    invoke-virtual {v12, v3}, Ljava/lang/Object;->equals(Ljava/lang/Object;)Z
 
     move-result v3
 
-    const-string v13, "Snapshot"
+    const-string v14, "Snapshot"
 
     if-eqz v3, :cond_3
 
-    .line 219
+    .line 226
     move-object v3, v1
 
     check-cast v3, Ljava/lang/String;
 
-    .line 221
+    .line 229
     .local v3, "stringInstance":Ljava/lang/String;
     sget-object v4, Ledu/utsa/sefm/heapsnapshot/Snapshot;->PII:Ljava/util/List;
 
@@ -492,6 +500,8 @@
 
     move-result v5
 
+    const-string v6, ";"
+
     if-eqz v5, :cond_2
 
     invoke-interface {v4}, Ljava/util/Iterator;->next()Ljava/lang/Object;
@@ -500,71 +510,96 @@
 
     check-cast v5, Ljava/lang/String;
 
-    .line 222
+    .line 230
     .local v5, "piiString":Ljava/lang/String;
     invoke-virtual {v3, v5}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
 
-    move-result v6
+    move-result v7
 
-    if-eqz v6, :cond_1
+    if-eqz v7, :cond_1
 
-    .line 224
-    new-instance v6, Ljava/lang/StringBuilder;
+    .line 232
+    new-instance v7, Ljava/lang/StringBuilder;
 
-    invoke-direct {v6}, Ljava/lang/StringBuilder;-><init>()V
+    invoke-direct {v7}, Ljava/lang/StringBuilder;-><init>()V
 
-    move-object/from16 v14, p4
+    invoke-virtual {v7, v10}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    invoke-virtual {v6, v14}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v7, v6}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    const-string v7, ";"
+    invoke-virtual {v7, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/Object;)Ljava/lang/StringBuilder;
 
-    invoke-virtual {v6, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+    invoke-virtual {v7, v6}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    invoke-virtual {v6, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/Object;)Ljava/lang/StringBuilder;
+    invoke-virtual {v7, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 
-    invoke-virtual {v6, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    invoke-virtual {v6, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    invoke-virtual {v6}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+    invoke-virtual {v7}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
 
     move-result-object v6
 
-    invoke-static {v13, v6}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+    invoke-static {v14, v6}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 225
+    .line 233
     const/4 v0, 0x1
 
-    goto :goto_1
-
-    .line 222
-    :cond_1
-    move-object/from16 v14, p4
-
-    .line 227
+    .line 235
     .end local v5    # "piiString":Ljava/lang/String;
-    :goto_1
+    :cond_1
     goto :goto_0
 
-    .line 221
+    .line 238
     :cond_2
-    move-object/from16 v14, p4
+    const-string v4, "\\*\\*\\*\\d{12}\\*\\*\\*"
 
-    goto :goto_2
+    invoke-static {v4}, Ljava/util/regex/Pattern;->compile(Ljava/lang/String;)Ljava/util/regex/Pattern;
 
-    .line 217
+    move-result-object v4
+
+    .line 239
+    .local v4, "pattern":Ljava/util/regex/Pattern;
+    invoke-virtual {v4, v3}, Ljava/util/regex/Pattern;->matcher(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;
+
+    move-result-object v5
+
+    invoke-virtual {v5}, Ljava/util/regex/Matcher;->find()Z
+
+    move-result v5
+
+    if-eqz v5, :cond_3
+
+    .line 241
+    new-instance v5, Ljava/lang/StringBuilder;
+
+    invoke-direct {v5}, Ljava/lang/StringBuilder;-><init>()V
+
+    invoke-virtual {v5, v10}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v5, v6}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v5, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/Object;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v5, v6}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v5, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v5}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v5
+
+    invoke-static {v14, v5}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+
+    .line 242
+    const/4 v0, 0x1
+
+    .line 248
     .end local v3    # "stringInstance":Ljava/lang/String;
+    .end local v4    # "pattern":Ljava/util/regex/Pattern;
     :cond_3
-    move-object/from16 v14, p4
-
-    .line 232
-    :goto_2
     const/4 v15, 0x1
 
     if-lt v2, v15, :cond_5
 
-    .line 233
+    .line 249
     invoke-interface/range {p3 .. p3}, Ljava/util/List;->size()I
 
     move-result v3
@@ -573,23 +608,23 @@
 
     invoke-interface {v9, v3}, Ljava/util/List;->remove(I)Ljava/lang/Object;
 
-    .line 234
+    .line 250
     if-eqz v0, :cond_4
 
-    .line 235
+    .line 251
     return p5
 
-    .line 238
+    .line 254
     :cond_4
-    return v10
+    return v11
 
-    .line 244
+    .line 260
     :cond_5
-    invoke-virtual {v11}, Ljava/lang/Class;->getDeclaredFields()[Ljava/lang/reflect/Field;
+    invoke-virtual {v12}, Ljava/lang/Class;->getDeclaredFields()[Ljava/lang/reflect/Field;
 
     move-result-object v8
 
-    .line 245
+    .line 261
     .local v8, "fields":[Ljava/lang/reflect/Field;
     array-length v7, v8
 
@@ -601,31 +636,31 @@
 
     .end local v0    # "childFoundLeak":Z
     .local v17, "childFoundLeak":Z
-    :goto_3
-    if-ge v6, v7, :cond_15
+    :goto_1
+    if-ge v6, v7, :cond_f
 
     aget-object v5, v8, v6
 
-    .line 248
+    .line 264
     .local v5, "field":Ljava/lang/reflect/Field;
     const/4 v3, 0x0
 
-    .line 251
+    .line 267
     .local v3, "canAccess":Z
     :try_start_0
     invoke-virtual {v5, v15}, Ljava/lang/reflect/Field;->setAccessible(Z)V
     :try_end_0
     .catch Ljava/lang/SecurityException; {:try_start_0 .. :try_end_0} :catch_0
 
-    .line 252
+    .line 268
     const/4 v3, 0x1
 
-    .line 266
+    .line 282
     move/from16 v18, v3
 
-    goto :goto_4
+    goto :goto_2
 
-    .line 254
+    .line 270
     :catch_0
     move-exception v0
 
@@ -633,40 +668,40 @@
 
     move-object v0, v4
 
-    .line 257
+    .line 273
     .local v0, "e":Ljava/lang/SecurityException;
     const-string v4, "opens ([\\w.]+)"
 
-    const/4 v10, 0x2
+    const/4 v11, 0x2
 
-    invoke-static {v4, v10}, Ljava/util/regex/Pattern;->compile(Ljava/lang/String;I)Ljava/util/regex/Pattern;
+    invoke-static {v4, v11}, Ljava/util/regex/Pattern;->compile(Ljava/lang/String;I)Ljava/util/regex/Pattern;
 
     move-result-object v4
 
-    .line 258
-    .local v4, "pattern":Ljava/util/regex/Pattern;
+    .line 274
+    .restart local v4    # "pattern":Ljava/util/regex/Pattern;
     invoke-virtual {v0}, Ljava/lang/SecurityException;->getMessage()Ljava/lang/String;
 
-    move-result-object v10
+    move-result-object v11
 
-    invoke-virtual {v4, v10}, Ljava/util/regex/Pattern;->matcher(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;
+    invoke-virtual {v4, v11}, Ljava/util/regex/Pattern;->matcher(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;
 
-    move-result-object v10
+    move-result-object v11
 
-    .line 259
-    .local v10, "matcher":Ljava/util/regex/Matcher;
-    invoke-virtual {v10}, Ljava/util/regex/Matcher;->find()Z
+    .line 275
+    .local v11, "matcher":Ljava/util/regex/Matcher;
+    invoke-virtual {v11}, Ljava/util/regex/Matcher;->find()Z
 
     move-result v19
 
     if-eqz v19, :cond_6
 
-    .line 260
-    invoke-virtual {v10, v15}, Ljava/util/regex/Matcher;->group(I)Ljava/lang/String;
+    .line 276
+    invoke-virtual {v11, v15}, Ljava/util/regex/Matcher;->group(I)Ljava/lang/String;
 
     move-result-object v19
 
-    .line 261
+    .line 277
     .local v19, "closedPackageName":Ljava/lang/String;
     const/4 v15, 0x2
 
@@ -688,13 +723,13 @@
 
     move-result-object v3
 
-    invoke-static {v13, v3}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+    invoke-static {v14, v3}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 262
+    .line 278
     .end local v19    # "closedPackageName":Ljava/lang/String;
-    goto :goto_4
+    goto :goto_2
 
-    .line 264
+    .line 280
     .end local v18    # "canAccess":Z
     .restart local v3    # "canAccess":Z
     :cond_6
@@ -720,19 +755,19 @@
 
     move-result-object v3
 
-    invoke-static {v13, v3}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+    invoke-static {v14, v3}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 268
+    .line 284
     .end local v0    # "e":Ljava/lang/SecurityException;
     .end local v4    # "pattern":Ljava/util/regex/Pattern;
-    .end local v10    # "matcher":Ljava/util/regex/Matcher;
-    :goto_4
-    if-eqz v18, :cond_14
+    .end local v11    # "matcher":Ljava/util/regex/Matcher;
+    :goto_2
+    if-eqz v18, :cond_e
 
-    .line 270
+    .line 286
     const/4 v0, 0x0
 
-    .line 271
+    .line 287
     .local v0, "fieldInstance":Ljava/lang/Object;
     :try_start_1
     invoke-virtual {v5}, Ljava/lang/reflect/Field;->getModifiers()I
@@ -747,7 +782,7 @@
 
     if-eqz v3, :cond_7
 
-    .line 272
+    .line 288
     const/4 v3, 0x0
 
     :try_start_2
@@ -759,20 +794,20 @@
 
     move-object v0, v3
 
-    goto :goto_5
+    goto :goto_3
 
-    .line 333
+    .line 360
     .end local v0    # "fieldInstance":Ljava/lang/Object;
     :catch_1
     move-exception v0
 
-    move-object/from16 v20, v5
+    move-object/from16 v19, v5
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
-    goto/16 :goto_a
+    goto/16 :goto_4
 
-    .line 275
+    .line 291
     .restart local v0    # "fieldInstance":Ljava/lang/Object;
     :cond_7
     :try_start_3
@@ -782,507 +817,248 @@
 
     move-object v0, v3
 
-    .line 278
-    :goto_5
+    .line 294
+    :goto_3
     if-nez v0, :cond_8
 
-    .line 279
-    move/from16 v19, v6
+    .line 295
+    move v15, v6
 
-    move/from16 v21, v7
+    move/from16 v20, v7
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
-    goto/16 :goto_b
+    goto/16 :goto_5
 
-    .line 282
+    .line 298
     :cond_8
     invoke-virtual {v0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
     move-result-object v3
 
-    move-object v10, v3
+    move-object v11, v3
 
-    .line 290
-    .local v10, "fieldClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
-    invoke-virtual {v10}, Ljava/lang/Class;->isPrimitive()Z
+    .line 306
+    .local v11, "fieldClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
+    invoke-virtual {v11}, Ljava/lang/Class;->isPrimitive()Z
 
     move-result v3
 
     if-eqz v3, :cond_9
 
-    .line 292
-    move/from16 v19, v6
+    .line 308
+    move v15, v6
 
-    move/from16 v21, v7
+    move/from16 v20, v7
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
-    goto/16 :goto_b
+    goto/16 :goto_5
 
-    .line 294
+    .line 310
     :cond_9
     sget-object v3, Ledu/utsa/sefm/heapsnapshot/Snapshot;->EXCLUDED_CLASSES:Ljava/util/List;
 
-    invoke-interface {v3, v10}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
+    invoke-interface {v3, v11}, Ljava/util/List;->contains(Ljava/lang/Object;)Z
 
     move-result v3
 
     if-eqz v3, :cond_a
 
-    .line 296
-    move/from16 v19, v6
+    .line 312
+    move v15, v6
 
-    move/from16 v21, v7
+    move/from16 v20, v7
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
-    goto/16 :goto_b
+    goto :goto_5
 
-    .line 298
+    .line 314
     :cond_a
     const-class v3, Ljava/util/Collection;
 
-    invoke-virtual {v3, v10}, Ljava/lang/Class;->isAssignableFrom(Ljava/lang/Class;)Z
+    invoke-virtual {v3, v11}, Ljava/lang/Class;->isAssignableFrom(Ljava/lang/Class;)Z
 
     move-result v3
 
-    if-eqz v3, :cond_d
+    if-eqz v3, :cond_b
 
-    .line 299
-    move-object v3, v0
+    .line 328
+    move v15, v6
 
-    check-cast v3, Ljava/util/Collection;
+    move/from16 v20, v7
 
-    move-object v15, v3
+    move-object/from16 v21, v8
 
-    .line 300
-    .local v15, "collectionInstance":Ljava/util/Collection;, "Ljava/util/Collection<*>;"
-    new-instance v3, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;
+    goto :goto_5
 
-    invoke-virtual {v10}, Ljava/lang/Class;->getName()Ljava/lang/String;
+    .line 331
+    :cond_b
+    const-class v3, Ljava/util/Map;
 
-    move-result-object v4
-
-    invoke-virtual {v5}, Ljava/lang/reflect/Field;->getName()Ljava/lang/String;
-
-    move-result-object v1
-
-    invoke-direct {v3, v4, v1}, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;-><init>(Ljava/lang/String;Ljava/lang/String;)V
-
-    invoke-interface {v9, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
-
-    .line 302
-    invoke-interface {v15}, Ljava/util/Collection;->iterator()Ljava/util/Iterator;
-
-    move-result-object v1
-
-    :goto_6
-    invoke-interface {v1}, Ljava/util/Iterator;->hasNext()Z
+    invoke-virtual {v3, v11}, Ljava/lang/Class;->isAssignableFrom(Ljava/lang/Class;)Z
 
     move-result v3
 
     if-eqz v3, :cond_c
 
-    invoke-interface {v1}, Ljava/util/Iterator;->next()Ljava/lang/Object;
+    .line 350
+    move v15, v6
 
-    move-result-object v3
+    move/from16 v20, v7
 
-    .line 303
-    .local v3, "o":Ljava/lang/Object;
-    const-string v4, "collectionElement"
+    move-object/from16 v21, v8
+
+    goto :goto_5
+
+    .line 355
+    :cond_c
+    invoke-virtual {v5}, Ljava/lang/reflect/Field;->getName()Ljava/lang/String;
+
+    move-result-object v4
     :try_end_3
     .catch Ljava/lang/IllegalAccessException; {:try_start_3 .. :try_end_3} :catch_3
 
-    add-int/lit8 v19, v2, 0x1
+    add-int/lit8 v15, v2, 0x1
 
-    move-object/from16 v20, v5
+    move-object v3, v0
+
+    move-object/from16 v19, v5
 
     .end local v5    # "field":Ljava/lang/reflect/Field;
-    .local v20, "field":Ljava/lang/reflect/Field;
-    move/from16 v5, v19
+    .local v19, "field":Ljava/lang/reflect/Field;
+    move v5, v15
 
-    move/from16 v19, v6
+    move v15, v6
 
     move-object/from16 v6, p3
 
-    move/from16 v21, v7
+    move/from16 v20, v7
 
     move-object/from16 v7, p4
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
     .end local v8    # "fields":[Ljava/lang/reflect/Field;
-    .local v22, "fields":[Ljava/lang/reflect/Field;
+    .local v21, "fields":[Ljava/lang/reflect/Field;
     move/from16 v8, p5
 
     :try_start_4
     invoke-static/range {v3 .. v8}, Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPIIRecursive(Ljava/lang/Object;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)I
 
-    move-result v4
-
-    .line 304
-    .local v4, "result":I
-    const/4 v5, -0x1
-
-    if-eq v4, v5, :cond_b
-
-    .line 305
-    const/4 v5, 0x1
-
-    move/from16 v17, v5
-
-    .line 307
-    .end local v3    # "o":Ljava/lang/Object;
-    .end local v4    # "result":I
-    :cond_b
-    move/from16 v6, v19
-
-    move-object/from16 v5, v20
-
-    move/from16 v7, v21
-
-    move-object/from16 v8, v22
-
-    goto :goto_6
-
-    .line 308
-    .end local v20    # "field":Ljava/lang/reflect/Field;
-    .end local v22    # "fields":[Ljava/lang/reflect/Field;
-    .restart local v5    # "field":Ljava/lang/reflect/Field;
-    .restart local v8    # "fields":[Ljava/lang/reflect/Field;
-    :cond_c
-    move-object/from16 v20, v5
-
-    move/from16 v19, v6
-
-    move/from16 v21, v7
-
-    move-object/from16 v22, v8
-
-    .end local v5    # "field":Ljava/lang/reflect/Field;
-    .end local v8    # "fields":[Ljava/lang/reflect/Field;
-    .restart local v20    # "field":Ljava/lang/reflect/Field;
-    .restart local v22    # "fields":[Ljava/lang/reflect/Field;
-    invoke-interface/range {p3 .. p3}, Ljava/util/List;->size()I
-
-    move-result v1
-
-    const/4 v3, 0x1
-
-    sub-int/2addr v1, v3
-
-    invoke-interface {v9, v1}, Ljava/util/List;->remove(I)Ljava/lang/Object;
-
-    .line 309
-    nop
-
-    .end local v15    # "collectionInstance":Ljava/util/Collection;, "Ljava/util/Collection<*>;"
-    goto/16 :goto_9
-
-    .line 310
-    .end local v20    # "field":Ljava/lang/reflect/Field;
-    .end local v22    # "fields":[Ljava/lang/reflect/Field;
-    .restart local v5    # "field":Ljava/lang/reflect/Field;
-    .restart local v8    # "fields":[Ljava/lang/reflect/Field;
-    :cond_d
-    move-object/from16 v20, v5
-
-    move/from16 v19, v6
-
-    move/from16 v21, v7
-
-    move-object/from16 v22, v8
-
-    .end local v5    # "field":Ljava/lang/reflect/Field;
-    .end local v8    # "fields":[Ljava/lang/reflect/Field;
-    .restart local v20    # "field":Ljava/lang/reflect/Field;
-    .restart local v22    # "fields":[Ljava/lang/reflect/Field;
-    const-class v1, Ljava/util/Map;
-
-    invoke-virtual {v1, v10}, Ljava/lang/Class;->isAssignableFrom(Ljava/lang/Class;)Z
-
-    move-result v1
-
-    if-eqz v1, :cond_12
-
-    .line 311
-    move-object v1, v0
-
-    check-cast v1, Ljava/util/Map;
-
-    .line 312
-    .local v1, "mapInstance":Ljava/util/Map;, "Ljava/util/Map<**>;"
-    new-instance v3, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;
-
-    invoke-virtual {v10}, Ljava/lang/Class;->getName()Ljava/lang/String;
-
-    move-result-object v4
-
-    invoke-virtual/range {v20 .. v20}, Ljava/lang/reflect/Field;->getName()Ljava/lang/String;
-
-    move-result-object v5
-
-    invoke-direct {v3, v4, v5}, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;-><init>(Ljava/lang/String;Ljava/lang/String;)V
-
-    invoke-interface {v9, v3}, Ljava/util/List;->add(Ljava/lang/Object;)Z
-
-    .line 313
-    invoke-interface {v1}, Ljava/util/Map;->keySet()Ljava/util/Set;
-
-    move-result-object v3
-
-    invoke-interface {v3}, Ljava/util/Set;->iterator()Ljava/util/Iterator;
-
-    move-result-object v15
-
-    :goto_7
-    invoke-interface {v15}, Ljava/util/Iterator;->hasNext()Z
-
     move-result v3
-
-    if-eqz v3, :cond_f
-
-    invoke-interface {v15}, Ljava/util/Iterator;->next()Ljava/lang/Object;
-
-    move-result-object v3
-
-    .line 314
-    .restart local v3    # "o":Ljava/lang/Object;
-    const-string v4, "mapKey"
-
-    add-int/lit8 v5, v2, 0x1
-
-    move-object/from16 v6, p3
-
-    move-object/from16 v7, p4
-
-    move/from16 v8, p5
-
-    invoke-static/range {v3 .. v8}, Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPIIRecursive(Ljava/lang/Object;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)I
-
-    move-result v4
-
-    .line 315
-    .restart local v4    # "result":I
-    const/4 v5, -0x1
-
-    if-eq v4, v5, :cond_e
-
-    .line 316
-    const/4 v5, 0x1
-
-    move/from16 v17, v5
-
-    .line 318
-    .end local v3    # "o":Ljava/lang/Object;
-    .end local v4    # "result":I
-    :cond_e
-    goto :goto_7
-
-    .line 319
-    :cond_f
-    invoke-interface {v1}, Ljava/util/Map;->values()Ljava/util/Collection;
-
-    move-result-object v3
-
-    invoke-interface {v3}, Ljava/util/Collection;->iterator()Ljava/util/Iterator;
-
-    move-result-object v15
-
-    :goto_8
-    invoke-interface {v15}, Ljava/util/Iterator;->hasNext()Z
-
-    move-result v3
-
-    if-eqz v3, :cond_11
-
-    invoke-interface {v15}, Ljava/util/Iterator;->next()Ljava/lang/Object;
-
-    move-result-object v3
-
-    .line 320
-    .restart local v3    # "o":Ljava/lang/Object;
-    const-string v4, "mapValue"
-
-    add-int/lit8 v5, v2, 0x1
-
-    move-object/from16 v6, p3
-
-    move-object/from16 v7, p4
-
-    move/from16 v8, p5
-
-    invoke-static/range {v3 .. v8}, Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPIIRecursive(Ljava/lang/Object;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)I
-
-    move-result v4
-
-    .line 321
-    .restart local v4    # "result":I
-    const/4 v5, -0x1
-
-    if-eq v4, v5, :cond_10
-
-    .line 322
-    const/16 v17, 0x1
-
-    .line 324
-    .end local v3    # "o":Ljava/lang/Object;
-    .end local v4    # "result":I
-    :cond_10
-    goto :goto_8
-
-    .line 325
-    :cond_11
-    invoke-interface/range {p3 .. p3}, Ljava/util/List;->size()I
-
-    move-result v3
-
-    const/4 v4, 0x1
-
-    sub-int/2addr v3, v4
-
-    invoke-interface {v9, v3}, Ljava/util/List;->remove(I)Ljava/lang/Object;
-
-    .line 326
-    nop
-
-    .end local v1    # "mapInstance":Ljava/util/Map;, "Ljava/util/Map<**>;"
-    goto :goto_9
-
-    .line 328
-    :cond_12
-    invoke-virtual/range {v20 .. v20}, Ljava/lang/reflect/Field;->getName()Ljava/lang/String;
-
-    move-result-object v4
-
-    add-int/lit8 v5, v2, 0x1
-
-    move-object v3, v0
-
-    move-object/from16 v6, p3
-
-    move-object/from16 v7, p4
-
-    move/from16 v8, p5
-
-    invoke-static/range {v3 .. v8}, Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPIIRecursive(Ljava/lang/Object;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)I
-
-    move-result v1
     :try_end_4
     .catch Ljava/lang/IllegalAccessException; {:try_start_4 .. :try_end_4} :catch_2
 
-    .line 329
-    .local v1, "result":I
-    const/4 v3, -0x1
+    .line 356
+    .local v3, "result":I
+    const/4 v4, -0x1
 
-    if-eq v1, v3, :cond_13
+    if-eq v3, v4, :cond_d
 
-    .line 330
+    .line 357
     const/16 v17, 0x1
 
-    .line 335
+    .line 362
     .end local v0    # "fieldInstance":Ljava/lang/Object;
-    .end local v1    # "result":I
-    .end local v10    # "fieldClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
-    :cond_13
-    :goto_9
-    goto :goto_b
+    .end local v3    # "result":I
+    .end local v11    # "fieldClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
+    :cond_d
+    goto :goto_5
 
-    .line 333
+    .line 360
     :catch_2
     move-exception v0
 
-    goto :goto_a
+    goto :goto_4
 
-    .end local v20    # "field":Ljava/lang/reflect/Field;
-    .end local v22    # "fields":[Ljava/lang/reflect/Field;
+    .end local v19    # "field":Ljava/lang/reflect/Field;
+    .end local v21    # "fields":[Ljava/lang/reflect/Field;
     .restart local v5    # "field":Ljava/lang/reflect/Field;
     .restart local v8    # "fields":[Ljava/lang/reflect/Field;
     :catch_3
     move-exception v0
 
-    move-object/from16 v20, v5
+    move-object/from16 v19, v5
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
-    .line 334
+    .line 361
     .end local v5    # "field":Ljava/lang/reflect/Field;
     .end local v8    # "fields":[Ljava/lang/reflect/Field;
     .local v0, "e":Ljava/lang/IllegalAccessException;
-    .restart local v20    # "field":Ljava/lang/reflect/Field;
-    .restart local v22    # "fields":[Ljava/lang/reflect/Field;
-    :goto_a
-    new-instance v1, Ljava/lang/RuntimeException;
+    .restart local v19    # "field":Ljava/lang/reflect/Field;
+    .restart local v21    # "fields":[Ljava/lang/reflect/Field;
+    :goto_4
+    new-instance v3, Ljava/lang/RuntimeException;
 
-    invoke-direct {v1, v0}, Ljava/lang/RuntimeException;-><init>(Ljava/lang/Throwable;)V
+    invoke-direct {v3, v0}, Ljava/lang/RuntimeException;-><init>(Ljava/lang/Throwable;)V
 
-    throw v1
+    throw v3
 
-    .line 268
+    .line 284
     .end local v0    # "e":Ljava/lang/IllegalAccessException;
-    .end local v20    # "field":Ljava/lang/reflect/Field;
-    .end local v22    # "fields":[Ljava/lang/reflect/Field;
+    .end local v19    # "field":Ljava/lang/reflect/Field;
+    .end local v21    # "fields":[Ljava/lang/reflect/Field;
     .restart local v5    # "field":Ljava/lang/reflect/Field;
     .restart local v8    # "fields":[Ljava/lang/reflect/Field;
-    :cond_14
-    move-object/from16 v20, v5
+    :cond_e
+    move-object/from16 v19, v5
 
-    move/from16 v19, v6
+    move v15, v6
 
-    move/from16 v21, v7
+    move/from16 v20, v7
 
-    move-object/from16 v22, v8
+    move-object/from16 v21, v8
 
-    .line 245
+    .line 261
     .end local v5    # "field":Ljava/lang/reflect/Field;
     .end local v8    # "fields":[Ljava/lang/reflect/Field;
     .end local v18    # "canAccess":Z
-    .restart local v22    # "fields":[Ljava/lang/reflect/Field;
-    :goto_b
-    add-int/lit8 v6, v19, 0x1
+    .restart local v21    # "fields":[Ljava/lang/reflect/Field;
+    :goto_5
+    add-int/lit8 v6, v15, 0x1
 
-    move-object/from16 v1, p0
+    move/from16 v7, v20
 
-    move/from16 v7, v21
+    move-object/from16 v8, v21
 
-    move-object/from16 v8, v22
-
-    const/4 v10, -0x1
+    const/4 v11, -0x1
 
     const/4 v15, 0x1
 
-    goto/16 :goto_3
+    goto/16 :goto_1
 
-    .line 340
-    .end local v22    # "fields":[Ljava/lang/reflect/Field;
+    .line 367
+    .end local v21    # "fields":[Ljava/lang/reflect/Field;
     .restart local v8    # "fields":[Ljava/lang/reflect/Field;
-    :cond_15
-    move-object/from16 v22, v8
+    :cond_f
+    move-object/from16 v21, v8
 
     .end local v8    # "fields":[Ljava/lang/reflect/Field;
-    .restart local v22    # "fields":[Ljava/lang/reflect/Field;
+    .restart local v21    # "fields":[Ljava/lang/reflect/Field;
     invoke-interface/range {p3 .. p3}, Ljava/util/List;->size()I
 
     move-result v0
 
-    const/4 v1, 0x1
+    const/4 v3, 0x1
 
-    sub-int/2addr v0, v1
+    sub-int/2addr v0, v3
 
     invoke-interface {v9, v0}, Ljava/util/List;->remove(I)Ljava/lang/Object;
 
-    .line 341
-    if-eqz v17, :cond_16
+    .line 368
+    if-eqz v17, :cond_10
 
-    .line 342
+    .line 369
     return p5
 
-    .line 345
-    :cond_16
-    const/4 v1, -0x1
+    .line 372
+    :cond_10
+    const/4 v3, -0x1
 
-    return v1
+    return v3
 .end method
 
 .method public static largeLog(Ljava/lang/String;Ljava/lang/String;)V
@@ -1290,7 +1066,7 @@
     .param p0, "tag"    # Ljava/lang/String;
     .param p1, "content"    # Ljava/lang/String;
 
-    .line 366
+    .line 407
     invoke-virtual {p1}, Ljava/lang/String;->length()I
 
     move-result v0
@@ -1299,7 +1075,7 @@
 
     if-le v0, v1, :cond_0
 
-    .line 367
+    .line 408
     const/4 v0, 0x0
 
     invoke-virtual {p1, v0, v1}, Ljava/lang/String;->substring(II)Ljava/lang/String;
@@ -1308,7 +1084,7 @@
 
     invoke-static {p0, v0}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 368
+    .line 409
     invoke-virtual {p1, v1}, Ljava/lang/String;->substring(I)Ljava/lang/String;
 
     move-result-object v0
@@ -1317,11 +1093,85 @@
 
     goto :goto_0
 
-    .line 370
+    .line 411
     :cond_0
     invoke-static {p0, p1}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
-    .line 372
+    .line 413
+    :goto_0
+    return-void
+.end method
+
+.method public static logHarnessedSource(Ljava/lang/Object;Ljava/lang/String;)V
+    .locals 5
+    .param p0, "original_return_value"    # Ljava/lang/Object;
+    .param p1, "message"    # Ljava/lang/String;
+
+    .line 377
+    const-string v0, "HarnessedSource"
+
+    .line 378
+    .local v0, "HARNESSED_SOURCE_TAG":Ljava/lang/String;
+    invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
+
+    move-result-object v1
+
+    .line 379
+    .local v1, "objClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
+    const-class v2, Ljava/lang/String;
+
+    invoke-virtual {v1, v2}, Ljava/lang/Object;->equals(Ljava/lang/Object;)Z
+
+    move-result v2
+
+    const-string v3, ";"
+
+    if-eqz v2, :cond_0
+
+    .line 380
+    move-object v2, p0
+
+    check-cast v2, Ljava/lang/String;
+
+    .line 382
+    .local v2, "original_return_value_cast":Ljava/lang/String;
+    new-instance v4, Ljava/lang/StringBuilder;
+
+    invoke-direct {v4}, Ljava/lang/StringBuilder;-><init>()V
+
+    invoke-virtual {v4, p1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v4, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v4, v2}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v4}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v3
+
+    invoke-static {v0, v3}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+
+    .line 383
+    .end local v2    # "original_return_value_cast":Ljava/lang/String;
+    goto :goto_0
+
+    .line 385
+    :cond_0
+    new-instance v2, Ljava/lang/StringBuilder;
+
+    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
+
+    invoke-virtual {v2, p1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-static {v0, v2}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+
+    .line 388
     :goto_0
     return-void
 .end method
@@ -1336,18 +1186,18 @@
         }
     .end annotation
 
-    .line 38
+    .line 45
     new-instance v0, Lorg/json/JSONObject;
 
     invoke-direct {v0}, Lorg/json/JSONObject;-><init>()V
 
-    .line 40
+    .line 47
     .local v0, "resultJson":Lorg/json/JSONObject;
     invoke-virtual {p0}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
 
     move-result-object v1
 
-    .line 41
+    .line 48
     .local v1, "objClass":Ljava/lang/Class;, "Ljava/lang/Class<*>;"
     invoke-virtual {v1}, Ljava/lang/Class;->getName()Ljava/lang/String;
 
@@ -1357,7 +1207,7 @@
 
     invoke-virtual {v0, v3, v2}, Lorg/json/JSONObject;->put(Ljava/lang/String;Ljava/lang/Object;)Lorg/json/JSONObject;
 
-    .line 42
+    .line 49
     invoke-virtual {v1}, Ljava/lang/Class;->getModifiers()I
 
     move-result v2
@@ -1366,7 +1216,7 @@
 
     invoke-virtual {v0, v3, v2}, Lorg/json/JSONObject;->put(Ljava/lang/String;I)Lorg/json/JSONObject;
 
-    .line 44
+    .line 51
     invoke-virtual {p0}, Ljava/lang/Object;->hashCode()I
 
     move-result v2
@@ -1375,12 +1225,12 @@
 
     invoke-virtual {v0, v3, v2}, Lorg/json/JSONObject;->put(Ljava/lang/String;I)Lorg/json/JSONObject;
 
-    .line 47
+    .line 54
     invoke-virtual {v1}, Ljava/lang/Class;->getDeclaredFields()[Ljava/lang/reflect/Field;
 
     move-result-object v2
 
-    .line 52
+    .line 59
     .local v2, "fields":[Ljava/lang/reflect/Field;
     array-length v3, v2
 
@@ -1391,29 +1241,29 @@
 
     aget-object v5, v2, v4
 
-    .line 53
+    .line 60
     .local v5, "field":Ljava/lang/reflect/Field;
     invoke-virtual {v5}, Ljava/lang/reflect/Field;->getName()Ljava/lang/String;
 
     move-result-object v6
 
-    .line 57
+    .line 64
     .local v6, "fieldName":Ljava/lang/String;
     const/4 v7, 0x1
 
     invoke-virtual {v5, v7}, Ljava/lang/reflect/Field;->setAccessible(Z)V
 
-    .line 80
+    .line 87
     const/4 v8, 0x1
 
-    .line 81
+    .line 88
     .local v8, "canAccess":Z
     if-eqz v8, :cond_3
 
-    .line 84
+    .line 91
     const/4 v9, 0x0
 
-    .line 85
+    .line 92
     .local v9, "child":Ljava/lang/Object;
     :try_start_0
     invoke-virtual {v5}, Ljava/lang/reflect/Field;->getModifiers()I
@@ -1428,7 +1278,7 @@
 
     if-eqz v10, :cond_0
 
-    .line 86
+    .line 93
     invoke-virtual {v5, v11}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
 
     move-result-object v10
@@ -1437,7 +1287,7 @@
 
     goto :goto_1
 
-    .line 89
+    .line 96
     :cond_0
     invoke-virtual {v5, p0}, Ljava/lang/reflect/Field;->get(Ljava/lang/Object;)Ljava/lang/Object;
 
@@ -1445,11 +1295,11 @@
 
     move-object v9, v10
 
-    .line 93
+    .line 100
     :goto_1
     if-nez v9, :cond_1
 
-    .line 94
+    .line 101
     move-object v7, v11
 
     check-cast v7, Ljava/util/Map;
@@ -1458,11 +1308,11 @@
 
     goto :goto_2
 
-    .line 97
+    .line 104
     :cond_1
     if-le p1, v7, :cond_2
 
-    .line 98
+    .line 105
     add-int/lit8 v7, p1, -0x1
 
     invoke-static {v9, v7}, Ledu/utsa/sefm/heapsnapshot/Snapshot;->takeSnapshot(Ljava/lang/Object;I)Lorg/json/JSONObject;
@@ -1473,7 +1323,7 @@
 
     goto :goto_2
 
-    .line 101
+    .line 108
     :cond_2
     const-string v7, "*"
 
@@ -1481,16 +1331,16 @@
     :try_end_0
     .catch Ljava/lang/IllegalAccessException; {:try_start_0 .. :try_end_0} :catch_0
 
-    .line 106
+    .line 113
     .end local v9    # "child":Ljava/lang/Object;
     :goto_2
     goto :goto_3
 
-    .line 104
+    .line 111
     :catch_0
     move-exception v3
 
-    .line 105
+    .line 112
     .local v3, "e":Ljava/lang/IllegalAccessException;
     new-instance v4, Ljava/lang/RuntimeException;
 
@@ -1498,7 +1348,7 @@
 
     throw v4
 
-    .line 52
+    .line 59
     .end local v3    # "e":Ljava/lang/IllegalAccessException;
     .end local v5    # "field":Ljava/lang/reflect/Field;
     .end local v6    # "fieldName":Ljava/lang/String;
@@ -1509,7 +1359,7 @@
 
     goto :goto_0
 
-    .line 110
+    .line 117
     :cond_4
     return-object v0
 .end method

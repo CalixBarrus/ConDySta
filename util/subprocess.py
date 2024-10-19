@@ -23,7 +23,6 @@ def run_command(args: List['str'], redirect_stdout: str = "",
 
     try:
         if redirect_stdout == "":
-            # TODO: how to view stderr with the exception that gets thrown?
             completed_process = subprocess.run(args,
                                             capture_output=True,
                                             check=True,
@@ -59,8 +58,10 @@ def run_command(args: List['str'], redirect_stdout: str = "",
                 return ""
     except subprocess.CalledProcessError as e:
         logger.error("Error running command: " + debug_cmd)
-        logger.error("STDERR: " + str(e.stderr))
-        logger.debug("STDOUT:" + str(e.stdout))
+        if str(e.stderr) != "":
+            logger.error("STDERR First Line: " + str(e.stderr).splitlines()[0])
+        if str(e.stdout) != "":
+            logger.error("STDOUT First Line: " + str(e.stdout).splitlines()[0])
         raise e
 
 def run_command_direct(args: List['str']) -> None:

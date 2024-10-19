@@ -24,8 +24,15 @@ public class Snapshot {
     // private static final int INSPECTION_DEPTH = 3;
     // private static final int INSPECTION_DEPTH = 2;
     private static final int INSPECTION_DEPTH = 1;
-     // mint_mobile_SIM_id, nexus_6_IMEI, serial #, advertising ID, Wifi Mac Address, Bluetooth mac address, google account email, google account password
+    private static final boolean CHECK_COLLECTION_ELEMENTS = false;
+    private static final boolean CHECK_MAP_ELEMENTS = false;
+
+    // Personally identifiable information known a priori
+    // mint_mobile_SIM_id, nexus_6_IMEI, serial #, advertising ID, Wifi Mac Address, Bluetooth mac address, google account email, google account password
     private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396", "ZX1H22KHQK", "b91481e8-4bfc-47ce-82b6-728c3f6bff60", "f8:cf:c5:d1:02:e8", "f8:cf:c5:d1:02:e7", "tester.sefm@gmail.com", "Class-Deliver-Put-Earn-5");
+
+    private static final String HARNESSED_PII_PATTERN = "\\*\\*\\*\\d{12}\\*\\*\\*";
+
     private static final List<Class<?>> EXCLUDED_CLASSES = Arrays.asList(Integer.class, Long.class, Double.class, Boolean.class);
     private static final String TAG = "Snapshot";
     private static final String DEBUG_TAG = "Snap-Debug";
@@ -218,12 +225,21 @@ public class Snapshot {
             // Access contents of object
             String stringInstance = (String) instance;
 
+            // Check against PII
             for (String piiString: PII) {
                 if (stringInstance.contains(piiString)) {
                     // Tainted String found!
                     Log.d(TAG, invocationDescription + ";" + accessPath + ";" + stringInstance);
                     childFoundLeak = true;
                 }
+            }
+
+            // Check against regex pattern 
+            Pattern pattern = Pattern.compile(HARNESSED_PII_PATTERN);
+            if (pattern.matcher(stringInstance).find()) {
+                // Tainted String found!
+                Log.d(TAG, invocationDescription + ";" + accessPath + ";" + stringInstance);
+                childFoundLeak = true;
             }
 
         }
@@ -296,18 +312,24 @@ public class Snapshot {
                         continue;
                     }
                     else if (Collection.class.isAssignableFrom(fieldClass)) {
-                        Collection<?> collectionInstance = (Collection<?>) fieldInstance;
-                        accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
+                        if (CHECK_COLLECTION_ELEMENTS) {
+                            Collection<?> collectionInstance = (Collection<?>) fieldInstance;
+                            accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
 
-                        for (Object o : collectionInstance) {
-                            int result = checkObjectForPIIRecursive(o, "collectionElement", curDepth+1, accessPath, invocationDescription, localCallID);
-                            if (result != -1) {
-                                childFoundLeak = true;
+                            for (Object o : collectionInstance) {
+                                int result = checkObjectForPIIRecursive(o, "collectionElement", curDepth+1, accessPath, invocationDescription, localCallID);
+                                if (result != -1) {
+                                    childFoundLeak = true;
+                                }
                             }
+                            accessPath.remove(accessPath.size()-1);
                         }
-                        accessPath.remove(accessPath.size()-1);
+                        else {
+                            continue;
+                        }
                     }
                     else if (Map.class.isAssignableFrom(fieldClass)) {
+                        if (CHECK_MAP_ELEMENTS) {
                         Map<?, ?> mapInstance = (Map<?, ?>) fieldInstance;
                         accessPath.add(new FieldInfo(fieldClass.getName(), field.getName()));
                         for (Object o : mapInstance.keySet()) {
@@ -323,6 +345,11 @@ public class Snapshot {
                             }
                         }
                         accessPath.remove(accessPath.size()-1);
+                        }
+                        else {
+                            continue;
+                        }
+
                     }
                     else {
                         int result = checkObjectForPIIRecursive(fieldInstance, field.getName(), curDepth+1, accessPath, invocationDescription, localCallID);
@@ -344,6 +371,20 @@ public class Snapshot {
         else {
             return -1;
         }
+    }
+
+    public static void logHarnessedSource(Object original_return_value, String message) {
+        String HARNESSED_SOURCE_TAG = "HarnessedSource";
+        Class<?> objClass = original_return_value.getClass();
+        if (objClass.equals(String.class)) {
+            String original_return_value_cast = (String) original_return_value;
+            
+            Log.d(HARNESSED_SOURCE_TAG, message + ";" + original_return_value_cast);    
+        }
+        else {
+            Log.d(HARNESSED_SOURCE_TAG, message + ";");    
+        }
+
     }
 
     private static class FieldInfo {

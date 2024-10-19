@@ -41,13 +41,14 @@ def rebuild_apk(decoded_apks_directory_path: str, rebuilt_apks_directory_path: s
             os.remove(apk_path(rebuilt_apks_directory_path, apk))
             logger.debug(f"Instrumented APK {apk.apk_name} already present, deleting.")
 
-    cmd = ["apktool",  "-JXmx1g", "--quiet",
+    cmd = ["apktool",  "-JXmx1g",
            "b", decoded_apk_path(decoded_apks_directory_path, apk),
            "-o", apk_path(rebuilt_apks_directory_path, apk),
            "--use-aapt2"]
 
     logger.debug(" ".join(cmd))
-    run_command(cmd)
+    apk_tool_message = run_command(cmd)
+    logger.debug(apk_tool_message)
 
 if __name__ == '__main__':
     pass

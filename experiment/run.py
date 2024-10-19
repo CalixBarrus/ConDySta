@@ -4,7 +4,7 @@ import os
 import time
 from typing import Callable, Dict, List
 from experiment.benchmarks import recent_instrumented_apps_for_wild_benchmark
-from experiment.common import benchmark_description_path_from_benchmark_files, benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_fossdroid_files, get_wild_benchmarks, setup_additional_directories, setup_experiment_dir
+from experiment.common import benchmark_description_path_from_benchmark_files, benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_fossdroid_files, get_wild_benchmarks, setup_additional_directories, setup_experiment_dir, subset_setup_generic
 from hybrid.hybrid_config import apk_logcat_output_path, apk_path
 from intercept.install import check_device_is_ready, clean_apps_off_phone, get_package_name, install_apk, list_installed_3rd_party_apps, uninstall_apk
 from intercept.monkey import _clear_logcat, _dump_logcat, force_stop_app, test_apk_manual, test_apk_method_factory, test_apk_monkey
@@ -17,23 +17,24 @@ logger = util.logger.get_logger(__name__)
 
 
 def install_few_apps_for_integration_testing():
-    apks_subset = [1, 2]
-    install_apps_for_integration_testing(apks_subset, "small")
+    install_apps_for_integration_testing("small")
 
 def install_all_apps_for_integration_testing():
-    apks_subset = None
-    install_apps_for_integration_testing(apks_subset, "full")
+    install_apps_for_integration_testing("full")
 
-def install_apps_for_integration_testing(apks_subset: List[int], size: str):
+def install_apps_for_integration_testing(size: str):
     if not check_device_is_ready():
         raise AssertionError("ADB Can't find devices")
 
     # for instrumented_apks_dir_path, name in [(instrumented_fossdroid_apks_dir_path, "fossdroid"), (instrumented_gpbench_apks_dir_path, "gpbench")]:
     for benchmark_files in get_wild_benchmarks():
+        experiment_args = subset_setup_generic(benchmark_files, size)
+        ids_subset = experiment_args["ids_subset"]
+
         instrumented_apks_dir_path = recent_instrumented_apps_for_wild_benchmark(benchmark_files, size)
 
         # description = f"Running instrumented apps from {name} benchmark"
-        install_apps(instrumented_apks_dir_path, benchmark_files, apks_subset)   
+        install_apps(instrumented_apks_dir_path, benchmark_files, ids_subset)   
 
 
 
@@ -45,30 +46,44 @@ def install_original_fossdroid_apps(apks_subset=None):
 
 
 def monkey_test_few_apps_recording_output():
-    apks_subset = [2,13]
-    execute_apps_each_benchmark(apks_subset, "small", "monkey")
+
+    execute_apps_each_benchmark("small", "monkey")
 
 def monkey_test_all_apps_recording_output():
-    apks_subset = None
-    execute_apps_each_benchmark(apks_subset, "full", "monkey")
+
+    execute_apps_each_benchmark("full", "monkey")
 
 def manual_test_few_apps_recording_output():
-    apks_subset = [1,2]
-    execute_apps_each_benchmark(apks_subset, "small", "manual")
+
+    execute_apps_each_benchmark("small", "manual")
 
 def manual_test_all_apps_recording_output():
-    apks_subset = None
-    execute_apps_each_benchmark(apks_subset, "full", "manual")
+    execute_apps_each_benchmark("full", "manual")
 
-def test_apps_spot_check():
-    pass
+def test_apps_spot_check(benchmark_files: Dict[str, str], size_description: str,  apks_dir_path: str):
+    execution_input_approach = "monkey"
+    test_apk_method = test_apk_method_factory(execution_input_approach, {"seconds_to_test": 5})
 
-def execute_apps_each_benchmark(apks_subset: List[int], size_description: str, execution_input_approach: str):
+    experiment_args = subset_setup_generic(benchmark_files, size_description)
+    ids_subset = experiment_args["ids_subset"]
+
+    name = benchmark_files["benchmark_name"]
+    
+    experiment_name = f"execution-spotcheck-{size_description}-{name}"
+    description = f"Running instrumented apps from {name} benchmark"
+
+    execute_apps_generic_experiment(apks_dir_path, benchmark_files, experiment_name, description, ids_subset, test_apk_method)
+
+def execute_apps_each_benchmark(size_description: str, execution_input_approach: str):
 
     test_apk_method = test_apk_method_factory(execution_input_approach, {})
 
     # for instrumented_apks_dir_path, name in [(instrumented_fossdroid_apks_dir_path, "fossdroid"), (instrumented_gpbench_apks_dir_path, "gpbench")]:
     for benchmark_files in get_wild_benchmarks():
+
+        experiment_args = subset_setup_generic(benchmark_files, size_description)
+        ids_subset = experiment_args["ids_subset"]
+
         instrumented_apks_dir_path = recent_instrumented_apps_for_wild_benchmark(benchmark_files, size_description)
 
         name = benchmark_files["benchmark_name"]
@@ -76,7 +91,7 @@ def execute_apps_each_benchmark(apks_subset: List[int], size_description: str, e
         experiment_name = f"execution-{size_description}-{name}"
         description = f"Running instrumented apps from {name} benchmark"
 
-        execute_apps_generic_experiment(instrumented_apks_dir_path, benchmark_files, experiment_name, description, apks_subset, test_apk_method)
+        execute_apps_generic_experiment(instrumented_apks_dir_path, benchmark_files, experiment_name, description, ids_subset, test_apk_method)
 
     
     

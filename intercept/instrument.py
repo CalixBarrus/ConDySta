@@ -3,17 +3,24 @@ from dataclasses import dataclass, field
 import os
 import re
 import shutil
-from typing import List, Tuple
+from typing import Callable, List, Tuple, Union
 
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
+from hybrid.source_sink import MethodSignature
 from util.input import ApkModel
 from util.subprocess import run_command
 
 import util.logger
 logger = util.logger.get_logger(__name__)
 
+SMALI_STRING_CLASS_NAME: str = "Ljava/lang/String;"
+
+# TODO: instrumentation manager. Registers an ordered list of strategies. For each file, Code insertion models are collected from each strategy and then inserted. 
+# insertions at the same target line will be done in the order that the strategies were registered, so do read strategies before write strategies. 
+
 class SmaliInstrumentationStrategy(ABC):
-    def instrument_file(self, smali_file: 'SmaliFile'):
+
+    def instrument_file(self, smali_file: 'SmaliFile') -> List['CodeInsertionModel']:
         """Hook gets called on each SmaliFile model in a given DecodedApkModel"""
         raise NotImplementedError("Interface not implemented")
 
@@ -34,7 +41,7 @@ class SmaliInstrumentationStrategy(ABC):
         raise NotImplementedError("Interface not implemented")
 
 # def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
-def instrument_batch(decoded_apks_directory_path: str, instrumentation_strategy: str, apks: List[ApkModel]):
+def instrument_batch(decoded_apks_directory_path: str, instrumentation_strategy: List[SmaliInstrumentationStrategy], apks: List[ApkModel]):
 
     # Read in and parse decoded apks
     decoded_apk_models: List[DecodedApkModel] = []
@@ -44,13 +51,15 @@ def instrument_batch(decoded_apks_directory_path: str, instrumentation_strategy:
     # We may later decide to save the decoded_apk_models for use in interpreting dynamic analysis results
 
 # def instrument_apk(config: HybridAnalysisConfig, apk: ApkModel) -> 'DecodedApkModel':
-def instrument_apk(decoded_apks_directory_path: str, instrumentation_strategy: str, apk: ApkModel) -> 'DecodedApkModel':
-    instrumentation_strategy: SmaliInstrumentationStrategy = instrumentation_strategy_factory(instrumentation_strategy)
+def instrument_apk(decoded_apks_directory_path: str, instrumenters: List[SmaliInstrumentationStrategy], apk: ApkModel) -> 'DecodedApkModel':
+
+    # TODO: in theory, this factory should get called after the start of the experiment, but outside of the business layer, so it can be transparent via experiment args how this is being constructed exactly.
+    # instrumenters: List[SmaliInstrumentationStrategy] = [instrumentation_strategy_factory(instrumentation_strategy) for instrumentation_strategy in instrumentation_strategies]
     # decoded_apks_directory_path = config._decoded_apks_path
 
     decoded_apk_model = DecodedApkModel(decoded_apk_path(decoded_apks_directory_path, apk))
 
-    decoded_apk_model.instrument(instrumentation_strategy)
+    decoded_apk_model.instrument(instrumenters)
 
     return decoded_apk_model
 
@@ -166,49 +175,32 @@ class DecodedApkModel:
 
         return result_smali_file_paths
 
+    def instrument(self, instrumenters: List[SmaliInstrumentationStrategy]):
+        for instrumenter in instrumenters:
+            if instrumenter.needs_to_insert_directory():
+                self.insert_smali_directory(instrumenter.path_to_directory())
 
-    # def scan_for_smali_files(self, project_smali_folder_path: str,
-    #                          class_path: str) -> "SmaliFile":
-    #     # """
-    #     # Recursively traverse the subdirectories of
-    #     # project_smali_folder_path, getting the methods in each smali file.
-    #     # :param project_smali_folder_path: path to the "smali" or
-    #     # "smali_classes[n]" directory.
-    #     # :param class_path: relative path referring to the subdirectories
-    #     # traversed so far.
-    #     # :return: List of SmaliFile objects containing data about each file in the apk
-    #     # """
-    #     # result_smali_files: List[SmaliFile] = []
-    #     # for item in os.listdir(os.path.join(project_smali_folder_path,
-    #     #                                     class_path)):
-    #     #     item_path = os.path.join(project_smali_folder_path, class_path,
-    #     #                              item)
-    #     #     if os.path.isdir(item_path):
-    #     #         result_smali_files += self.scan_for_smali_files(
-    #     #             project_smali_folder_path,
-    #     #             os.path.join(class_path, item))
-
-    #     #     elif item.endswith(".smali"):
-    #     #         result_smali_files.append(SmaliFile(
-    #     #             project_smali_folder_path, class_path, item))
-
-    #     return result_smali_files
-
-    def instrument(self, instrumenter: SmaliInstrumentationStrategy):
-        if instrumenter.needs_to_insert_directory():
-            self.insert_smali_directory(instrumenter.path_to_directory())
-
+        insertions_count = [0] * len(instrumenters)
         for smali_directory in self.smali_directories:
             for smali_file in smali_directory:
-                instrumenter.instrument_file(smali_file)
+
+                # Apply each instrumentation strategy
+                insertions = []
+                for index, instrumenter in enumerate(instrumenters):
+                    new_insertions = instrumenter.instrument_file(smali_file)
+                    insertions_count[index] += len(new_insertions)
+                    insertions += new_insertions
+
+                
+                smali_file.insert_code(insertions)
+
+        logger.debug(f"Instrumenters performed {",".join([str(count) for count in insertions_count])} code insertions, respectively on apk {os.path.basename(self.apk_root_path)}")
 
         self.is_instrumented = True
 
-    def insert_smali_directory(self, smali_source_directory_path):
-        """
-        :param smali_source_directory_path: path to smali code that will be inserted
-        (copied) into the apk
-        """
+    def insert_smali_directory(self, smali_source_directory_path: str):
+        # TODO this could get called twice for two different instrumentation strategies
+
         if not os.path.isdir(smali_source_directory_path):
             raise ValueError(
                 "Directory " + smali_source_directory_path + " does not exist.")
@@ -467,6 +459,7 @@ class SmaliFile:
         else:
             raise NotImplementedError()
 
+    # TODO: This is used by two instrumentation strategies, both of whom need to get compeletely refactored to use the same ideas as more recent instrumentation approaches. 
     def insert_code_into_method(self, code,
                                 method_number, destination_line_number,
                                 used_registers):
@@ -498,11 +491,14 @@ class SmaliFile:
                 method_number].locals_line_number] = f"    .locals {self.methods[method_number].number_of_locals + num_used_registers}\n"
 
     def insert_code(self, code_insertions: List['CodeInsertionModel']):
+
+
         with open(self.file_path, 'r') as file:
             contents = file.readlines()
 
         # Sort insertions by reverse line number so after each insertion, the line
         # numbers of subsequent insertions are still valid.
+        # TODO: If two or more insertion models have the same line number, they MUST stay in that relative order. Need to verify that this is the case!
         code_insertions.sort(key=lambda c: c.line_number, reverse=True)
 
         additional_registers_used = 0
@@ -739,7 +735,7 @@ class SmaliMethodInvocation:
     
     def explicit_argument_types_to_listed_argument_types(self) -> List[str]:
         smali_argument_register_types: List[str] = self.argument_register_types_pre
-        is_static: bool = self.is_static_invoke
+        is_static: bool = self.is_static_invoke()
 
         # Change wide types to take 1 register instead of two
         result_types = smali_argument_register_types.copy()
@@ -879,7 +875,10 @@ class SmaliMethodInvocation:
             return result
         
         if self.move_result_register in self.argument_registers:
-            result[self.argument_registers.index(self.move_result_register)] = True
+            # Register can be used more than once in argument registers
+            matches = [i for i in range(len(self.argument_registers)) if self.argument_registers[i] == self.move_result_register]
+            for i in matches:
+                result[i] = True
         
         if SmaliMethodInvocation.is_wide_datatype(self.return_type):
             next_register = parent_method.get_next_register(self.move_result_register)
@@ -1156,7 +1155,7 @@ class StringReturnInstrumentationStrategy(SmaliInstrumentationStrategy):
 class LogStringReturnInstrumentationStrategy(SmaliInstrumentationStrategy):
 
     def instrument_file(self, smali_file: 'SmaliFile'):
-        SMALI_STRING_CLASS_NAME = "Ljava/lang/String;"
+        # TODO: This needs to be refactored to return code insertion models!!
 
         # Note: the smali file object and the text it models will be changing
         # between iterations in these loops
@@ -1211,10 +1210,9 @@ class LogStringReturnInstrumentationStrategy(SmaliInstrumentationStrategy):
 class StringReturnValuesInstrumentationStrategy(
     SmaliInstrumentationStrategy):
 
-    def instrument_file(self, smali_file: 'SmaliFile'):
-        SMALI_STRING_CLASS_NAME = "Ljava/lang/String;"
-
+    def instrument_file(self, smali_file: 'SmaliFile') -> List[CodeInsertionModel]:
         # Scan through the file and note all of the code that must be inserted.
+
 
         code_insertions: List[CodeInsertionModel] = []
 
@@ -1258,8 +1256,8 @@ class StringReturnValuesInstrumentationStrategy(
                     #                         [method_instr_registers[0]]))
 
             # smali_file.update_method_preamble(method_index, method_instr_registers)
-
-        smali_file.insert_code(code_insertions)
+        return code_insertions
+        # smali_file.insert_code(code_insertions)
         # for code, method_index, line_number, registers in code_insertions.__reversed__():
         #     smali_file.insert_code_into_method(code, method_index,
         #                                        line_number,
@@ -1273,39 +1271,22 @@ class StringReturnValuesInstrumentationStrategy(
                              "directories.")
 
 
-class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
-    SmaliInstrumentationStrategy):
+class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(SmaliInstrumentationStrategy):
 
     static_function_signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPII(Ljava/lang/Object;Ljava/lang/String;)I"
 
-    def __init__(self):
+    def __init__(self, do_instrument_args):
         self.invocation_id = -1
 
-    def instrument_file(self, smali_file: 'SmaliFile'):
-        code_insertions: List[CodeInsertionModel] = []
+        self.do_instrument_args = do_instrument_args
 
-        for method_index, method in enumerate(smali_file.methods):
+    def instrument_file(self, smali_file: 'SmaliFile') -> List[CodeInsertionModel]:
+        code_insertions = instrument_by_invocation(smali_file, self._instrument_invocation_statement)
+        return code_insertions
 
-            # Skip abstract methods
-            if method.is_abstract:
-                continue
-
-            try:
-                method_instr_registers = smali_file.get_registers(
-                    method_index, 1)
-            except ValueError:
-                # If the method has too many registers used,
-                # don't instrument it
-                continue
-
-            for invocation_statement in method.invocation_statements:
-                self.invocation_id += 1
-
-                code_insertions += self._instrument_invocation_statement(method_index, method, method_instr_registers, invocation_statement, self.invocation_id)
-
-        smali_file.insert_code(code_insertions)
-
-    def _instrument_invocation_statement(self, method_index: int, method: SmaliMethod, method_instr_registers: List[str], invocation_statement: SmaliMethodInvocation, invocation_id: int) -> List[CodeInsertionModel]:
+    def _instrument_invocation_statement(self, method_index: int, method: SmaliMethod, method_instrumentation_registers: List[str], invocation_statement: SmaliMethodInvocation) -> List[CodeInsertionModel]:
+        self.invocation_id += 1
+        invocation_id = self.invocation_id
         code_insertions: List[CodeInsertionModel] = []
 
         # If arg type is an object before, it can be instrumented
@@ -1338,65 +1319,66 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
                 is_static=invocation_statement.is_static_invoke(), 
             )
         
-        def add_code_insertion(cur_report, cur_register):
-            code = invoke_static_heapsnapshot_function(cur_report,
+        def build_code_insertion(cur_report, cur_register) -> CodeInsertionModel:
+            code = invoke_static_function(repr(cur_report),
                                                         cur_register,
-                                                        method_instr_registers[0],
+                                                        method_instrumentation_registers[0],
                                                         self.static_function_signature)
 
             # Place code after move_result if there is one, otherwise place code after invoke
             target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
 
-            code_insertions.append(CodeInsertionModel(code, method_index,
+            return CodeInsertionModel(code, method_index,
                                                         target_line_number,
-                                                        method_instr_registers))
+                                                        method_instrumentation_registers) 
 
-        # First consider invocation argument registers
-        is_arg_register = True
-        for register_index, register in enumerate(invocation_statement.argument_registers):
+        if self.do_instrument_args:
+            # consider invocation argument registers
+            for register_index, register in enumerate(invocation_statement.argument_registers):
 
-            ### Begin Checks
-            skip_instr_before = False
-            skip_instr_after = False
+                ### Begin Checks
+                skip_instr_before = False
+                skip_instr_after = False
 
-            # Skip Primitive types
-            
-            if not SmaliMethodInvocation.is_object_datatype(invocation_statement.argument_register_types_pre[register_index]):
-                continue
-
-            # If it's a constructor, the first register will be unallocated before the invocation
-            if invocation_statement.method_name == "<init>" and register_index == 0:
-                skip_instr_before = True
-
-
-            # Don't instrument a register (as an argument register) after the call if it's overwritten by the move result
-            if args_overriden_by_return[register_index]:
-                skip_instr_after = True
-                # TODO: in the future, we may want to use an extra variable(s) to store the up to two overwritten variables to check them after
+                # Skip Primitive types
                 
+                if not SmaliMethodInvocation.is_object_datatype(invocation_statement.argument_register_types_pre[register_index]):
+                    continue
 
-            ### End checks
-            if not skip_instr_before:
-                report.invocation_argument_register_index = register_index
-                report.is_before_invoke = True
-                report.invocation_argument_register_name = register
-                report.invocation_argument_register_type = invocation_statement.argument_register_types_pre[register_index]
-                code = invoke_static_heapsnapshot_function(report,
-                                                           register,
-                                                           method_instr_registers[0],
-                                                           self.static_function_signature)
+                # If it's a constructor, the first register will be unallocated before the invocation
+                if invocation_statement.method_name == "<init>" and register_index == 0:
+                    skip_instr_before = True
 
-                code_insertions.append(CodeInsertionModel(code, method_index,
-                                                          invocation_statement.invoke_line_number,
-                                                          method_instr_registers))
 
-            if not skip_instr_after:
-                report.invocation_argument_register_index = register_index
-                report.is_before_invoke=False
-                report.invocation_argument_register_name = register
-                report.invocation_argument_register_type = invocation_statement.argument_register_types_pre[register_index]
+                # Don't instrument a register (as an argument register) after the call if it's overwritten by the move result
+                if args_overriden_by_return[register_index]:
+                    skip_instr_after = True
+                    # TODO: in the future, we may want to use an extra variable(s) to store the up to two overwritten variables to check them after
+                    
 
-                add_code_insertion(report, register)
+                ### End checks
+                if not skip_instr_before:
+                    report.invocation_argument_register_index = register_index
+                    report.is_before_invoke = True
+                    report.invocation_argument_register_name = register
+                    report.invocation_argument_register_type = invocation_statement.argument_register_types_pre[register_index]
+                    code = invoke_static_function(repr(report),
+                                                            register,
+                                                            method_instrumentation_registers[0],
+                                                            self.static_function_signature)
+
+                    code_insertions.append(CodeInsertionModel(code, method_index,
+                                                            invocation_statement.invoke_line_number,
+                                                            method_instrumentation_registers))
+
+                if not skip_instr_after:
+                    report.invocation_argument_register_index = register_index
+                    report.is_before_invoke=False
+                    report.invocation_argument_register_name = register
+                    report.invocation_argument_register_type = invocation_statement.argument_register_types_pre[register_index]
+
+                    code_insertions.append(build_code_insertion(report, register))
+                
                 
         # Next, consider the return register
         if invocation_statement.move_result_line_number > -1 and SmaliMethodInvocation.is_object_datatype(invocation_statement.return_type):
@@ -1413,8 +1395,7 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
                     invocation_argument_register_type=invocation_statement.return_type,
                     is_static=invocation_statement.is_static_invoke(),
                 )
-            
-            add_code_insertion(report, invocation_statement.move_result_register)
+            code_insertions.append(build_code_insertion(report, invocation_statement.move_result_register))
 
         return code_insertions
 
@@ -1427,14 +1408,140 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(
         dest = os.path.join("data/intercept/smali-files/heap-snapshot")
         return dest
 
+# TODO this is used by two Instrumentation Strategies. It should probably fit in the class somehow.
+def instrument_by_invocation(smali_file: SmaliFile, instrument_invocation: Callable[[int, SmaliMethod, List[str], SmaliMethodInvocation], List[CodeInsertionModel]]) -> List[CodeInsertionModel]:
+    code_insertions: List[CodeInsertionModel] = []
+
+    for method_index, method in enumerate(smali_file.methods):
+
+        # Skip abstract methods
+        if method.is_abstract:
+            continue
+
+        try:
+            method_instrumentation_registers = smali_file.get_registers(
+                method_index, 1)
+        except ValueError:
+            # If the method has too many registers used,
+            # don't instrument it
+            continue
+
+        for invocation_statement in method.invocation_statements:
+
+            code_insertions += instrument_invocation(method_index, method, method_instrumentation_registers, invocation_statement)
+
+    return code_insertions
+    
 
 class ObserveSourceSinks(SmaliInstrumentationStrategy):
     # Do sources / sink get hit during the dynamic run? 
     # What do sources produce? What to sinks receive?
-    pass
+    def __init__(self, sources, sinks):
+        pass
+
+    # Before specific methods are hit, print a simple message. (no need for java code)
+
+    # At sources, if they have a return register, examine it. 
+    # At sinks, if they have arg registers, examine them.
+    # This examination can use recursive field checking. The printing of this message is NOT conditional on if the string is tainted or not.
+
 
 class HarnessSources(SmaliInstrumentationStrategy):
-    pass
+    # Overwrite the returns of the following sources (who return strings) with traceable strings that can be picked up by other instrumentation strategies. 
+    sources_to_instrument: List[MethodSignature]
+    invocation_id: int
+
+    def __init__(self, sources: List[MethodSignature]):
+        self.sources_to_instrument = sources
+        self.invocation_id = -1
+
+
+
+        # identify smali invocations on source method. 
+        # check if invocation has return
+        # if so, 
+        # Use temp register to send log that method has returned, and it's register is being overwritten with the value. 
+        # after return, place string in temp register. Overwrite return register with temp register.
+        # For now, don't send message if method is called but the source string isn't used.
+
+        # make sure other instrumentation strategies are printing out what the private value was. 
+
+    def instrument_file(self, smali_file: 'SmaliFile') -> List[CodeInsertionModel]:
+
+        code_insertions = instrument_by_invocation(smali_file, self._instrument_invocation_statement)
+
+        return code_insertions
+
+
+    def _instrument_invocation_statement(self, method_index: int, method: SmaliMethod, method_instrumentation_registers: List[str], invocation_statement: SmaliMethodInvocation) -> List[CodeInsertionModel]:
+        self.invocation_id += 1
+        invocation_id = self.invocation_id
+
+        overwrite_return = False
+
+        # Is the method being invoked on our list of sources? 
+
+        if any(not self._compare_invocation_and_signature(invocation_statement, source) for source in self.sources_to_instrument):
+            return []
+        
+        if overwrite_return:
+            # create harnessed private string
+
+            # Is the method being invoked returning a string? (assert True)
+            assert invocation_statement.return_type == SMALI_STRING_CLASS_NAME
+
+            harness_id = invocation_id
+            harness_value = f"***{harness_id:012d}***"
+            report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Return is being replaced with {harness_value}. Previous value was:"
+        else:
+            report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Previous value was:"
+        # Java code will append ";" + contents of return register 
+        return_register = invocation_statement.move_result_register
+        empty_register = method_instrumentation_registers[0]
+
+        # TODO: in theory, we could save in the python code what harness_id's correspond to what source methods, but in *theory*, the harnessed values should only come up if the harnessed code gets hit, so we don't need to. We should be able to pull all the relevant information from the logs.
+    
+        # code insertion to put log message in register and print it to log
+        code_insertions = []
+        signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->logHarnessedSource(Ljava/lang/Object;Ljava/lang/String;)V"
+        code = invoke_static_function(report, return_register, empty_register, signature)
+        target_line_number = invocation_statement.move_result_line_number + 1
+        code_insertion_log_report = CodeInsertionModel(code, method_index,
+                                                        target_line_number,
+                                                        method_instrumentation_registers)
+        code_insertions.append(code_insertion_log_report)
+
+        if overwrite_return:
+            # code insertion to overwrite string
+            code = overwrite_object_register_with_value(return_register, empty_register, harness_value)
+            code_insertion_overwrite_result = CodeInsertionModel(code, method_index,
+                                                            target_line_number,
+                                                            method_instrumentation_registers)
+            code_insertions.append(code_insertion_overwrite_result)
+                      
+        return code_insertions
+    
+    @staticmethod
+    def _compare_invocation_and_signature(invocation: SmaliMethodInvocation, signature: MethodSignature):
+
+        # # debug
+        # logger.debug(f"Comparing methods {invocation.get_java_style_signature()} and {str(signature)}")
+        # # end debug
+
+        if (SmaliMethodInvocation.smali_type_to_java_type(invocation.class_name) != signature.base_type 
+                or invocation.method_name != signature.method_name):
+            return False
+
+        if invocation.get_java_style_signature() != str(signature):
+            # Not sure how problematic this tbh
+            logger.warning(f"Treating smali method invocation {invocation.get_java_style_signature()} as equivalent to source signature {str(signature)}.")
+        
+        return True
+
+    def needs_to_insert_directory(self) -> bool:
+        # This strategy DOES rely on decompiled code, but right now it's paired with StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy, and that strategy should get all the relevant code inserted. 
+        return False
+
 
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,
                                      method_number: int, instrumentation_id: int):
@@ -1533,17 +1640,23 @@ invoke-virtual {{{v2}}}, Ljava/lang/Exception;->printStackTrace()V
 """
 
 
-def invoke_static_heapsnapshot_function(report: InstrumentationReport,
-                                        register_to_analyze, empty_register, static_function_signature: str):
+def invoke_static_function(report: str, register_to_analyze: str, empty_register: str, static_function_signature: str):
     # static_function_signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->checkObjectForPII(Ljava/lang/Object;Ljava/lang/String;)I"
+    # "Ledu/utsa/sefm/heapsnapshot/Snapshot;->logHarnessedSource(Ljava/lang/Object;Ljava/lang/String;)V"
     return f"""
-    const-string {empty_register}, "{repr(report)}"
+    const-string {empty_register}, "{report}"
     invoke-static {{{register_to_analyze}, {empty_register}}}, {static_function_signature}
+"""
+
+def overwrite_object_register_with_value(dest_register: str, source_register: str, value: str) -> str:
+    return f"""
+    const-string {source_register}, "{value}"
+    move-object {dest_register}, {source_register}
 """
 
 
 def instrumentation_strategy_factory(
-        strategy_name: str) -> \
+        strategy_name: str, sources_to_harness_list: str = "") -> \
         'SmaliInstrumentationStrategy':
     
     if strategy_name == \
@@ -1557,10 +1670,30 @@ def instrumentation_strategy_factory(
         return StringReturnValuesInstrumentationStrategy()
     elif strategy_name == \
             "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy":
-        return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy()
+        # TODO: this should be controlled by experiment inputs & visible to experiment setup procedure 
+        do_instrument_args = False
+        
+        logger.info(f"do_instrument_args = {do_instrument_args}")
+        return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(do_instrument_args)
+    elif strategy_name == \
+            "HarnessSources":
+        # TODO: this should be handled in a more transparent way, like maybe pass in a file path, and have the text in sources_to_harness be written down in the data folder
+        assert sources_to_harness_list != ""
+        signatures = sources_to_harness(sources_to_harness_list)
+        logger.info(f"Harnessing sources on list of {len(signatures)} method signatures")
+        return HarnessSources(signatures)
     else:
         raise ValueError(f"Invalid instrumentation strategy:"
                          f" {strategy_name}")
+
+def sources_to_harness(sources_list: str) -> List[MethodSignature]:
+
+    with open(sources_list, "r") as file:
+        sources_text = file.read()
+    signatures = [MethodSignature.from_source_string(line.strip()) for line in sources_text.splitlines()]
+    return signatures
+
+    
 
 if __name__ == '__main__':
     pass

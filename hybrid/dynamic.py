@@ -206,8 +206,14 @@ class InstrReportReturnAndArgsDynamicLogProcessingStrategy(LogcatProcessingStrat
 
 def get_selected_errors_from_logcat(logcat_path: str) -> str:
     logcat_file_model = LogcatLogFileModel(logcat_path)
-
-    return ";".join(logcat_file_model.get_app_not_responding_errors()) + ";".join(logcat_file_model.get_class_not_found_errors())
+    
+    errors = []
+    errors += logcat_file_model.get_lang_verify_errors()
+    errors += logcat_file_model.get_fatal_exception_errors()
+    errors += logcat_file_model.get_app_not_responding_errors()
+    errors += logcat_file_model.get_class_not_found_errors()
+    return ";".join(errors)
+    
 
 class LogcatLogFileModel:
     path: str
@@ -262,11 +268,14 @@ class LogcatLogFileModel:
         return exceptions
 
     def scan_log_for_instrumentation_reports(self) -> List['InstrumentationReport']:
+        return [report for report, _, _ in self.scan_log_for_instrumentation_report_tuples()]
+
+    def scan_log_for_instrumentation_report_tuples(self) -> List[Tuple['InstrumentationReport', str, str]]:
         # "Example 07-21 12:46:10.902  7001  7001 D Snapshot: InstrumentationReport(invoke_signature='<Lc..."
 
         report_tag = " D Snapshot: "
         report_preamble = report_tag + "InstrumentationReport("
-        instr_reports = []
+        instr_report_tuples = []
 
         for line in self.lines:
             if report_preamble in line:
@@ -284,9 +293,15 @@ class LogcatLogFileModel:
                 # access_path is the str representation of a List<FieldInfo> object, defined in Snapshot.Java
                 # private_string is the listed string of PII that was detected by the Snapshot code
                 instr_report = eval(instr_report_string)
-                instr_reports.append(instr_report)
+                instr_report_tuples.append((instr_report, access_path, private_string))
 
-        return instr_reports
+        return instr_report_tuples
+    
+    def scan_log_for_harnessed_source_calls(self) -> List[Tuple[int, str]]:
+        log_tag = "I HarnessedSource: "
+        message_preamble = "Source Method "
+
+        return self._get_log_messages(self.lines, log_tag, message_preamble)
 
 
     def scan_log_for_stack_traces(self):
@@ -299,21 +314,38 @@ class LogcatLogFileModel:
         # 10-08 10:15:31.142  1124  1437 I InputDispatcher: Application is not responding: AppWindowToken{4c9da02 token=Token{8068ee4 ActivityRecord{6fd5277 u0 eu.kanade.tachiyomi/.ui.main.MainActivity t2558}}}.  It has been 5006.4ms since event, 5004.4ms since wait started.  Reason: Waiting because no window has focus but there is a focused application that may eventually add a window when it finishes starting up.
         log_tag = "I InputDispatcher: "
         error_preamble = "Application is not responding: "
-        errors = [f"App Not Responding Error on line {i} in log {self.path}" for i, line in self._get_error_messages(self.lines, log_tag, error_preamble)]
+        errors = [f"App Not Responding Error on line {i} in log {self.path}" for i, line in self._get_log_messages(self.lines, log_tag, error_preamble)]
         return errors
 
-    def get_class_not_found_errors(self: str) -> List[str]:
+    def get_class_not_found_errors(self) -> List[str]:
         # Example line
         # 10-07 19:25:30.130  6540  6540 I art     : Caused by: java.lang.ClassNotFoundException: Didn't find class "android.os.ProxyFileDescriptorCallback" on path: DexPathList[[zip file "/data/app/com.google.android.gm-1/base.apk", zip file "/data/app/com.google.android.gm-1/split_config.armeabi_v7a.apk", zip file "/data/app/com.google.android.gm-1/split_config.en.apk", zip file "/data/app/com.google.android.gm-1/split_config.xxxhdpi.apk"],nativeLibraryDirectories=[/data/app/com.google.android.gm-1/lib/arm, /data/app/com.google.android.gm-1/base.apk!/lib/armeabi-v7a, /data/app/com.google.android.gm-1/split_config.armeabi_v7a.apk!/lib/armeabi-v7a, /data/app/com.google.android.gm-1/split_config.en.apk!/lib/armeabi-v7a, /data/app/com.google.android.gm-1/split_config.xxxhdpi.apk!/lib/armeabi-v7a, /system/lib, /vendor/lib]]
         log_tag = " I art     : "
         error_preamble = "Caused by: java.lang.ClassNotFoundException: Didn't find class "
-        errors = [f"Class Not Found Exception on line {i} in log {self.path}" for i, line in self._get_error_messages(self.lines, log_tag, error_preamble)]
+        errors: List[Tuple[int, str]] = self._get_log_messages(self.lines, log_tag, error_preamble)
+        return [f"Class Not Found Exceptions {len(errors)} times on lines [{",".join([str(i) for i, line in errors])}] of log."]
+    
+    def get_lang_verify_errors(self) -> List[str]:
+        # 10-15 12:58:58.195 10477 10477 E ACRA    : Caused by: java.lang.VerifyError: Verifier rejected class android.support.v7.widget.RecyclerView$4: void android.support.v7.widget.RecyclerView$4.processPersistent(android.support.v7.widget.RecyclerView$ViewHolder, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo) failed to verify: void android.support.v7.widget.RecyclerView$4.processPersistent(android.support.v7.widget.RecyclerView$ViewHolder, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo): [0x4B] register v3 has type Boolean but expected Reference: java.lang.Object (declaration of 'android.support.v7.widget.RecyclerView$4' appears in /data/app/eu.kanade.tachiyomi-1/base.apk)
+        log_tag = " E ACRA    : "
+        error_preamble = "Caused by: java.lang.VerifyError: Verifier rejected class "
+        errors = [f"Verify Error on line {i} in log {self.path}" for i, line in self._get_log_messages(self.lines, log_tag, error_preamble)]
         return errors
 
-    def _get_error_messages(self, lines: str, log_tag: str, error_preamble: str) -> List[Tuple[int, str]]:
+    def get_fatal_exception_errors(self) -> List[str]:
+        # 10-17 12:02:27.954 23083 23104 E AndroidRuntime: FATAL EXCEPTION: Queue
+
+        log_tag = " E AndroidRuntime: "
+        error_preamble = "FATAL EXCEPTION: "
+        errors = [f"Fatal Exception on line {i} in log." for i, line in self._get_log_messages(self.lines, log_tag, error_preamble)]
+        return errors
+
+
+
+    def _get_log_messages(self, lines: str, log_tag: str, message_preamble: str) -> List[Tuple[int, str]]:
         errors = []
         for i, line in enumerate(lines):
-            if log_tag + error_preamble in line:
+            if log_tag + message_preamble in line:
                 errors.append((i, line.split(log_tag)[1]))
 
         return errors

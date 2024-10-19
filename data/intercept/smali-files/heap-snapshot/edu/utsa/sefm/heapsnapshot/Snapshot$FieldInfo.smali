@@ -26,16 +26,16 @@
     .param p1, "fieldClassName"    # Ljava/lang/String;
     .param p2, "fieldName"    # Ljava/lang/String;
 
-    .line 353
+    .line 394
     invoke-direct {p0}, Ljava/lang/Object;-><init>()V
 
-    .line 354
+    .line 395
     iput-object p1, p0, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;->fieldClassName:Ljava/lang/String;
 
-    .line 355
+    .line 396
     iput-object p2, p0, Ledu/utsa/sefm/heapsnapshot/Snapshot$FieldInfo;->fieldName:Ljava/lang/String;
 
-    .line 356
+    .line 397
     return-void
 .end method
 
@@ -44,7 +44,7 @@
 .method public toString()Ljava/lang/String;
     .locals 2
 
-    .line 361
+    .line 402
     new-instance v0, Ljava/lang/StringBuilder;
 
     invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V

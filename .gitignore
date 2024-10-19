@@ -18,6 +18,8 @@ data/sources-and-sinks/modified/*
 data/experiments
 data/ic3_output
 data/temp
+data/logger/condysta.log
+data/logger/condysta.log*
 
 .DS_Store
 .vscode
@@ -43,3 +45,4 @@ HeapSnapshot/local.properties
 *.zip
 
 .ipynb_checkpoints
+.pytest_cache

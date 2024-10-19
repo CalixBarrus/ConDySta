@@ -7,6 +7,7 @@ import os
 from experiment import external_path
 from hybrid.flowdroid import FlowdroidArgs
 from hybrid.source_sink import create_source_sink_file_ssgpl
+from intercept.instrument import SmaliInstrumentationStrategy, instrumentation_strategy_factory
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
 
 import util.logger
@@ -34,7 +35,20 @@ def get_gpbench_files() -> Dict[str,str]:
             "benchmark_dir_path": gpbench_apks_dir_path, 
             "ground_truth_xml_path": ground_truth_xml_path, 
             "benchmark_description_path": gpbench_description_path,
-            "source_sink_list_path": get_ssgpl_list(),
+            "source_sink_list_path": get_ssgpl_list_path(),
+            }
+
+def get_droidbench_files_paths3() -> Dict[str, str]:
+    droidbench_apks_dir_path: str = external_path.droidbench_apks_dir_path
+    # ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/gpbench_ground_truth.xml"
+    # gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
+    "data/sources-and-sinks/SS-Bench.txt"
+    return {
+            "benchmark_name": "droidbench3",
+            "benchmark_dir_path": droidbench_apks_dir_path, 
+            # "ground_truth_xml_path": ground_truth_xml_path, 
+            # "benchmark_description_path": gpbench_description_path,
+            "source_sink_list_path": get_droidbench_ss_list_path(),
             }
 
 def get_flowdroid_file_paths() -> Dict[str, str]:
@@ -46,49 +60,81 @@ def get_flowdroid_file_paths() -> Dict[str, str]:
             "android_path": android_path,
             }
 
+
 def get_wild_benchmarks() -> List[Dict[str, str]]:
     fossdroid_files: Dict[str, str] = get_fossdroid_files()
     gpbench_files: Dict[str, str] = get_gpbench_files()
 
     # return [fossdroid_files]
-    return [gpbench_files]
-    # return [fossdroid_files, gpbench_files]
+    # return [gpbench_files]
+    return [fossdroid_files, gpbench_files]
 
 #### End External & Data File Paths Settings
 
 #### Start Flowdroid Experiment Settings
 
+def subset_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str, str]:
+    # Set "ids_subset" and "always_new_experiment_directory"
+    # "always_new_experiment_directory" will be False for "small", True for the rest
+
+    benchmark_name = benchmark_files["benchmark_name"]
+    experiment_args = {} | benchmark_files
+
+    if type == "small":
+        if benchmark_name == "gpbench":
+            # experiment_args["ids_subset"] = [2,13]
+            experiment_args["ids_subset"] = [1,2,3,4]
+        elif benchmark_name == "fossdroid":
+            experiment_args["ids_subset"] = [0,1,2,3]
+        elif benchmark_name == "droidbench3":
+            experiment_args["ids_subset"] = [0,1]
+        experiment_args["always_new_experiment_directory"] = False
+
+    elif type == "full":
+
+        if benchmark_name == "gpbench":
+            experiment_args["ids_subset"] = list(range(1,20))
+        elif benchmark_name == "fossdroid":
+            experiment_args["ids_subset"] = None
+        elif benchmark_name == "droidbench3":
+            experiment_args["ids_subset"] = None
+        experiment_args["always_new_experiment_directory"] = True
+    elif type == "several":
+        if benchmark_name == "gpbench":
+            experiment_args["ids_subset"] = list(range(1,5))
+        elif benchmark_name == "fossdroid":
+            experiment_args["ids_subset"] = list(range(0,4))
+        elif benchmark_name == "droidbench3":
+            experiment_args["ids_subset"] = list(range(0,4))
+        experiment_args["always_new_experiment_directory"] = True
+    elif type == "misc":
+        # Don't set anything. Errors will help users figure out what they need to set.
+        pass
+    else:
+        assert False
+
+    return experiment_args
+
 def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str, str]:
     experiment_args = {} | get_flowdroid_file_paths()
 
+    # experiment_args = experiment_args | benchmark_files
+    # Set "ids_subset" and "always_new_experiment_directory"
+    experiment_args = experiment_args | subset_setup_generic(benchmark_files, type)
+
+    # benchmark_name = benchmark_files["benchmark_name"]
+
     experiment_args["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.default_settings)
     
-    # benchmark_name = benchmark_files["benchmark_name"]
-    # if benchmark_name == "gpbench":
-    #     experiment_args = experiment_args | get_gpbench_files()
-    # elif benchmark_name == "fossdroid":
-    #     experiment_args = experiment_args | get_fossdroid_files()
-    # else:
-    #     assert False
-
-    experiment_args = experiment_args | benchmark_files
-    benchmark_name = benchmark_files["benchmark_name"]
-
-
     if type == "small":
-        experiment_args["timeout"] = 5 * 60
-        if benchmark_name == "gpbench":
-            experiment_args["ids_subset"] = [2,13]
-        elif benchmark_name == "fossdroid":
-            experiment_args["ids_subset"] = [0,1]
-        experiment_args["always_new_experiment_directory"] = False
+        # Don't tweak "timeout" if it was already set by the client.
+        if "timeout" not in experiment_args.keys:
+            experiment_args["timeout"] = 5 * 60
+        
     elif type == "full":
-        experiment_args["timeout"] = 60 * 60
-        if benchmark_name == "gpbench":
-            experiment_args["ids_subset"] = pd.Series(range(1,20))
-        elif benchmark_name == "fossdroid":
-            experiment_args["ids_subset"] = None
-        experiment_args["always_new_experiment_directory"] = True
+        if "timeout" not in experiment_args.keys:
+                experiment_args["timeout"] = 60 * 60
+
     elif type == "misc":
         # Don't set anything. Errors will help users figure out what they need to set.
         pass
@@ -99,9 +145,47 @@ def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[
 
 ### End flowdroid experiment settings 
 
+def instrumentation_arguments_default(benchmark_files: Dict[str, str]=None) -> Dict[str, str]:
+    # TODO: This doesn't account for the need to harness different sources for gpbench spyware scenario
+
+    if benchmark_files is None:
+        instrumentation_strategy = ["StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"]
+        return instrumentation_strategy
+
+    instrumentation_strategy = ["StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy", "HarnessSources"]    
+
+    arguments = {"instrumentation_strategy": instrumentation_strategy}
+
+    if "HarnessSources" in instrumentation_strategy:
+        harness_sources_directory = os.path.join(get_project_root_path(), "data", "harness-sources")
+        if benchmark_files["benchmark_name"] == "gpbench":
+            harness_sources_path = os.path.join(harness_sources_directory, "gpbench-harness-sources.txt")
+        elif benchmark_files["benchmark_name"] == "fossdroid":
+            harness_sources_path = os.path.join(harness_sources_directory, "fossdroid-harness-sources.txt")
+        arguments["harness_sources"] = harness_sources_path
+
+    return arguments
+
+def instrumentation_strategy_factory_wrapper(**kwargs) -> List[SmaliInstrumentationStrategy]:
+    # TODO: harness sources strategy in theory needs app specific information on which sources to harness (login vs. spyware scenario)
+    # This method should contain the logic called inside an experiment for creating the dependency for instrumentation that will be injected.
+
+    instrumentation_strategies = kwargs["instrumentation_strategy"]
+    if not isinstance(instrumentation_strategies, list):
+        instrumentation_strategies = [instrumentation_strategies]
+
+    instrumenters: List[SmaliInstrumentationStrategy] = []
+    for strategy_name in instrumentation_strategies:
+        if "HarnessSources" == strategy_name:
+            instrumenters.append(instrumentation_strategy_factory(strategy_name, kwargs["harness_sources"]))
+        else: 
+            instrumenters.append(instrumentation_strategy_factory(strategy_name))
+     
+    return instrumenters
+
 
 #### Start Internal File Stuff
-def get_ssgpl_list():
+def get_ssgpl_list_path():
     """ Generate the file path where SS-GooglePlayLogin.txt is expected. Generate it if it's not present."""
     sources_sinks_dir_path = source_sink_dir_path() # type: ignore
     ssgpl_list_path = os.path.join(sources_sinks_dir_path, "SS-GooglePlayLogin.txt")
@@ -110,6 +194,10 @@ def get_ssgpl_list():
         create_source_sink_file_ssgpl(ssgpl_list_path)
 
     return ssgpl_list_path
+
+def get_droidbench_ss_list_path() -> str:
+    # "data/sources-and-sinks/SS-Bench.txt"
+    return os.path.join(get_project_root_path(), "data", "sources-and-sinks", "SS-Bench.txt")
 
 def get_fossdroid_source_sink_list_path() -> str:
     project_root = get_project_root_path()
@@ -209,19 +297,21 @@ def next_available_directory_name(base_directory_path: str, new_directory_name: 
 
     return available_directory_name
     
-def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: str) -> str:
+def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: str, filter_word: str="") -> str:
     experiments_directory_path = os.path.join(get_project_root_path(), "data", "experiments")
 
     # directory_base_name = "execution-test-"
 
     filtered_names = [directory_name for directory_name in os.listdir(experiments_directory_path) if base_name in directory_name and size in directory_name and benchmark_name in directory_name]
+    if filter_word != "":
+        filtered_names = [name for name in filtered_names if filter_word in name]
     filtered_names.sort()
 
     assert len(filtered_names) != 0
 
     result = os.path.join(experiments_directory_path, filtered_names[-1])
 
-    logger.debug(f"Looked up recent directory: {result}")
+    logger.debug(f"Looked up recent directory: {result} from {filtered_names}")
     return result
 
 def source_sink_dir_path() -> str:
@@ -353,4 +443,11 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_descripti
     return results_df
 
 
-
+if __name__ == "__main__":
+    benchmark_files = get_droidbench_files_paths3()
+    benchmark_directory_path = benchmark_files["benchmark_dir_path"]
+    # benchmark_description_csv_path = benchmark_files[""]
+    inputs_model = input_apks_from_dir(benchmark_directory_path)
+    # benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=benchmark_description_csv_path)
+    benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model)
+    benchmark_df.to_csv("droidbench3-test.csv")

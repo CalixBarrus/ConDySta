@@ -118,10 +118,17 @@ def test_apk_method_factory(execution_input_approach: str, monkey_kwargs: Dict[s
     default_seconds_to_test = 5
     default_force_stop_when_finished = True
 
+    seconds_to_test = default_seconds_to_test
+
+    if "seconds_to_test" in monkey_kwargs.keys():
+        seconds_to_test = monkey_kwargs["seconds_to_test"]
+
     if execution_input_approach == "monkey": 
-        f = lambda apk_model, logcat_output_path: test_apk_monkey(apk_model, seconds_to_test=default_seconds_to_test, logcat_output_path=logcat_output_path, force_stop_when_finished=default_force_stop_when_finished)
+        # seconds_to_test = 60
+
+        f = lambda apk_model, logcat_output_path: test_apk_monkey(apk_model, seconds_to_test=seconds_to_test, logcat_output_path=logcat_output_path, force_stop_when_finished=default_force_stop_when_finished)
     elif execution_input_approach == "manual":
-        f = lambda apk_model, logcat_output_path: test_apk_manual(apk_model, seconds_to_test=default_seconds_to_test, logcat_output_path=logcat_output_path, force_stop_when_finished=default_force_stop_when_finished)
+        f = lambda apk_model, logcat_output_path: test_apk_manual(apk_model, seconds_to_test=seconds_to_test, logcat_output_path=logcat_output_path, force_stop_when_finished=default_force_stop_when_finished)
     else: 
         assert False
 
@@ -164,7 +171,7 @@ def test_apk_monkey(apk_model: ApkModel, seconds_to_test: int, logcat_output_pat
         except CalledProcessError as e:
             error_msg = f"Error when running {apk_package_name}, check logcat dump"
 
-            logger.error(error_msg)
+            logger.error(error_msg.splitlines())
 
             logger.debug(f"Forcing app {apk_package_name} to stop")
             force_stop_app(apk_package_name)

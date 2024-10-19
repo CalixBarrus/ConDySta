@@ -3,7 +3,7 @@
 import os
 from subprocess import TimeoutExpired
 import time
-from typing import Callable, Tuple
+from typing import Callable, List, Tuple
 import xml.etree.ElementTree as ET
 import pandas as pd
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, logger, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
@@ -11,9 +11,10 @@ from hybrid.dynamic import LogcatLogFileModel, LogcatProcessingStrategy, get_sel
 from hybrid.flow import Flow, compare_flows
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
 
-from hybrid.hybrid_config import apk_logcat_output_path, source_sink_file_path
+from hybrid.hybrid_config import apk_logcat_output_path, source_sink_file_path, text_file_path
 from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_analysis_error, get_flowdroid_flows, get_flowdroid_memory, get_flowdroid_reported_leaks_count
 from hybrid.source_sink import SourceSink, SourceSinkSignatures
+from intercept.instrument import InstrumentationReport
 from util.input import input_apks_from_dir
 import util.logger
 logger = util.logger.get_logger(__name__)
@@ -82,6 +83,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
 
     observed_source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["observed-source-sinks"])[0]
     source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["augmented-source-sinks"])[0]
+    observed_strings_directory_path: str = setup_additional_directories(experiment_dir_path, ["observed-strings"])[0]
 
     original_source_sinks: SourceSinkSignatures = SourceSinkSignatures.from_file(kwargs["source_sink_list_path"])
 
@@ -106,11 +108,21 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         # TODO: this assumes all the inputs in benchmark_df are also present in the indicated logcat directory
         observed_source_sinks: SourceSinkSignatures = logcat_processing_strategy.sources_from_log(possible_logcat_file_path)
 
-        results_df.loc[i, "Instrumentation Reports"] = len(LogcatLogFileModel(possible_logcat_file_path).scan_log_for_instrumentation_reports())
+        logcat_model = LogcatLogFileModel(possible_logcat_file_path)
+        instrumentation_report_tuples: List[InstrumentationReport] = logcat_model.scan_log_for_instrumentation_report_tuples()
+        results_df.loc[i, "Instrumentation Reports"] = len(instrumentation_report_tuples)
         results_df.loc[i, "Discovered Sources"] = observed_source_sinks.source_count()
         source_sink_file = source_sink_file_path(observed_source_sink_directory_path, input_model)
         observed_source_sinks.write_to_file(source_sink_file)
         results_df.loc[i, "Observed Sources Path"] = source_sink_file
+
+        harnessed_source_calls = logcat_model.scan_log_for_harnessed_source_calls()
+        results_df.loc[i, "Harnessed Source Calls Count"] = len(harnessed_source_calls)
+        harness_calls_path = text_file_path(observed_strings_directory_path, input_model)
+        with open(harness_calls_path, 'w') as out_file:
+            out_file.write("\n".join([f"String '{observed_string}' observed by report {str(report)}" for report, _, observed_string in instrumentation_report_tuples]))
+            out_file.write(f"\nObserved {len(harnessed_source_calls)} calls to harnessed sources:\n")
+            out_file.write("\n".join([f"Log line {i}, message {line}" for i, line in harnessed_source_calls]))
 
         augmented_source_sinks: SourceSinkSignatures = observed_source_sinks.union(original_source_sinks)
         source_sink_file = source_sink_file_path(source_sink_directory_path, input_model)

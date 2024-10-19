@@ -1,0 +1,12 @@
+<android.content.ClipData$Item: java.lang.CharSequence getText()> -> _SOURCE_
+<android.content.ContentResolver: android.database.Cursor query(android.net.Uri,java.lang.String[],java.lang. String, java.lang.String[],java.lang.String)> -> _SOURCE_
+<android.location.Location: double getLatitude()> -> _SOURCE_
+<android.location.Location: double getLongitude()> -> _SOURCE_
+<android.telephony.TelephonyManager: java.lang.String getDeviceId()> -> _SOURCE_
+<android.telephony.TelephonyManager: java.lang.String getLine1Number()> -> _SOURCE_
+<android.telephony.TelephonyManager: java.lang.String getNetworkCountryIso()> -> _SOURCE_
+<java.util.Locale: java.lang.String getCountry()> -> _SOURCE_
+<java.util.Locale: java.lang.String getLanguage()> -> _SOURCE_
+<android.telephony.SmsManager: void sendTextMessage(java.lang.String,java.lang.String,java.lang.String, android.app.PendingIntent,android.app.PendingIntent)> -> _SINK_
+<java.io.BufferedWriter: void write(java.lang.String)> -> _SINK_
+<java.io.OutputStream: void write(byte[])> -> _SINK_

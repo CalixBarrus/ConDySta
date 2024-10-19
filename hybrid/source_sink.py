@@ -331,7 +331,7 @@ class SourceSinkXML(SourceSink):
 
 
 class MethodSignature:
-    # TODO: chagne name to JavaStyleMethodSignature?
+    # TODO: change name to JavaStyleMethodSignature?
     # Stores a string of the form
     # <[full package name]: [return type] [method name]([arg types,])>
     signature: str
@@ -375,8 +375,8 @@ class MethodSignature:
     #     return f"<{self.base_type}: {self.return_type} " \
     #            f"{self.method_name}({','.join(self.arg_types)})> -> _SOURCE_\n"
 
-    @classmethod
-    def from_source_string(cls, line: str) -> "MethodSignature":
+    @staticmethod
+    def from_source_string(line: str) -> "MethodSignature":
         """
         Parse the given string into a Source Model Object, and return the
         model object.
@@ -403,7 +403,7 @@ class MethodSignature:
             function_chunks = signature.strip()[:-len(
                 "android.permission.READ_PHONE_STATE")].strip()
 
-        return cls.from_java_style_signature(signature)
+        return MethodSignature.from_java_style_signature(signature)
         # signature = line_chunks[0]
         #
         # # a small handful of lines break the above pattern. Example:
@@ -441,8 +441,8 @@ class MethodSignature:
         #
         # return result
 
-    @classmethod
-    def from_java_style_signature(cls, signature: str) -> 'MethodSignature':
+    @staticmethod
+    def from_java_style_signature(signature: str) -> 'MethodSignature':
         # Example:
         # "<android.content.Context: void sendBroadcast(android.content.Intent)>"
         re_result = re.search(r"<(.+): (.+) (.+)\((.*)\)>", signature)

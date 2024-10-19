@@ -18,7 +18,6 @@ class HybridAnalysisConfig:
 
     # Used for instrumentation and interpretation of instrumentation results
     target_PII: List[str]
-    _instrumentation_strategy: str
     logcat_processing_strategy: str
 
     # Used for app runner
@@ -59,7 +58,6 @@ class HybridAnalysisConfig:
                  target_PII,
                  dynamic_log_processing_strategy,
 
-                 instrumentation_strategy: str,
                  use_monkey: bool,
                  seconds_to_test_each_app: int,
                  monkey_rng_seed: int,
@@ -76,7 +74,6 @@ class HybridAnalysisConfig:
         self.target_PII = target_PII
         self.logcat_processing_strategy = dynamic_log_processing_strategy
 
-        self._instrumentation_strategy = instrumentation_strategy
 
         # If True, use monkey to send random commands to the app. If False,
         # launch the app but do not send commands to it.
@@ -133,7 +130,6 @@ def get_default_hybrid_analysis_config() -> "HybridAnalysisConfig":
         target_PII=get_target_PII(),
         dynamic_log_processing_strategy="InstrReportReturnAndArgsDynamicLogProcessingStrategy",
 
-        instrumentation_strategy="StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy",
         use_monkey=True,
         seconds_to_test_each_app=5,
         monkey_rng_seed=42,
@@ -173,6 +169,9 @@ def flowdroid_logs_path(flowdroid_first_pass_logs_dir_path: str, apk: InputModel
 
 def source_sink_file_path(source_sink_dir_path: str, input: InputModel, grouped_apk_index: int=-1) -> str:
     return os.path.join(source_sink_dir_path, input.input_identifier(grouped_apk_index) + ".txt")
+
+def text_file_path(text_file_directory_path: str, input: InputModel, grouped_apk_index: int=-1) -> str:
+    return os.path.join(text_file_directory_path, input.input_identifier(grouped_apk_index) + ".txt")
 
 def _apk_log_file_name(identifier: str) -> str:
     return identifier + ".log"

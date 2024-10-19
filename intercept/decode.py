@@ -30,9 +30,11 @@ def decode_apk(decoded_apks_directory_path: HybridAnalysisConfig, apk:ApkModel, 
     # Pull off the ".apk" of the name of the output file
     apktool_path = "apktool" # TODO: move this to external_path
     cmd = [apktool_path, "--quiet", "d", apk.apk_path, "-o", decoded_apk_path]
+    cmd = [apktool_path, "d", apk.apk_path, "-o", decoded_apk_path]
 
     logger.debug(" ".join(cmd))
-    run_command(cmd)
+    apk_tool_message = run_command(cmd)
+    logger.debug(apk_tool_message)
 
 # def decode_batch(config: HybridAnalysisConfig, apks:List[ApkModel], clean: bool=False):
 def decode_batch(decoded_apks_directory_path: str, apks:List[ApkModel], clean: bool=False):

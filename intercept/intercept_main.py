@@ -2,7 +2,7 @@
 import os
 from typing import Union, List
 
-from experiment.common import setup_additional_directories, setup_experiment_dir
+from experiment.common import instrumentation_arguments_default, instrumentation_strategy_factory_wrapper, setup_additional_directories, setup_experiment_dir
 from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 from intercept import decode, instrument, rebuild, keygen, sign, monkey
@@ -32,13 +32,14 @@ def instrument_apks(config: HybridAnalysisConfig, unique_apks: List[ApkModel], d
 
     
     decoded_apks_directory_path = config._decoded_apks_path
-    instrumentation_strategy = config._instrumentation_strategy
+    instrumentation_strategy_arguments = instrumentation_arguments_default()
     rebuilt_apks_directory_path = config._rebuilt_apks_path
     keys_directory_path = config._keys_dir_path
     signed_apks_directory_path = config._signed_apks_path
 
     decode.decode_batch(decoded_apks_directory_path, unique_apks)
-    instrument.instrument_batch(decoded_apks_directory_path, instrumentation_strategy, unique_apks)
+    instrumentation_strategy_arguments = instrumentation_strategy_factory_wrapper(instrumentation_strategy_arguments)
+    instrument.instrument_batch(decoded_apks_directory_path, instrumentation_strategy_arguments, unique_apks)
     rebuild.rebuild_batch(decoded_apks_directory_path, rebuilt_apks_directory_path, unique_apks)
     keygen.generate_keys_batch(keys_directory_path, unique_apks)
     sign.assign_key_batch(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, unique_apks)
@@ -55,7 +56,7 @@ def generate_smali_code(apk_path: str, decode_output_directory_path: str):
     #     clean.clean(config)
     apk_model: ApkModel = ApkModel(apk_path)
     
-    decode.decode_apk(decode_output_directory_path, apk_model)
+    decode.decode_apk(decode_output_directory_path, apk_model, clean=True)
 
 def decompile_and_rebuild_apks(apks: List[ApkModel], experiment_directory_path):
     clean = True
