@@ -21,15 +21,15 @@ if __name__ == '__main__':
     # test_small_flowdroid_on_wild_benchmarks()
     # test_full_flowdroid_on_wild_benchmarks()
 
-    update_heap_snapshot_smali_files()
+    # update_heap_snapshot_smali_files()
 
-    uninstall_all_3rd_party_apps()
-    instrument_test_wild_benchmarks_few()
-    run.monkey_test_few_apps_recording_output()
+    # uninstall_all_3rd_party_apps()
+    # instrument_test_wild_benchmarks_few()
+    # run.monkey_test_few_apps_recording_output()
     # manual_test_few_apps_recording_output()
 
-    test_small_observation_processing()
-    # test_small_flowdroid_comparison_wild_benchmarks()
+    # test_small_observation_processing("h5")
+    test_small_flowdroid_comparison_wild_benchmarks()
 
     # recursion depth of 3 on gpbench w/ monkey
     # test_spotcheck_observation_processing(get_gpbench_files(), "/home/calix/programming/ConDySta/data/experiments/2024-10-09-execution-full-gpbench0/logcat-output")

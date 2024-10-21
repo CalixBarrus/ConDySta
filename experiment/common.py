@@ -66,8 +66,8 @@ def get_wild_benchmarks() -> List[Dict[str, str]]:
     gpbench_files: Dict[str, str] = get_gpbench_files()
 
     # return [fossdroid_files]
-    # return [gpbench_files]
-    return [fossdroid_files, gpbench_files]
+    return [gpbench_files]
+    # return [fossdroid_files, gpbench_files]
 
 #### End External & Data File Paths Settings
 
@@ -83,6 +83,7 @@ def subset_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str
     if type == "small":
         if benchmark_name == "gpbench":
             # experiment_args["ids_subset"] = [2,13]
+            # experiment_args["ids_subset"] = [1]
             experiment_args["ids_subset"] = [1,2,3,4]
         elif benchmark_name == "fossdroid":
             experiment_args["ids_subset"] = [0,1,2,3]
@@ -128,11 +129,11 @@ def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[
     
     if type == "small":
         # Don't tweak "timeout" if it was already set by the client.
-        if "timeout" not in experiment_args.keys:
+        if "timeout" not in experiment_args.keys():
             experiment_args["timeout"] = 5 * 60
         
     elif type == "full":
-        if "timeout" not in experiment_args.keys:
+        if "timeout" not in experiment_args.keys():
                 experiment_args["timeout"] = 60 * 60
 
     elif type == "misc":
@@ -152,6 +153,7 @@ def instrumentation_arguments_default(benchmark_files: Dict[str, str]=None) -> D
         instrumentation_strategy = ["StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"]
         return instrumentation_strategy
 
+    # instrumentation_strategy = ["StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy"]
     instrumentation_strategy = ["StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy", "HarnessSources"]    
 
     arguments = {"instrumentation_strategy": instrumentation_strategy}
@@ -180,7 +182,7 @@ def instrumentation_strategy_factory_wrapper(**kwargs) -> List[SmaliInstrumentat
             instrumenters.append(instrumentation_strategy_factory(strategy_name, kwargs["harness_sources"]))
         else: 
             instrumenters.append(instrumentation_strategy_factory(strategy_name))
-     
+
     return instrumenters
 
 

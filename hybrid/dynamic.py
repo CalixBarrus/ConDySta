@@ -223,7 +223,17 @@ class LogcatLogFileModel:
 
     def __init__(self, log_path):
         # Open the log and read the contents
-        with open(log_path, 'r') as log_file:
+
+
+        # Check if file has non utf-8 encoded letters and report if this is the case. For now, we'll ignore them.
+        try:
+            with open(log_path, 'r', encoding="utf-8") as log_file:
+                _ = log_file.readlines()
+        except UnicodeDecodeError as e:
+            logger.warning(f"Non utf-8 chars are being ignored in file {log_path}")
+
+        # ignore data with a bad encoding
+        with open(log_path, 'r', errors="ignore") as log_file:
             self.lines = log_file.readlines()
 
         self.path = log_path
@@ -298,7 +308,9 @@ class LogcatLogFileModel:
         return instr_report_tuples
     
     def scan_log_for_harnessed_source_calls(self) -> List[Tuple[int, str]]:
-        log_tag = "I HarnessedSource: "
+# 10-21 11:40:27.756  8455  8455 D HarnessedSource: Source Method Landroid/widget/EditText; getText called in class and method <Lalc; onClick>. Return value was:;
+
+        log_tag = "D HarnessedSource: "
         message_preamble = "Source Method "
 
         return self._get_log_messages(self.lines, log_tag, message_preamble)

@@ -8,6 +8,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 //import org.openjdk.jol.vm.VM;
 
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 //import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.Modifier;
@@ -375,16 +376,45 @@ public class Snapshot {
 
     public static void logHarnessedSource(Object original_return_value, String message) {
         String HARNESSED_SOURCE_TAG = "HarnessedSource";
-        Class<?> objClass = original_return_value.getClass();
-        if (objClass.equals(String.class)) {
-            String original_return_value_cast = (String) original_return_value;
-            
-            Log.d(HARNESSED_SOURCE_TAG, message + ";" + original_return_value_cast);    
-        }
-        else {
-            Log.d(HARNESSED_SOURCE_TAG, message + ";");    
-        }
+        
+        // Start debug
+        Log.d("DEBUGGG", "Method was called " + message);
+        // end debug
 
+        if (original_return_value == null) {
+            Log.d(HARNESSED_SOURCE_TAG, message + ";null");    
+            return;
+        }
+        Class<?> objClass = original_return_value.getClass();
+        if (!objClass.equals(String.class)) {
+
+            Log.d(HARNESSED_SOURCE_TAG, message + ";unknown");    
+            return;
+        }
+        
+        String original_return_value_cast = (String) original_return_value;
+
+        // // Check if string can be converted to UTF-8
+        // // TODO: this check is not working; it's being handled in Python
+        // boolean isUtf8Encoding = true;
+        // try 
+        // {
+        //     byte[] bytes = null;
+        //     bytes = original_return_value_cast.getBytes("UTF-8");
+        // } 
+        // catch (UnsupportedEncodingException e)
+        // {
+        //     isUtf8Encoding = false;
+        //     Log.d(HARNESSED_SOURCE_TAG + "_DEBUG", "Encountered String not compatible with UTF-8");    
+        //     Log.d(HARNESSED_SOURCE_TAG, message + ";");    
+        //     return;
+        // }
+
+        // if  (isUtf8Encoding) {
+        Log.d(HARNESSED_SOURCE_TAG, message + ";" + original_return_value_cast);    
+        // }
+        
+    
     }
 
     private static class FieldInfo {

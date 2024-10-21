@@ -122,7 +122,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         with open(harness_calls_path, 'w') as out_file:
             out_file.write("\n".join([f"String '{observed_string}' observed by report {str(report)}" for report, _, observed_string in instrumentation_report_tuples]))
             out_file.write(f"\nObserved {len(harnessed_source_calls)} calls to harnessed sources:\n")
-            out_file.write("\n".join([f"Log line {i}, message {line}" for i, line in harnessed_source_calls]))
+            out_file.write("\n".join([f"Log line {i}, {line.strip()}" for i, line in harnessed_source_calls]))
 
         augmented_source_sinks: SourceSinkSignatures = observed_source_sinks.union(original_source_sinks)
         source_sink_file = source_sink_file_path(source_sink_directory_path, input_model)

@@ -1481,7 +1481,18 @@ class HarnessSources(SmaliInstrumentationStrategy):
 
         # Is the method being invoked on our list of sources? 
 
-        if any(not self._compare_invocation_and_signature(invocation_statement, source) for source in self.sources_to_instrument):
+        invocation_matches_source_to_instrument = False
+        for source in self.sources_to_instrument:
+            if self._compare_invocation_and_signature(invocation_statement, source):
+                invocation_matches_source_to_instrument = True
+
+        if not invocation_matches_source_to_instrument:
+            return []
+        
+        # Don't instrument if the result isn't put in a register
+        # TODO: I'd like to send a message if the source gets called, even if it doesn't have a return
+        if invocation_statement.move_result_line_number == -1:
+            logger.debug(f"Method {invocation_statement.method_name} is called but return isn't used. Not instrumenting.")
             return []
         
         if overwrite_return:
@@ -1494,7 +1505,7 @@ class HarnessSources(SmaliInstrumentationStrategy):
             harness_value = f"***{harness_id:012d}***"
             report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Return is being replaced with {harness_value}. Previous value was:"
         else:
-            report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Previous value was:"
+            report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Return value was:"
         # Java code will append ";" + contents of return register 
         return_register = invocation_statement.move_result_register
         empty_register = method_instrumentation_registers[0]
@@ -1506,6 +1517,7 @@ class HarnessSources(SmaliInstrumentationStrategy):
         signature = "Ledu/utsa/sefm/heapsnapshot/Snapshot;->logHarnessedSource(Ljava/lang/Object;Ljava/lang/String;)V"
         code = invoke_static_function(report, return_register, empty_register, signature)
         target_line_number = invocation_statement.move_result_line_number + 1
+        assert invocation_statement.move_result_line_number != 0
         code_insertion_log_report = CodeInsertionModel(code, method_index,
                                                         target_line_number,
                                                         method_instrumentation_registers)
@@ -1524,9 +1536,13 @@ class HarnessSources(SmaliInstrumentationStrategy):
     @staticmethod
     def _compare_invocation_and_signature(invocation: SmaliMethodInvocation, signature: MethodSignature):
 
-        # # debug
-        # logger.debug(f"Comparing methods {invocation.get_java_style_signature()} and {str(signature)}")
-        # # end debug
+        # debug
+        # if invocation.method_name == signature.method_name:
+        #     if SmaliMethodInvocation.smali_type_to_java_type(invocation.class_name) == signature.base_type:
+        #         logger.debug(f"Comparison should return true for {signature.method_name}")
+            # else: 
+                # logger.debug(f"Comparison same method name, but different class names {SmaliMethodInvocation.smali_type_to_java_type(invocation.class_name)} and {signature.base_type}")
+        # end debug
 
         if (SmaliMethodInvocation.smali_type_to_java_type(invocation.class_name) != signature.base_type 
                 or invocation.method_name != signature.method_name):
