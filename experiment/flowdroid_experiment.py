@@ -11,7 +11,7 @@ from hybrid.dynamic import LogcatLogFileModel, LogcatProcessingStrategy, get_sel
 from hybrid.flow import Flow, compare_flows
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
 
-from hybrid.hybrid_config import apk_logcat_output_path, source_sink_file_path, text_file_path
+from hybrid.hybrid_config import apk_logcat_output_path, flowdroid_logs_path, time_path, source_sink_file_path, text_file_path
 from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_analysis_error, get_flowdroid_flows, get_flowdroid_memory, get_flowdroid_reported_leaks_count
 from hybrid.source_sink import SourceSink, SourceSinkSignatures
 from intercept.instrument import InstrumentationReport
@@ -55,17 +55,21 @@ def flowdroid_comparison_with_observation_processing_experiment(**kwargs):
 
         source_sink_files.to_csv(os.path.join(experiment_dir_path, "observation-processing-output.csv"))
 
-        kwargs["flowdroid_output_directory_name"] = "unmodified-flowdroid-logs"
-        unmodified_source_sink_results = flowdroid_on_benchmark_df(experiment_dir_path, benchmark_df, **kwargs)
+        # kwargs["flowdroid_output_directory_name"] = "unmodified-flowdroid-logs"
+        flowdroid_logs_directory_name = "unmodified-flowdroid-logs"
+        unmodified_source_sink_results = flowdroid_on_benchmark_df(experiment_dir_path, benchmark_df, flowdroid_logs_directory_name=flowdroid_logs_directory_name, **kwargs)
 
-        kwargs["flowdroid_output_directory_name"] = "augmented-flowdroid-logs"
+        # kwargs["flowdroid_output_directory_name"] = "augmented-flowdroid-logs"
+        flowdroid_logs_directory_name = "augmented-flowdroid-logs"
         benchmark_df["Source Sink Path"] = source_sink_files["Source Sink Path"]
         benchmark_df["Observed Sources Path"] = source_sink_files["Source Sink Path"]
-        augmented_source_sink_results = flowdroid_on_benchmark_df(experiment_dir_path, benchmark_df, **kwargs)
+        augmented_source_sink_results = flowdroid_on_benchmark_df(experiment_dir_path, benchmark_df, flowdroid_logs_directory_name=flowdroid_logs_directory_name, **kwargs)
 
         # TODO: compute summary & interpretation of results_df
-        results_df = pd.merge(suffix_on_flowdroid_results(unmodified_source_sink_results, " Unmodified Source/Sink"), 
-                        suffix_on_flowdroid_results(augmented_source_sink_results, " Augmented Source/Sink"))
+        count_discovered_sources = source_sink_files["Discovered Sources"]
+        results_df = summary_df_for_fd_comparison(unmodified_source_sink_results, augmented_source_sink_results, count_discovered_sources)
+        # results_df = pd.merge(suffix_on_flowdroid_results(unmodified_source_sink_results, " Unmodified Source/Sink"), 
+        #                 suffix_on_flowdroid_results(augmented_source_sink_results, " Augmented Source/Sink"))
 
         return results_df
     
@@ -83,7 +87,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
 
     observed_source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["observed-source-sinks"])[0]
     source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["augmented-source-sinks"])[0]
-    observed_strings_directory_path: str = setup_additional_directories(experiment_dir_path, ["observed-strings"])[0]
+    observed_strings_directory_path: str = setup_additional_directories(experiment_dir_path, ["observation-details"])[0]
 
     original_source_sinks: SourceSinkSignatures = SourceSinkSignatures.from_file(kwargs["source_sink_list_path"])
 
@@ -120,8 +124,9 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         results_df.loc[i, "Harnessed Source Calls Count"] = len(harnessed_source_calls)
         harness_calls_path = text_file_path(observed_strings_directory_path, input_model)
         with open(harness_calls_path, 'w') as out_file:
-            out_file.write("\n".join([f"String '{observed_string}' observed by report {str(report)}" for report, _, observed_string in instrumentation_report_tuples]))
-            out_file.write(f"\nObserved {len(harnessed_source_calls)} calls to harnessed sources:\n")
+            out_file.write(f"Instrumentation reports observing tainted strings {len(instrumentation_report_tuples)} times.\n")
+            out_file.write("\n".join([f"String '{observed_string}' \nobserved at access path {access_path} \nby report {str(report)}" for report, access_path, observed_string in instrumentation_report_tuples]))
+            out_file.write(f"\n\nObserved {len(harnessed_source_calls)} calls to harnessed sources:\n")
             out_file.write("\n".join([f"Log line {i}, {line.strip()}" for i, line in harnessed_source_calls]))
 
         augmented_source_sinks: SourceSinkSignatures = observed_source_sinks.union(original_source_sinks)
@@ -146,7 +151,7 @@ def _get_source_sink_factory(**kwargs) -> Callable[[pd.DataFrame, int], str]:
     # return lambda benchmark_df, i: unmodified_source_sink_list_path
         
 
-def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFrame, flowdroid_logs_directory_name: str="flowdroid-logs", **kwargs) -> pd.DataFrame:
     flowdroid_jar_path: str = kwargs["flowdroid_jar_path"]
     android_path: str = kwargs["android_path"]
 
@@ -171,38 +176,64 @@ def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFra
     #     icc_model_path_df = pd.read_csv("/home/calix/programming/ConDySta/data/benchmark-descriptions/gpbench-icc-model-paths.csv", header=0, index_col=False)
     #     icc_model_path_df = icc_model_path_df.set_index(icc_model_path_df["AppID"])
     
-    # run fd on each app
-    flowdroid_logs_directory_name = ("flowdroid-logs" if "flowdroid_output_directory_name" not in kwargs.keys() else kwargs["flowdroid_output_directory_name"])
+    # run fd on each app    
+    # flowdroid_logs_directory_name = ("flowdroid-logs" if "flowdroid_output_directory_name" not in kwargs.keys() else kwargs["flowdroid_output_directory_name"])
+    # flowdroid_logs_directory_name = kwargs["flowdroid_output_directory_name"]
     flowdroid_logs_directory_path = setup_additional_directories(experiment_dir_path, [flowdroid_logs_directory_name])[0]
-
-
         
     results_df = results_df_from_benchmark_df(benchmark_df)
-
-    if "ground_truth_xml_path" in kwargs.keys():
-        ground_truth_xml_path = kwargs["ground_truth_xml_path"]
-        ground_truth_flows_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
-        ## Debug - this should somehow be on the previous layer?
-        os.path.join(experiment_dir_path, "ground-truth-flows-" + kwargs["benchmark_name"])
-        ground_truth_flows_df
-        ## end Debug
     
     for i in benchmark_df.index:
         input_model: InputModel = benchmark_df.loc[i, "Input Model"] # type: ignore
         
-        output_log_path = os.path.join(flowdroid_logs_directory_path, input_model.input_identifier() + ".log")
+        # output_log_path = os.path.join(flowdroid_logs_directory_path, input_model.input_identifier() + ".log")
+        output_log_path = flowdroid_logs_path(flowdroid_logs_directory_path, input_model)
+        
 
         source_sink_list_path = get_source_sink(benchmark_df, i)
 
         try:
             t0 = time.time()
             run_flowdroid_with_fdconfig(flowdroid_jar_path, input_model.apk().apk_path, android_path, source_sink_list_path, flowdroid_args, output_log_path, flowdroid_timeout_seconds)
-            time_elapsed_seconds = time.time() - t0
+            time_elapsed_seconds = int(time.time() - t0)
         except TimeoutExpired as e:
             msg = f"Flowdroid timed out after {format_num_secs(flowdroid_timeout_seconds)} on apk {input_model.apk().apk_name}; details in " + output_log_path
             logger.error(msg)
             results_df.loc[i, "Error Message"] += msg
+
+            output_time_path = time_path(flowdroid_logs_directory_path, input_model)
+            time_seconds_to_file(output_time_path, flowdroid_timeout_seconds)
             continue
+
+        output_time_path = time_path(flowdroid_logs_directory_path, input_model)
+        time_seconds_to_file(output_time_path, time_elapsed_seconds)
+        
+    results_df = parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_directory_path, results_df["Error Message"], **kwargs)
+    return results_df
+
+def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_directory_path, errors: pd.Series=None, **kwargs) -> pd.DataFrame:
+    # TODO: this should/could get called parallel with flowdroid_on_benchmark_df, not by it. 
+
+    results_df = results_df_from_benchmark_df(benchmark_df)
+
+    if errors is not None:
+        results_df["Error Message"] = errors
+    # This should be broken out into it's own function
+
+    if "ground_truth_xml_path" in kwargs.keys():
+        ground_truth_xml_path = kwargs["ground_truth_xml_path"]
+        ground_truth_flows_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
+
+        # only for testing augmented SS list
+        if "Observed Sources Path" in benchmark_df.columns:
+            observed_sources_details_directory = setup_additional_directories(experiment_dir_path, ["result-details"])[0]
+
+    for i in benchmark_df.index:
+        input_model = benchmark_df.loc[i, "Input Model"]
+
+        output_log_path = flowdroid_logs_path(flowdroid_logs_directory_path, input_model)
+        output_time_path = time_path(flowdroid_logs_directory_path, input_model)
+        time_elapsed_seconds = time_seconds_from_file(output_time_path)
 
         process_fd_log_stats(results_df, i, time_elapsed_seconds, output_log_path)
         process_fd_log_reported_flows(results_df, i, output_log_path)
@@ -212,49 +243,44 @@ def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFra
             # ground_truth_flows_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
             process_fd_log_ground_truth_comparison(results_df, i, output_log_path, input_model.apk().apk_path, ground_truth_flows_df)
 
-        if "Observed Sources Path" in benchmark_df.columns:
-            # Check if there are flows from observed sources to ground_truth sinks. 
-            apk_observed_flows_path = benchmark_df.loc[i, "Observed Sources Path"]
-            observed_sources: SourceSinkSignatures = SourceSinkSignatures.from_file(apk_observed_flows_path)
+            if "Observed Sources Path" in benchmark_df.columns:
+                # TODO: this should get put into it's own function
+                # 
 
-            # Don't bother printing this info out if there were no observed sources. 
-            if observed_sources.source_count() > 0:
-                detected_flows = get_flowdroid_flows(output_log_path, input_model.apk().apk_path)
-                detected_flows = list(set(detected_flows))
+                # Check if there are flows from observed sources to ground_truth sinks. 
+                apk_observed_sources_path = benchmark_df.loc[i, "Observed Sources Path"]
+                observed_sources: SourceSinkSignatures = SourceSinkSignatures.from_file(apk_observed_sources_path)
 
-                apk_name = results_df.loc[i, 'APK Name']            
-                apk_name_mask = ground_truth_flows_df['APK Name'] == apk_name
-                ground_truth_flows_df[apk_name_mask]
+                # Don't bother printing this info out if there were no observed sources.
+                if observed_sources.source_count() > 0:
 
-                observed_sources_details_path = os.path.join(experiment_dir_path, "observed_sources_and_ground_truth_details.txt")
+                    try:
+                        detected_flows = get_flowdroid_flows(output_log_path, input_model.apk().apk_path)
+                    except FlowdroidLogException as e:
+                        logger.error(e.msg)
+                        results_df.loc[i, "Error Message"] += e.msg # type: ignore
+                        continue
 
-                with open(observed_sources_details_path, 'a') as file:
-                    file.write(f"{apk_name}")
-                    file.write(f"Detected Flows:")
-                    file.write("\n".join([str(flow) for flow in detected_flows]))
-                    file.write("Ground Truth Flows matching the APK's name")
-                    file.write(ground_truth_flows_df[apk_name_mask].to_string())
-                    file.write("Observed Source Flows:")
-                    file.write(str(observed_sources))
-                    file.write("\n\n")
+                    detected_flows = list(set(detected_flows))
 
-            #     # Check if there are flows from observed sources to ground_truth sinks. 
-    
-            # def process_fd_log_detected_flows_from_observed_source_to_ground_truth_sink():
-            #     for flow in detected_flows:
-            #         pass
-            #         # is the source from observed sources? 
-            #         # is the sink from a ground_truth_flow? 
-            #         # if so, is that ground_truth_flow detected by other detected_flows? (that don't use observed sources, that is, is it a FN/FP?)
-            #         # if so, is that ground_truth_flow's sink detected using more than one observed sources?
+                    apk_name = results_df.loc[i, 'APK Name']            
+                    apk_name_mask = ground_truth_flows_df['APK Name'] == apk_name
+                    ground_truth_flows_df[apk_name_mask]
 
-            #     # This is all gonna have to checked manually. Maybe better to just print all the raw data out in one spot, and we can try to figure it out. 
-            
-            
+                    observed_sources_details_path = text_file_path(observed_sources_details_directory, input_model)
+
+                    with open(observed_sources_details_path, 'w') as file:
+                        file.write(f"{apk_name}\n")
+                        file.write(f"Detected Flows:\n")
+                        file.write("\n".join([str(flow) for flow in detected_flows]))
+                        file.write("\nGround Truth Flows matching the APK's name\n")
+                        reordered_cols = ["APK Name", "Benchmark ID", "Ground Truth Value", "Source Signature", "Sink Signature", "Flow"]
+                        file.write(ground_truth_flows_df[apk_name_mask][reordered_cols].to_string())
+                        file.write("\nObserved Sources:\n")
+                        file.write(str(observed_sources))
+                        file.write("\n")
 
     return results_df
-    # results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
-    # results_df.to_csv(results_df_path)
 
 
 def process_fd_log_stats(results_df: pd.DataFrame, i: int, time_elapsed_seconds: int, log_path: str):
@@ -296,7 +322,13 @@ def process_fd_log_ground_truth_comparison(results_df: pd.DataFrame, i: int, log
         if col not in results_df.columns:
             results_df[col] = ""
 
-    detected_flows = get_flowdroid_flows(log_path, apk_path)
+    try:
+        detected_flows = get_flowdroid_flows(log_path, apk_path)
+    except FlowdroidLogException as e:
+        logger.error(e.msg)
+        results_df.loc[i, "Error Message"] += e.msg # type: ignore
+        return
+
 
     # deduplicate FD flows
     original_length = len(detected_flows)
@@ -312,7 +344,17 @@ def process_fd_log_ground_truth_comparison(results_df: pd.DataFrame, i: int, log
     results_df.loc[i, "FN"] = fn
     results_df.loc[i, "Flows Not Evaluated"] = inconclusive
 
+def time_seconds_to_file(output_time_path: str, time_elapsed_seconds: int):
+    with open(output_time_path, "w") as file:
+        file.write(str(int(time_elapsed_seconds)))
 
+def time_seconds_from_file(output_time_path: str) -> int:
+    with open(output_time_path, "r") as file:
+        line: str = file.readline()
+        time_elapsed_seconds = int(line.strip())
+
+    # TODO: implement
+    return time_elapsed_seconds
 
 
 def suffix_on_flowdroid_results(results_df: pd.DataFrame, suffix) -> pd.DataFrame:
@@ -324,6 +366,56 @@ def suffix_on_flowdroid_results(results_df: pd.DataFrame, suffix) -> pd.DataFram
     # Experiments expect an "Error Message" column with an empty string.
     new_results_df["Error Message"] = ""
     return new_results_df
+
+def summary_df_for_fd_comparison(unmodified_results_df: pd.DataFrame, augmented_results_df: pd.DataFrame, count_discovered_sources: pd.Series) -> pd.DataFrame:
+    # original columns for each df = [Error Message,Time Elapsed,Max Reported Memory Usage,Reported Flowdroid Flows,TP,FP,TN,FN,Flows Not Evaluated"]
+    unmodified = "Unmodified "
+    augmented = "Augmented "
+    # summary_columns: List[str] = ["Benchmark ID", "APK Name"] 
+    summary_columns: List[str] = ["APK Name"] 
+    summary_columns += ["True Flows in Ground Truth", "False Flows in Ground Truth", "Count Discovered Sources"] 
+    # TP + FN, FP + TN
+    summary_columns += [unmodified + "Reported Flows", augmented + "Reported Flows"]
+    # TP + FP + Flows Not Evaluated
+    summary_columns += [unmodified + "TP Reported Flows", unmodified + "FP Reported Flows", unmodified + "Not Evaluated Reported Flows"]
+    summary_columns += [augmented + "TP Reported Flows", augmented + "FP Reported Flows", augmented + "Not Evaluated Reported Flows"]
+    summary_columns += [unmodified + "Time Elapsed", augmented + "Time Elapsed"]
+    summary_columns += [unmodified + "Max Reported Memory Usage", augmented + "Max Reported Memory Usage"]
+    summary_columns += [unmodified + "Error Message", augmented + "Error Message"]
+
+
+    # dataframe with matching index/Benchmark ID & APK Name cols
+    summary_df = results_df_from_benchmark_df(unmodified_results_df)
+
+    summary_df["True Flows in Ground Truth"] = unmodified_results_df["TP"] + unmodified_results_df["FN"]
+    summary_df["False Flows in Ground Truth"] = unmodified_results_df["FP"] + unmodified_results_df["TN"]
+
+    # indices are expected to match
+    summary_df["Count Discovered Sources"] = count_discovered_sources
+
+    summary_df[unmodified + "Reported Flows"] = unmodified_results_df["TP"] + unmodified_results_df["FP"] + unmodified_results_df["Flows Not Evaluated"]
+    summary_df[augmented + "Reported Flows"] = augmented_results_df["TP"] + augmented_results_df["FP"] + augmented_results_df["Flows Not Evaluated"]
+
+    summary_df[unmodified + "TP Reported Flows"] = unmodified_results_df["TP"]
+    summary_df[unmodified + "FP Reported Flows"] = unmodified_results_df["FP"]
+    summary_df[unmodified + "Not Evaluated Reported Flows"] = unmodified_results_df["Flows Not Evaluated"]
+
+    summary_df[augmented + "TP Reported Flows"] = augmented_results_df["TP"]
+    summary_df[augmented + "FP Reported Flows"] = augmented_results_df["FP"]
+    summary_df[augmented + "Not Evaluated Reported Flows"] = augmented_results_df["Flows Not Evaluated"]
+
+    summary_df[unmodified + "Time Elapsed"] = unmodified_results_df["Time Elapsed"]
+    summary_df[augmented + "Time Elapsed"] = augmented_results_df["Time Elapsed"]
+
+    summary_df[unmodified + "Max Reported Memory Usage"] = unmodified_results_df["Max Reported Memory Usage"]
+    summary_df[augmented + "Max Reported Memory Usage"] = augmented_results_df["Max Reported Memory Usage"]
+
+    summary_df[unmodified + "Error Message"] = unmodified_results_df["Error Message"]
+    summary_df[augmented + "Error Message"] = augmented_results_df["Error Message"]
+
+    # Use the columns so the entries are in order
+    return summary_df[summary_columns]
+
 
 def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path):
     tree = ET.parse(ground_truth_xml_path)

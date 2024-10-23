@@ -71,16 +71,17 @@ class SourceSinkSignatures(SourceSink):
         return len(self.sink_signatures)
     
     def write_to_file(self, target_file_path: str):
-        sources = [str(signature) for signature in self.source_signatures]
-        sinks = [str(signature) for signature in self.sink_signatures]
-        source_sink_formatted = format_source_sinks(sources, sinks)
+        # sources = [str(signature) for signature in self.source_signatures]
+        # sinks = [str(signature) for signature in self.sink_signatures]
+        # source_sink_formatted = format_source_sinks(sources, sinks)
 
         with open(target_file_path, 'w') as file:
-            file.write(source_sink_formatted)
+            file.write(self.__str__())
 
     def set_minus(self, other_source_sink: 'SourceSinkSignatures'):
-        self.source_signatures - other_source_sink.source_signatures
-        self.sink_signatures - other_source_sink.sink_signatures
+        # TODO: this is untested
+        self.source_signatures -= other_source_sink.source_signatures
+        self.sink_signatures -= other_source_sink.sink_signatures
 
     def union(self, other_source_sink: 'SourceSinkSignatures'):
         self.source_signatures = self.source_signatures.union(other_source_sink.source_signatures)
@@ -97,6 +98,12 @@ class SourceSinkSignatures(SourceSink):
         source_list, sink_list = SourceSink.source_sink_signatures_from_txt(file_path)
         result.source_signatures, result.sink_signatures = set(source_list), set(sink_list)
         return result
+
+    def __str__(self) -> str:
+        sources = [str(signature) for signature in self.source_signatures]
+        sinks = [str(signature) for signature in self.sink_signatures]
+        return format_source_sinks(sources, sinks)
+
     
         
 

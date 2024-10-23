@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_droidbench_files_paths3, get_flowdroid_file_paths, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
-from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing
+from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing, parse_flowdroid_results
 from experiment.instrument import rebuild_apps_no_instrumentation
 import hybrid.hybrid_config
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_paper_settings
@@ -151,6 +151,21 @@ def test_spot_check_flowdroid_comparison(benchmark_files: Dict[str, str], logcat
     experiment_args["experiment_description"] = description
 
     flowdroid_comparison_with_observation_processing_experiment(**experiment_args)
+
+def test_spot_check_flowdroid_output_processing(flowdroid_logs_directory_path: str):
+    size = "small"
+    experiment_args = subset_setup_generic(get_gpbench_files(), size)
+    name = experiment_args["benchmark_name"]
+
+    experiment_args["experiment_name"] = f"fd-log-processing-spotcheck-{size}-{name}"
+    description = f"Parse flowdroid output from {flowdroid_logs_directory_path}"
+    experiment_args["experiment_description"] = description
+
+    experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
+    results_df = parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_directory_path, **experiment_args)
+    results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
+    results_df.to_csv(results_df_path)
+
     
 def test_small_flowdroid_on_wild_benchmarks():
     flowdroid_on_wild_benchmarks("small")

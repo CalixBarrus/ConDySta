@@ -164,14 +164,18 @@ def apk_logcat_output_path(logcat_dump_dir_path: str, apk: InputModel, grouped_a
 
     return os.path.join(logcat_dump_dir_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
 
-def flowdroid_logs_path(flowdroid_first_pass_logs_dir_path: str, apk: InputModel, grouped_apk_idx: int=-1) -> str:
-    return os.path.join(flowdroid_first_pass_logs_dir_path, _apk_log_file_name(apk.input_identifier(grouped_apk_idx)))
+def flowdroid_logs_path(flowdroid_logs_dir_path: str, input: InputModel, grouped_apk_idx: int=-1) -> str:
+    return os.path.join(flowdroid_logs_dir_path, _apk_log_file_name(input.input_identifier(grouped_apk_idx)))
 
 def source_sink_file_path(source_sink_dir_path: str, input: InputModel, grouped_apk_index: int=-1) -> str:
     return os.path.join(source_sink_dir_path, input.input_identifier(grouped_apk_index) + ".txt")
 
 def text_file_path(text_file_directory_path: str, input: InputModel, grouped_apk_index: int=-1) -> str:
     return os.path.join(text_file_directory_path, input.input_identifier(grouped_apk_index) + ".txt")
+
+def time_path(output_directory_path: str, input: InputModel, grouped_apk_idx: int=-1) -> str:
+    return os.path.join(output_directory_path, input.input_identifier(grouped_apk_idx) + ".time")
+
 
 def _apk_log_file_name(identifier: str) -> str:
     return identifier + ".log"

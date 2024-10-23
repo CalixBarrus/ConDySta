@@ -54,7 +54,7 @@ def get_droidbench_files_paths3() -> Dict[str, str]:
 def get_flowdroid_file_paths() -> Dict[str, str]:
     flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
     android_path: str = "/home/calix/.android_sdk/platforms"
-    android_path: str = "/home/calix/Android/Sdk/platforms"
+    # android_path: str = "/home/calix/Android/Sdk/platforms"
     return {
             "flowdroid_jar_path": flowdroid_jar_path,
             "android_path": android_path,
@@ -83,8 +83,8 @@ def subset_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str
     if type == "small":
         if benchmark_name == "gpbench":
             # experiment_args["ids_subset"] = [2,13]
-            # experiment_args["ids_subset"] = [1]
-            experiment_args["ids_subset"] = [1,2,3,4]
+            experiment_args["ids_subset"] = [4]
+            # experiment_args["ids_subset"] = [1,2,3,4]
         elif benchmark_name == "fossdroid":
             experiment_args["ids_subset"] = [0,1,2,3]
         elif benchmark_name == "droidbench3":
@@ -130,11 +130,13 @@ def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[
     if type == "small":
         # Don't tweak "timeout" if it was already set by the client.
         if "timeout" not in experiment_args.keys():
-            experiment_args["timeout"] = 5 * 60
+            experiment_args["timeout"] = 15 * 60
+            # experiment_args["timeout"] = 5
         
     elif type == "full":
         if "timeout" not in experiment_args.keys():
-                experiment_args["timeout"] = 60 * 60
+                # experiment_args["timeout"] = 45 * 60
+                experiment_args["timeout"] = 15 * 60
 
     elif type == "misc":
         # Don't set anything. Errors will help users figure out what they need to set.
@@ -417,14 +419,19 @@ def modified_source_sink_path(modified_source_sink_directory_path: str, input_mo
 
 
 def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_description_path: str="") -> pd.DataFrame:
-    # Sets up new dataframe with index, Benchmark ID column, and APK Name column that match up with the benchmark_df.
+    # Sets up new dataframe with index/Benchmark ID column, and APK Name column that match up with the benchmark_df.
     # Results data frames start with an empty Error Message column
 
+    # Optionally copy over selected columns from the indicated csv file
+
     # results_df = benchmark_df[["Benchmark ID"]]
-    results_df = pd.DataFrame({}, index=benchmark_df["Benchmark ID"])
-    results_df["APK Name"] = ""
-    for i in benchmark_df.index:
-        results_df.loc[i, "APK Name"] = benchmark_df.loc[i, "Input Model"].apk().apk_name # type: ignore
+    results_df = pd.DataFrame({}, index=benchmark_df.index)
+    if "APK Name" not in benchmark_df.columns:
+        results_df["APK Name"] = ""
+        for i in benchmark_df.index:
+            results_df.loc[i, "APK Name"] = benchmark_df.loc[i, "Input Model"].apk().apk_name # type: ignore
+    else:
+        results_df["APK Name"] = benchmark_df["APK Name"]
 
     results_df["Error Message"] = ""
 
