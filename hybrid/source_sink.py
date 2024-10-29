@@ -1,8 +1,11 @@
 from abc import ABC
 from dataclasses import dataclass, field
+from importlib.readers import MultiplexedPath
 import re
 from typing import List, Set, Tuple
 import xml.etree.ElementTree as ET
+
+from numpy import sign
 
 import util.logger
 logger = util.logger.get_logger(__name__)
@@ -452,6 +455,12 @@ class MethodSignature:
     def from_java_style_signature(signature: str) -> 'MethodSignature':
         # Example:
         # "<android.content.Context: void sendBroadcast(android.content.Intent)>"
+
+        # also accept strings that are just missing the "<" and ">"
+        # "android.content.Context: void sendBroadcast(android.content.Intent)"
+        if not signature.startswith("<") and not signature.endswith(">"):
+            signature = "<" + signature + ">"
+
         re_result = re.search(r"<(.+): (.+) (.+)\((.*)\)>", signature)
         if re_result is None:
             # Sometimes sources are missing the left paren
@@ -471,13 +480,55 @@ class MethodSignature:
 
         # put results in model object
         result = MethodSignature()
-        result.signature = signature
-        result.base_type = base_type
-        result.return_type = return_type
-        result.method_name = method_name
+        result.signature = signature.strip()
+        result.base_type = base_type.strip()
+        result.return_type = return_type.strip()
+        result.method_name = method_name.strip()
         result.arg_types = arg_types
 
         return result
+    
+    def relaxed_equals(self, other: 'MethodSignature') -> bool:
+        # Allow signatures to continue to match even if the base name doesn't match.
+
+        """
+        self_source_classname, self_source_rest_of_statement = match.group(1), match.group(2)
+        match = re.search(pattern, other_ss_dict["source_statementgeneric"])
+        other_source_classname, other_source_rest_of_statement = match.group(1), match.group(2)
+        if self_source_rest_of_statement != other_source_rest_of_statement:
+            return False
+        if self_source_classname == self_ss_dict["source_classname"] or other_source_classname == other_ss_dict["source_classname"]:
+            logger.warn(f"Exceptional comparison case between statementgeneric's {self_ss_dict["source_statementgeneric"]} and {other_ss_dict["source_statementgeneric"]}")
+            self_ss_dict["source_statementgeneric"] = self_source_rest_of_statement
+            other_ss_dict["source_statementgeneric"] = other_
+        """
+
+        if self.method_name != other.method_name:
+            return False
+
+        if self.return_type != other.return_type:
+            return False
+
+        if self.method_name != other.method_name:
+            return False
+        
+        if self.arg_types != other.arg_types:
+            return False
+        
+        # Returning true at this point. 
+        if self.base_type != other.base_type: 
+            if self.base_type != "java.lang.Object" and other.base_type != "java.lang.Object":
+                logger.warning(f"Exceptional comparison with base classes {self.base_type} and {other.base_type} while comparing {self.signature} and {other.signature}")
+            else: 
+                # Don't log a warning in the case that the base types are different with one of them bing java.lang.Object.
+                pass            
+        else: 
+            if self.signature != other.signature:
+                logger.warning(f"Exceptional comparison case between signature {self.signature} and {other.signature}")
+        
+        return True
+
+
 
 def format_source_sink_signatures(source_signatures: List[MethodSignature], sink_signatures: List[MethodSignature]):
     sources = [signature.get_source_string() for signature in source_signatures]

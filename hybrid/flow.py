@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 
+from hybrid.source_sink import MethodSignature
 import util.logger
 logger = util.logger.get_logger(__name__)
 
@@ -40,12 +41,20 @@ class Flow:
     #     c = re.sub(r"_ds_method_clone_[\d]*", "", c)
     #     logging.debug(f"Before clean: {stmt}\nAfter clean: {c}")
     #     return c.strip()
+
+    def _get_source_reference(self) -> ET.Element:
+        references = self.element.findall("reference")
+        return [r for r in references if r.get("type") == "from"][0]
+    
+    def _get_sink_reference(self) -> ET.Element:
+        references = self.element.findall("reference")
+        return [r for r in references if r.get("type") == "to"][0]
     
     def get_source_and_sink(self) -> Dict[str, str]:
         result = dict()
-        references = self.element.findall("reference")
-        source = [r for r in references if r.get("type") == "from"][0]
-        sink = [r for r in references if r.get("type") == "to"][0]
+        # references = self.element.findall("reference")
+        source = self._get_source_reference()
+        sink = self._get_sink_reference()
 
         # def get_statement_full(a: ET.Element) -> str:
         #     return a.find("statement").find("statementfull").text
@@ -69,6 +78,22 @@ class Flow:
         result["sink_classname"] = sink.find("classname").text
         return result
     
+    def get_source_method_text(self) -> str:
+        source = self._get_source_reference()
+        method_element = source.find("method")
+        if method_element is not None:
+            return method_element.text
+        else:
+            return ""
+
+    def get_sink_method_text(self) -> str:
+        sink = self._get_sink_reference()
+        method_element = sink.find("method")
+        if method_element is not None:
+            return method_element.text
+        else:
+            return ""
+    
     def get_method_text(self, statement_element: ET.Element):
         # Some gpbench cases don't report method, and so there is no method element
         method_element = statement_element.find("method")
@@ -78,13 +103,11 @@ class Flow:
             return ""
     
     def get_source_statementgeneric(self) -> str:
-        references = self.element.findall("reference")
-        source = [r for r in references if r.get("type") == "from"][0]
+        source = self._get_source_reference()
         return source.find("statement").find("statementgeneric").text
     
     def get_sink_statementgeneric(self) -> str:
-        references = self.element.findall("reference")
-        source = [r for r in references if r.get("type") == "to"][0]
+        source = self._get_sink_reference()
         return source.find("statement").find("statementgeneric").text
     
     def get_ground_truth_attribute(self) -> str:
@@ -95,6 +118,15 @@ class Flow:
             
         print(self.get_file())
         assert False
+
+    def to_readable_str(self) -> str:
+        """ Example:
+The sink <org.jsl.wfwt.MainActivity: void unbindService(android.content.ServiceConnection)> in method <org.jsl.wfwt.MainActivity: void onPause()> was called with values from
+the source <android.media.AudioManager: int getStreamMaxVolume(int)> in method <org.jsl.wfwt.MainActivity: void onResume()>
+        """
+
+        return f"""The sink {self.get_sink_statementgeneric()} in method {self.get_sink_method_text()} was called with values from
+the source {self.get_source_statementgeneric()} in method {self.get_source_statementgeneric()}"""
 
     def __str__(self):
         # return f"from: {self.get_source_statementgeneric()}; to: {self.get_sink_statementgeneric()}"
@@ -136,36 +168,45 @@ class Flow:
             # if class in either Flow's statementgeneric matches the class of the Flow, then it might have been incorrectly inferred. 
             # In this case, do not consider the class names when comparing statementgeneric.
 
-            # Pick out the the class in the statement generic. If there is a match, update the dict that will be compared so the class name in the statementgenerics are not considered.
             # statementgeneric string is expected to be of the form
             # <anupam.acrylic.Splash$1: void run()>
             pattern = r"(.+)(: .+\))"
             if not self_ss_dict["source_statementgeneric"] == other_ss_dict["source_statementgeneric"]:
-                match = re.search(pattern, self_ss_dict["source_statementgeneric"])
-                self_source_classname, self_source_rest_of_statement = match.group(1), match.group(2)
-                match = re.search(pattern, other_ss_dict["source_statementgeneric"])
-                other_source_classname, other_source_rest_of_statement = match.group(1), match.group(2)
-                if self_source_rest_of_statement != other_source_rest_of_statement:
+                self_source_signature = MethodSignature.from_java_style_signature(self_ss_dict["source_statementgeneric"])
+                other_source_signature = MethodSignature.from_java_style_signature(other_ss_dict["source_statementgeneric"])
+                if not self_source_signature.relaxed_equals(other_source_signature):
                     return False
-                if self_source_classname == self_ss_dict["source_classname"] or other_source_classname == other_ss_dict["source_classname"]:
-                    logger.warn(f"Exceptional comparison case between statementgeneric's {self_ss_dict["source_statementgeneric"]} and {other_ss_dict["source_statementgeneric"]}")
-                    self_ss_dict["source_statementgeneric"] = self_source_rest_of_statement
-                    other_ss_dict["source_statementgeneric"] = other_source_rest_of_statement
+
+                # This code was slurped into the MethodSignature.relaxed_equals
+                # match = re.search(pattern, self_ss_dict["source_statementgeneric"])
+                # self_source_classname, self_source_rest_of_statement = match.group(1), match.group(2)
+                # match = re.search(pattern, other_ss_dict["source_statementgeneric"])
+                # other_source_classname, other_source_rest_of_statement = match.group(1), match.group(2)
+                # if self_source_rest_of_statement != other_source_rest_of_statement:
+                #     return False
+                # if self_source_classname == self_ss_dict["source_classname"] or other_source_classname == other_ss_dict["source_classname"]:
+                #     logger.warn(f"Exceptional comparison case between statementgeneric's {self_ss_dict["source_statementgeneric"]} and {other_ss_dict["source_statementgeneric"]}")
+                #     self_ss_dict["source_statementgeneric"] = self_source_rest_of_statement
+                #     other_ss_dict["source_statementgeneric"] = other_source_rest_of_statement
                 
             if not self_ss_dict["sink_statementgeneric"] == other_ss_dict["sink_statementgeneric"]:
-                match = re.search(pattern, self_ss_dict["sink_statementgeneric"])
-                self_sink_classname, self_sink_rest_of_statement = match.group(1), match.group(2)
-                match = re.search(pattern, other_ss_dict["sink_statementgeneric"])
-                other_sink_classname, other_sink_rest_of_statement = match.group(1), match.group(2)
-                if self_sink_rest_of_statement != other_sink_rest_of_statement:
+                self_sink_signature = MethodSignature.from_java_style_signature(self_ss_dict["sink_statementgeneric"])
+                other_sink_signature = MethodSignature.from_java_style_signature(other_ss_dict["sink_statementgeneric"])
+                if not self_sink_signature.relaxed_equals(other_sink_signature):
                     return False
-                if self_sink_classname == self_ss_dict["sink_classname"] or other_sink_classname == other_ss_dict["sink_classname"]:
-                    logger.warn(f"Exceptional comparison case between statementgeneric's {self_ss_dict["sink_statementgeneric"]} and {other_ss_dict["sink_statementgeneric"]}")
-                    self_ss_dict["sink_statementgeneric"] = self_sink_rest_of_statement
-                    other_ss_dict["sink_statementgeneric"] = other_sink_rest_of_statement
-            
-            
-            return self_ss_dict["source_statementgeneric"] == other_ss_dict["source_statementgeneric"] and self_ss_dict["sink_statementgeneric"] == other_ss_dict["sink_statementgeneric"]
+
+                # match = re.search(pattern, self_ss_dict["sink_statementgeneric"])
+                # self_sink_classname, self_sink_rest_of_statement = match.group(1), match.group(2)
+                # match = re.search(pattern, other_ss_dict["sink_statementgeneric"])
+                # other_sink_classname, other_sink_rest_of_statement = match.group(1), match.group(2)
+                # if self_sink_rest_of_statement != other_sink_rest_of_statement:
+                #     return False
+                # if self_sink_classname == self_ss_dict["sink_classname"] or other_sink_classname == other_ss_dict["sink_classname"]:
+                #     logger.warn(f"Exceptional comparison case between statementgeneric's {self_ss_dict["sink_statementgeneric"]} and {other_ss_dict["sink_statementgeneric"]}")
+                #     self_ss_dict["sink_statementgeneric"] = self_sink_rest_of_statement
+                #     other_ss_dict["sink_statementgeneric"] = other_sink_rest_of_statement
+
+            return True
         
     def __hash__(self):
         sas = self.get_source_and_sink()
@@ -222,7 +263,7 @@ def compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFram
         # does it match a ground truth flow?
         detected_flow_mask = ground_truth_flows_df[apk_name_mask]['Flow'] == detected_flow
         if sum(detected_flow_mask) == 0:
-            # Flow is not in ground_truth
+            # App doesn't have flows is not the ground_truth
             inconclusive_flows.append(detected_flow)
         elif sum(detected_flow_mask) == 1:
             detected_flow_row = ground_truth_flows_df[apk_name_mask][detected_flow_mask].iloc[0]

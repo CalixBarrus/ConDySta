@@ -3,8 +3,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_droidbench_files_paths3, get_flowdroid_file_paths, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
-from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing, parse_flowdroid_results
+from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_droidbench_files_paths3, get_flowdroid_file_paths, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, observation_arguments_default, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
+from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, filtering_flowdroid_comparison, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing, parse_flowdroid_results, summary_df_for_fd_comparison
 from experiment.instrument import rebuild_apps_no_instrumentation
 import hybrid.hybrid_config
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_paper_settings
@@ -98,8 +98,7 @@ def observation_processing_generic(logcat_directory_path: str, benchmark_files: 
     experiment_args["ids_subset"] = ids_subset
     experiment_args = experiment_args | benchmark_files
 
-    experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
-    experiment_args["logcat_directory_path"] = logcat_directory_path
+    experiment_args = experiment_args | observation_arguments_default(logcat_directory_path)
 
     experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
 
@@ -118,7 +117,7 @@ def flowdroid_comparison_wild_benchmarks(size: str):
     for benchmark_files in get_wild_benchmarks():
         experiment_args = flowdroid_setup_generic(benchmark_files, size)
 
-        logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, size)
+        logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, "full", "extendedStrList")
         experiment_args["logcat_directory_path"] = logcat_directory_path
         experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
 
@@ -152,8 +151,8 @@ def test_spot_check_flowdroid_comparison(benchmark_files: Dict[str, str], logcat
 
     flowdroid_comparison_with_observation_processing_experiment(**experiment_args)
 
-def test_spot_check_flowdroid_output_processing(flowdroid_logs_directory_path: str):
-    size = "small"
+def test_spot_check_flowdroid_output_processing(size: str, flowdroid_logs_directory_path: str):
+    
     experiment_args = subset_setup_generic(get_gpbench_files(), size)
     name = experiment_args["benchmark_name"]
 
@@ -163,6 +162,34 @@ def test_spot_check_flowdroid_output_processing(flowdroid_logs_directory_path: s
 
     experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
     results_df = parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_directory_path, **experiment_args)
+    results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
+    results_df.to_csv(results_df_path)
+
+def test_spot_check_flowdroid_comparison_output_processing(size: str, unmodified_fd_logs_path: str, augmented_fd_logs_path: str, logcat_directory_path: str):
+    experiment_args = subset_setup_generic(get_gpbench_files(), size)
+    name = experiment_args["benchmark_name"]
+
+    experiment_args["experiment_name"] = f"fd-log-processing-comparison-spotcheck-{size}-{name}"
+    description = f"Parse flowdroid output from {unmodified_fd_logs_path} and {augmented_fd_logs_path}"
+    experiment_args["experiment_description"] = description
+
+    experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**experiment_args)
+
+    experiment_args = experiment_args | observation_arguments_default(logcat_directory_path)    
+    source_sink_files: pd.DataFrame = observation_processing(experiment_dir_path, benchmark_df, **experiment_args)
+
+    unmodified_source_sink_results = parse_flowdroid_results(experiment_dir_path, benchmark_df, unmodified_fd_logs_path, **experiment_args)
+    print(source_sink_files["Augmented Source Sink Path"].to_string())
+    benchmark_df["Source Sink Path"] = source_sink_files["Augmented Source Sink Path"]
+    # benchmark_df["Augmented Source Sink Path"] = source_sink_files["Augmented Source Sink Path"]
+    benchmark_df["Observed Sources Path"] = source_sink_files["Observed Sources Path"]
+    augmented_source_sink_results = parse_flowdroid_results(experiment_dir_path, benchmark_df, augmented_fd_logs_path, **experiment_args)
+
+    filtering_flowdroid_comparison(experiment_dir_path, benchmark_df, unmodified_fd_logs_path, augmented_fd_logs_path, logcat_directory_path)
+
+    count_discovered_sources = source_sink_files["Discovered Sources"]
+    results_df = summary_df_for_fd_comparison(unmodified_source_sink_results, augmented_source_sink_results, count_discovered_sources)
+
     results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
     results_df.to_csv(results_df_path)
 

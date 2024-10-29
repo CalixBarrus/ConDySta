@@ -18,12 +18,14 @@ logger = util.logger.get_logger(__name__)
 def get_fossdroid_files() -> Dict[str, str]:
     fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
     fossdroid_ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/fossdroid_ground_truth.xml"
+    fossdroid_description_path = "data/benchmark-descriptions/fossdroid-ids-ordering.csv"
 
     return {
             "benchmark_name": "fossdroid",
             "benchmark_dir_path": fossdroid_benchmark_dir_path, 
             "ground_truth_xml_path": fossdroid_ground_truth_xml_path, 
             "source_sink_list_path": get_fossdroid_source_sink_list_path(),
+            "benchmark_description_path": fossdroid_description_path,
             }
 
 def get_gpbench_files() -> Dict[str,str]:
@@ -65,13 +67,11 @@ def get_wild_benchmarks() -> List[Dict[str, str]]:
     fossdroid_files: Dict[str, str] = get_fossdroid_files()
     gpbench_files: Dict[str, str] = get_gpbench_files()
 
-    # return [fossdroid_files]
-    return [gpbench_files]
+    return [fossdroid_files]
+    # return [gpbench_files]
     # return [fossdroid_files, gpbench_files]
 
 #### End External & Data File Paths Settings
-
-#### Start Flowdroid Experiment Settings
 
 def subset_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str, str]:
     # Set "ids_subset" and "always_new_experiment_directory"
@@ -130,8 +130,8 @@ def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[
     if type == "small":
         # Don't tweak "timeout" if it was already set by the client.
         if "timeout" not in experiment_args.keys():
-            experiment_args["timeout"] = 15 * 60
-            # experiment_args["timeout"] = 5
+            # experiment_args["timeout"] = 15 * 60
+            experiment_args["timeout"] = 5
         
     elif type == "full":
         if "timeout" not in experiment_args.keys():
@@ -145,8 +145,6 @@ def flowdroid_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[
         assert False
 
     return experiment_args
-
-### End flowdroid experiment settings 
 
 def instrumentation_arguments_default(benchmark_files: Dict[str, str]=None) -> Dict[str, str]:
     # TODO: This doesn't account for the need to harness different sources for gpbench spyware scenario
@@ -186,6 +184,14 @@ def instrumentation_strategy_factory_wrapper(**kwargs) -> List[SmaliInstrumentat
             instrumenters.append(instrumentation_strategy_factory(strategy_name))
 
     return instrumenters
+
+def observation_arguments_default(logcat_directory_path: str) -> Dict[str, str]:
+    experiment_args = {}
+    experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
+    experiment_args["logcat_directory_path"] = logcat_directory_path
+
+    return experiment_args
+
 
 
 #### Start Internal File Stuff
@@ -311,6 +317,8 @@ def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: 
         filtered_names = [name for name in filtered_names if filter_word in name]
     filtered_names.sort()
 
+    if len(filtered_names) != 0:
+        logger.debug(os.listdir(experiments_directory_path), )
     assert len(filtered_names) != 0
 
     result = os.path.join(experiments_directory_path, filtered_names[-1])
@@ -347,6 +355,8 @@ def benchmark_df_from_benchmark_directory_path(benchmark_directory_path: str, be
 
     inputs_model = input_apks_from_dir(benchmark_directory_path)
     benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=benchmark_description_csv_path)
+
+
     if ids_subset is not None:
         benchmark_df = benchmark_df.loc[ids_subset]
 
@@ -364,6 +374,7 @@ def benchmark_df_base_from_batch_input_model(inputs_model: BatchInputModel, benc
     for i in benchmark_df.index:
         benchmark_df.loc[i, "Input Model"].benchmark_id = i # type: ignore
 
+    # TODO: everything after here is garbage
     if benchmark_description_csv_path != "":
 
         description_df = description_df_from_path(benchmark_description_csv_path)
@@ -377,6 +388,10 @@ def benchmark_df_base_from_batch_input_model(inputs_model: BatchInputModel, benc
         if os.path.basename(benchmark_description_csv_path) == "gpbench-info.csv":
             # Join on description_df["AppName"], where a given apk_name is [AppID].[AppName].apk
             description_df_apk_names = description_df["AppID"].astype(str) + "." + description_df["AppName"] + ".apk"
+        elif os.path.basename(benchmark_description_csv_path) == "fossdroid-ids-ordering.csv":
+            # df index is benchmark ID, APK Name should match input model's apk name
+            description_df["AppID"] = description_df.index
+            description_df_apk_names = description_df["APK Name"]
         else: 
             description_df_apk_names = description_df["apk"].apply(lambda path: os.path.basename(path))
             # logger.debug(description_df_apk_names)

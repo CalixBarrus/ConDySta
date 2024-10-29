@@ -1,10 +1,12 @@
 
 
+from genericpath import isfile
 import os
 from subprocess import TimeoutExpired
 import time
-from typing import Callable, List, Tuple
+from typing import Callable, List, Set, Tuple
 import xml.etree.ElementTree as ET
+import numpy as np
 import pandas as pd
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, logger, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
 from hybrid.dynamic import LogcatLogFileModel, LogcatProcessingStrategy, get_selected_errors_from_logcat, logcat_processing_strategy_factory
@@ -13,9 +15,9 @@ from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
 
 from hybrid.hybrid_config import apk_logcat_output_path, flowdroid_logs_path, time_path, source_sink_file_path, text_file_path
 from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_analysis_error, get_flowdroid_flows, get_flowdroid_memory, get_flowdroid_reported_leaks_count
-from hybrid.source_sink import SourceSink, SourceSinkSignatures
-from intercept.instrument import InstrumentationReport
-from util.input import input_apks_from_dir
+from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures
+from intercept.instrument import InstrumentationReport, SmaliMethodInvocation
+from util.input import InputModel, input_apks_from_dir
 import util.logger
 logger = util.logger.get_logger(__name__)
 
@@ -45,6 +47,12 @@ def experiment_setup(**kwargs) -> Tuple[str, str, pd.DataFrame]:
 
     benchmark_df = benchmark_df_from_benchmark_directory_path(benchmark_dir_path, benchmark_description_csv_path=benchmark_description_path, ids_subset=ids_subset)
 
+    # # debug
+    # for i in benchmark_df.index:
+    #     # logger.debug(benchmark_df.at[i, "Input Model"].apk())
+    #     logger.debug(benchmark_df.at[i, "Input Model"].apk().apk_path)
+    # # end debug
+
     return experiment_id, experiment_dir_path, benchmark_df
 
 def flowdroid_comparison_with_observation_processing_experiment(**kwargs):
@@ -61,8 +69,8 @@ def flowdroid_comparison_with_observation_processing_experiment(**kwargs):
 
         # kwargs["flowdroid_output_directory_name"] = "augmented-flowdroid-logs"
         flowdroid_logs_directory_name = "augmented-flowdroid-logs"
-        benchmark_df["Source Sink Path"] = source_sink_files["Source Sink Path"]
-        benchmark_df["Observed Sources Path"] = source_sink_files["Source Sink Path"]
+        benchmark_df["Source Sink Path"] = source_sink_files["Augmented Source Sink Path"]
+        # benchmark_df["Observed Sources Path"] = source_sink_files["Observed Sources Path"]
         augmented_source_sink_results = flowdroid_on_benchmark_df(experiment_dir_path, benchmark_df, flowdroid_logs_directory_name=flowdroid_logs_directory_name, **kwargs)
 
         # TODO: compute summary & interpretation of results_df
@@ -86,13 +94,13 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
     logcat_processing_strategy: LogcatProcessingStrategy = logcat_processing_strategy_factory(kwargs["logcat_processing_strategy"])
 
     observed_source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["observed-source-sinks"])[0]
-    source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["augmented-source-sinks"])[0]
+    augmented_source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["augmented-source-sinks"])[0]
     observed_strings_directory_path: str = setup_additional_directories(experiment_dir_path, ["observation-details"])[0]
 
     original_source_sinks: SourceSinkSignatures = SourceSinkSignatures.from_file(kwargs["source_sink_list_path"])
 
-    source_sink_path_column = "Source Sink Path"
-    results_df[source_sink_path_column] = ""
+    augmented_source_sink_path_column = "Augmented Source Sink Path"
+    results_df[augmented_source_sink_path_column] = ""
 
     for i in benchmark_df.index:
         input_model = benchmark_df.loc[i, "Input Model"]
@@ -116,9 +124,9 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         instrumentation_report_tuples: List[InstrumentationReport] = logcat_model.scan_log_for_instrumentation_report_tuples()
         results_df.loc[i, "Instrumentation Reports"] = len(instrumentation_report_tuples)
         results_df.loc[i, "Discovered Sources"] = observed_source_sinks.source_count()
-        source_sink_file = source_sink_file_path(observed_source_sink_directory_path, input_model)
-        observed_source_sinks.write_to_file(source_sink_file)
-        results_df.loc[i, "Observed Sources Path"] = source_sink_file
+        observed_source_sink_file = source_sink_file_path(observed_source_sink_directory_path, input_model)
+        observed_source_sinks.write_to_file(observed_source_sink_file)
+        results_df.loc[i, "Observed Sources Path"] = observed_source_sink_file
 
         harnessed_source_calls = logcat_model.scan_log_for_harnessed_source_calls()
         results_df.loc[i, "Harnessed Source Calls Count"] = len(harnessed_source_calls)
@@ -130,9 +138,9 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
             out_file.write("\n".join([f"Log line {i}, {line.strip()}" for i, line in harnessed_source_calls]))
 
         augmented_source_sinks: SourceSinkSignatures = observed_source_sinks.union(original_source_sinks)
-        source_sink_file = source_sink_file_path(source_sink_directory_path, input_model)
-        augmented_source_sinks.write_to_file(source_sink_file)
-        results_df.loc[i, source_sink_path_column] = source_sink_file
+        augmented_source_sink_file = source_sink_file_path(augmented_source_sink_directory_path, input_model)
+        augmented_source_sinks.write_to_file(augmented_source_sink_file)
+        results_df.loc[i, augmented_source_sink_path_column] = augmented_source_sink_file
 
     return results_df
 
@@ -165,10 +173,10 @@ def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFra
     use_ic3 = ic3_model_column in benchmark_df.columns
 
 
-    source_sink_list_path = kwargs["source_sink_list_path"]
-    # Check if individual source/sinks will be used
-    source_sink_path_column = "Source Sink Path"
-    use_individual_source_sinks = source_sink_path_column in benchmark_df.columns
+    # source_sink_list_path = kwargs["source_sink_list_path"]
+    # # Check if individual source/sinks will be used
+    # source_sink_path_column = "Source Sink Path"
+    # use_individual_source_sinks = source_sink_path_column in benchmark_df.columns
 
     get_source_sink = _get_source_sink_factory(**kwargs)
     
@@ -224,12 +232,14 @@ def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_di
         ground_truth_xml_path = kwargs["ground_truth_xml_path"]
         ground_truth_flows_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
 
+        # save formatted ground truth for split up by input
+
         # only for testing augmented SS list
         if "Observed Sources Path" in benchmark_df.columns:
             observed_sources_details_directory = setup_additional_directories(experiment_dir_path, ["result-details"])[0]
 
     for i in benchmark_df.index:
-        input_model = benchmark_df.loc[i, "Input Model"]
+        input_model: InputModel = benchmark_df.loc[i, "Input Model"]
 
         output_log_path = flowdroid_logs_path(flowdroid_logs_directory_path, input_model)
         output_time_path = time_path(flowdroid_logs_directory_path, input_model)
@@ -249,6 +259,12 @@ def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_di
 
                 # Check if there are flows from observed sources to ground_truth sinks. 
                 apk_observed_sources_path = benchmark_df.loc[i, "Observed Sources Path"]
+                if apk_observed_sources_path == "" or pd.isna(apk_observed_sources_path):
+                    msg = f"No file for observed sources for input {input_model.input_identifier()}"
+                    logger.error(msg)
+                    results_df.loc[i, "Error Message"] += msg # type: ignore
+                    continue
+
                 observed_sources: SourceSinkSignatures = SourceSinkSignatures.from_file(apk_observed_sources_path)
 
                 # Don't bother printing this info out if there were no observed sources.
@@ -265,7 +281,7 @@ def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_di
 
                     apk_name = results_df.loc[i, 'APK Name']            
                     apk_name_mask = ground_truth_flows_df['APK Name'] == apk_name
-                    ground_truth_flows_df[apk_name_mask]
+                    # ground_truth_flows_df[apk_name_mask]
 
                     observed_sources_details_path = text_file_path(observed_sources_details_directory, input_model)
 
@@ -281,6 +297,192 @@ def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_di
                         file.write("\n")
 
     return results_df
+
+def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.DataFrame, unmodified_fd_logs_path: str, augmented_fd_logs_path: str, logcat_directory_path: str):
+
+    filter_details_df = results_df_from_benchmark_df(benchmark_df)
+    # TODO: need dirs for input specific results???
+
+    intermediate_source_contexts_directory = setup_additional_directories(experiment_dir_path, ["source-contexts"])[0]
+    filtered_flows_details_directory = setup_additional_directories(experiment_dir_path, ["filtered-flows-details"])[0]
+
+
+    for i in benchmark_df.index:
+        input_model: InputModel = benchmark_df.loc[i, "Input Model"]
+
+        # Unmodified FD flows
+        unmodified_log_path = flowdroid_logs_path(unmodified_fd_logs_path, input_model)
+        logger.debug(os.path.basename(unmodified_log_path))
+        if os.path.isfile(unmodified_log_path):
+            try:
+                unmodified_fd_flows: List[Flow] = get_flowdroid_flows(unmodified_log_path, input_model.apk().apk_path)
+            except FlowdroidLogException as e:
+                msg = f"Log for unmodified run at {unmodified_log_path}, probably timed out, skipping comparison on {input_model.input_identifier()}"
+                logger.info(msg)
+                continue
+        else:
+            unmodified_fd_flows: List[Flow] = None
+
+        # logger.debug("unmodified flows: " + str(len(unmodified_fd_flows)))
+
+        # Augmented FD flows
+        augmented_log_path = flowdroid_logs_path(augmented_fd_logs_path, input_model)
+        if not os.path.isfile(augmented_log_path):
+            msg = f"Log for augmented run not found at {augmented_log_path}, skipping comparison on {input_model.input_identifier()}"
+            logger.info(msg)
+            continue
+        try:
+            augmented_fd_flows: List[Flow] = get_flowdroid_flows(augmented_log_path, input_model.apk().apk_path)
+        except FlowdroidLogException as e:
+            msg = f"Log at {augmented_log_path}, probably timed out, skipping comparison on {input_model.input_identifier()}"
+            logger.info(msg)
+            continue
+
+        # logger.debug("augmented flows: " + str(len(augmented_fd_flows)))
+
+
+        # Intermediate sources
+        apk_observed_sources_path = benchmark_df.loc[i, "Observed Sources Path"]
+        if apk_observed_sources_path == "":
+            msg = f"No file for observed sources for input {input_model.input_identifier()}"
+            logger.info(msg)
+            continue
+        observed_sources: SourceSinkSignatures = SourceSinkSignatures.from_file(apk_observed_sources_path)
+
+        # logger.debug("observed_sources: " + str(observed_sources.source_count()))
+
+        # Instr Reports
+        possible_logcat_file_path = apk_logcat_output_path(logcat_directory_path, input_model)
+        if not os.path.isfile(possible_logcat_file_path):
+            msg = f"Log not found at {possible_logcat_file_path}, skipping comparison on {input_model.input_identifier()}"
+            logger.info(msg)
+            continue
+        logcat_model = LogcatLogFileModel(possible_logcat_file_path)
+        instrumentation_report_tuples: List[Tuple[InstrumentationReport, str, str]] = logcat_model.scan_log_for_instrumentation_report_tuples()
+
+        # logger.debug("observed_sources: " + str(len(instrumentation_report_tuples)))
+
+        # For each intermediate source, what are the observed calling method(s) & class(es)
+        source_context: pd.DataFrame = identify_source_method_context(observed_sources, instrumentation_report_tuples)
+        source_context.to_csv(text_file_path(intermediate_source_contexts_directory, input_model))
+        
+        # Compare flows from unmodified vs. augmented runs, 
+        if unmodified_fd_flows is not None:
+            # compare_flows()
+            repeat_flows = [flow for flow in augmented_fd_flows if flow in unmodified_fd_flows]
+            # filter down to new flows (flows using intermediate sources)
+            new_flows = [flow for flow in augmented_fd_flows if flow not in unmodified_fd_flows]
+
+        # # Check the calling method & class of the intermediate source against the observed methods and classes, filter down. 
+        new_flows_with_matching_class = []
+        new_flows_with_matching_class_and_method = []
+        for flow in new_flows:
+            
+            flow_source_signature = MethodSignature.from_java_style_signature(flow.get_source_statementgeneric())
+
+            matching_observed_sources_mask = source_context["Source Signature"].map(lambda signature: 
+                MethodSignature.from_java_style_signature(signature).relaxed_equals(
+                    MethodSignature.from_java_style_signature(flow.get_source_statementgeneric())))
+
+            if sum(matching_observed_sources_mask) != 1:
+                if sum(matching_observed_sources_mask) > 1:
+                    pass
+                    # logger.debug(f"Flow source {flow_source_signature} matched against more than 1 observed source {source_context.loc[matching_observed_sources, "Source Signature"]}" )
+                else: 
+                    logger.debug(f"Flow source {flow.get_source_statementgeneric()} not found in source_context")
+                    # logger.debug(source_context["Source Signature"].values)
+
+            # Does the flow's enclosing class match any of the class & methods from the observed contexts?
+            flow_source_enclosing_method_signature = MethodSignature.from_java_style_signature(flow.get_source_method_text())
+            matching_observed_class_and_method = source_context.loc[matching_observed_sources_mask, "Observed Context Method and Class"].values
+            # axis=None flattens the jagged np arrays before joining them.
+            matching_observed_class_and_method = np.concatenate(matching_observed_class_and_method, axis=None)
+            for class_and_method in matching_observed_class_and_method:
+                enclosing_class, enclosing_method = str(class_and_method).split(" ")
+                if flow_source_enclosing_method_signature.base_type == enclosing_class:
+                    new_flows_with_matching_class.append(flow)
+                if flow_source_enclosing_method_signature.base_type == enclosing_class and flow_source_enclosing_method_signature.method_name == enclosing_method:
+                    new_flows_with_matching_class_and_method.append(flow)
+                    
+                 
+
+            # logger.debug(f"{flow.get_source_method_text()} vs {source_context.loc[matching_observed_sources, "Observed Context Method and Class"].values}")
+            # # source_context.loc[matching_observed_sources, "Observed Context Method and Class"]
+
+            # unmodified_fd_flows
+            # augmented_fd_flows
+            # repeat_flows
+            # new_flows
+            # new_flows_with_matching_class
+            # new_flows_with_matching_class_and_method
+
+            filter_details_df.at[i, "Count Unmodified Flows"] = len(unmodified_fd_flows)
+            filter_details_df.at[i, "Count Augmented Flows"] = len(augmented_fd_flows)
+            filter_details_df.at[i, "Count Repeat Flows"] = len(repeat_flows)
+            filter_details_df.at[i, "Count New Flows (from intermediate source)"] = len(new_flows)
+            filter_details_df.at[i, "Count New Flows With Matching Class"] = len(new_flows_with_matching_class)
+            filter_details_df.at[i, "Count New Flows With Matching Class And Method"] = len(new_flows_with_matching_class_and_method)
+
+            
+            with open(text_file_path(filtered_flows_details_directory, input_model), 'w') as out_file:
+                for flow_list, label in [(unmodified_fd_flows, "Unmodified Flows"),
+                                    (augmented_fd_flows, "Augmented Flows"),
+                                    (repeat_flows, "Repeat Flows"),
+                                    (augmented_fd_flows, "New Flows (from intermediate source)"),
+                                    (new_flows_with_matching_class, "New Flows With Matching Class"),
+                                    (new_flows_with_matching_class_and_method, "New Flows With Matching Class And Method"),
+                                    ]:
+                    out_file.write(f"{label}:\n")
+                    out_file.write("\n".join(map(lambda flow: flow.to_readable_str(), flow_list)))
+                    out_file.write("\n\n")
+
+
+
+        # # Check if any of the sinks of these filtered flows match sinks of ground truths
+
+
+    filter_details_df_path = os.path.join(experiment_dir_path, "filter-details" + ".csv")
+    filter_details_df.to_csv(filter_details_df_path)
+
+def identify_source_method_context(observed_sources: SourceSinkSignatures, instrumentation_report_tuples: List[Tuple[InstrumentationReport, str, str]]) -> pd.DataFrame:
+    # Produces for each observed source, the set of calling methods & classes. 
+
+    sources: Set[MethodSignature] = observed_sources.source_signatures
+
+    source_contexts = pd.DataFrame([source.signature for source in sources], columns=["Source Signature"])
+
+    source_contexts["Observed Contexts Count"] = 0
+    source_contexts["Observed Context Access Path Lengths"] = ""
+    # source_contexts["Observed Context Classes"] = [set()]*len(source_contexts)
+    # source_contexts["Observed Context Methods"] = [set()]*len(source_contexts)
+    # source_contexts["Observed Context Private Strings"] = [set()]*len(source_contexts)
+    # source_contexts["Observed Context Access Paths"] = [set()]*len(source_contexts)
+    source_contexts["Observed Context Method and Class"] = ""
+    source_contexts["Observed Context Private Strings"] = ""
+    source_contexts["Observed Context Access Paths"] = ""
+
+    # logger.debug("tuples length " + str(len(instrumentation_report_tuples)))
+
+    reports: pd.DataFrame = pd.DataFrame({"invocation_java_signature": [report.invocation_java_signature for report, access_path, private_string in instrumentation_report_tuples], 
+                "access_path": [access_path for report, access_path, private_string in instrumentation_report_tuples], 
+                "private_string": [private_string for report, access_path, private_string in instrumentation_report_tuples],
+                "enclosing_class_and_method": [SmaliMethodInvocation.smali_type_to_java_type(report.enclosing_class_name) + " " + report.enclosing_method_name for report, access_path, private_string in instrumentation_report_tuples],
+                })
+    
+    for i in source_contexts.index:
+        source_signature = source_contexts.loc[i, "Source Signature"]
+
+        matching_source_mask = source_signature == reports["invocation_java_signature"]
+
+        # print(source_contexts.at[i, "Observed Context Private Strings"])
+        source_contexts.at[i, "Observed Contexts Count"] = sum(matching_source_mask)
+        source_contexts.at[i, "Observed Context Private Strings"] = reports.loc[matching_source_mask, "private_string"].unique()
+        source_contexts.at[i, "Observed Context Access Paths"] = reports.loc[matching_source_mask, "access_path"].unique()
+        source_contexts.at[i, "Observed Context Access Path Lengths"] = [len(path.split(",")) for path in reports.loc[matching_source_mask, "access_path"].unique()]
+        source_contexts.at[i, "Observed Context Method and Class"] = reports.loc[matching_source_mask, "enclosing_class_and_method"].unique()
+
+
+    return source_contexts
 
 
 def process_fd_log_stats(results_df: pd.DataFrame, i: int, time_elapsed_seconds: int, log_path: str):
