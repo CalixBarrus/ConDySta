@@ -123,7 +123,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         logcat_model = LogcatLogFileModel(possible_logcat_file_path)
         instrumentation_report_tuples: List[InstrumentationReport] = logcat_model.scan_log_for_instrumentation_report_tuples()
         results_df.loc[i, "Instrumentation Reports"] = len(instrumentation_report_tuples)
-        results_df.loc[i, "Discovered Sources"] = observed_source_sinks.source_count()
+        results_df.loc[i, "Observed Source Signatures"] = observed_source_sinks.source_count()
         observed_source_sink_file = source_sink_file_path(observed_source_sink_directory_path, input_model)
         observed_source_sinks.write_to_file(observed_source_sink_file)
         results_df.loc[i, "Observed Sources Path"] = observed_source_sink_file
@@ -138,6 +138,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
             out_file.write("\n".join([f"Log line {i}, {line.strip()}" for i, line in harnessed_source_calls]))
 
         augmented_source_sinks: SourceSinkSignatures = observed_source_sinks.union(original_source_sinks)
+        results_df.loc[i, "New Observed Sources"] = augmented_source_sinks.source_count() - original_source_sinks.source_count()
         augmented_source_sink_file = source_sink_file_path(augmented_source_sink_directory_path, input_model)
         augmented_source_sinks.write_to_file(augmented_source_sink_file)
         results_df.loc[i, augmented_source_sink_path_column] = augmented_source_sink_file

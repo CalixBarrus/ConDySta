@@ -1,4 +1,5 @@
 from abc import ABC
+import os
 import re
 import shutil
 from typing import Set, List, Optional, Dict, Tuple
@@ -287,12 +288,12 @@ class LogcatLogFileModel:
         report_preamble = report_tag + "InstrumentationReport("
         instr_report_tuples = []
 
-        for line in self.lines:
+        for i, line in enumerate(self.lines):
             if report_preamble in line:
                 log_content = line.split(report_tag)[1]
 
                 # Parse the contents of the string according to the code written in Java
-                re_result = re.search(r"(InstrumentationReport\(.+\));(.+);(.+)", log_content.strip())
+                re_result = re.search(r"(InstrumentationReport\(.+\));(.+);(.*)", log_content.strip())
                 if re_result is None:
                     raise AssertionError("Log did not parse correctly")
 
@@ -302,6 +303,11 @@ class LogcatLogFileModel:
                 # instr_report_string should be a working constructor for an InstrumentationReport object.
                 # access_path is the str representation of a List<FieldInfo> object, defined in Snapshot.Java
                 # private_string is the listed string of PII that was detected by the Snapshot code
+
+                if len(re.findall("InstrumentationReport", instr_report_string)) > 1:
+                    logger.error(f"Instrumentation produced a bad string on line {i} of {os.path.basename(self.path)}; Tainted string was itself an Instrumentation Report! '{instr_report_string}'")
+                    continue
+
                 instr_report = eval(instr_report_string)
                 instr_report_tuples.append((instr_report, access_path, private_string))
 

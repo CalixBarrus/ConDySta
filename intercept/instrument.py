@@ -194,7 +194,9 @@ class DecodedApkModel:
                 
                 smali_file.insert_code(insertions)
 
-        logger.debug(f"Instrumenters performed {",".join([str(count) for count in insertions_count])} code insertions, respectively on apk {os.path.basename(self.apk_root_path)}")
+        # start debug
+        # logger.debug(f"Instrumenters performed {",".join([str(count) for count in insertions_count])} code insertions, respectively on apk {os.path.basename(self.apk_root_path)}")
+        # end debug
 
         self.is_instrumented = True
 
@@ -1455,6 +1457,9 @@ class HarnessSources(SmaliInstrumentationStrategy):
         self.sources_to_instrument = sources
         self.invocation_id = -1
 
+        # TODO This setting needs to be moved out to be visible for experiments
+        self.overwrite_return = True
+
 
 
         # identify smali invocations on source method. 
@@ -1470,6 +1475,11 @@ class HarnessSources(SmaliInstrumentationStrategy):
 
         code_insertions = instrument_by_invocation(smali_file, self._instrument_invocation_statement)
 
+        # start debug
+        if len(code_insertions) > 0:
+            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {",".join([str(insertion.line_number) for insertion in code_insertions])}")
+        # end debug
+
         return code_insertions
 
 
@@ -1477,7 +1487,7 @@ class HarnessSources(SmaliInstrumentationStrategy):
         self.invocation_id += 1
         invocation_id = self.invocation_id
 
-        overwrite_return = False
+
 
         # Is the method being invoked on our list of sources? 
 
@@ -1495,7 +1505,7 @@ class HarnessSources(SmaliInstrumentationStrategy):
             logger.debug(f"Method {invocation_statement.method_name} is called but return isn't used. Not instrumenting.")
             return []
         
-        if overwrite_return:
+        if self.overwrite_return:
             # create harnessed private string
 
             # Is the method being invoked returning a string? (assert True)
@@ -1523,13 +1533,15 @@ class HarnessSources(SmaliInstrumentationStrategy):
                                                         method_instrumentation_registers)
         code_insertions.append(code_insertion_log_report)
 
-        if overwrite_return:
+        if self.overwrite_return:
             # code insertion to overwrite string
             code = overwrite_object_register_with_value(return_register, empty_register, harness_value)
             code_insertion_overwrite_result = CodeInsertionModel(code, method_index,
                                                             target_line_number,
                                                             method_instrumentation_registers)
-            code_insertions.append(code_insertion_overwrite_result)
+            # TODO: the ordering here is working the opposite the way i thought it should!!!
+            code_insertions = [code_insertion_overwrite_result] + code_insertions
+            # code_insertions.append(code_insertion_overwrite_result)
                       
         return code_insertions
     
@@ -1669,6 +1681,10 @@ def overwrite_object_register_with_value(dest_register: str, source_register: st
     const-string {source_register}, "{value}"
     move-object {dest_register}, {source_register}
 """
+#     return f"""
+#     const-string {source_register}, "{value}"
+#     move-object {source_register}, {dest_register}
+# """
 
 
 def instrumentation_strategy_factory(
