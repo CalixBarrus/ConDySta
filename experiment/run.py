@@ -60,20 +60,6 @@ def manual_test_few_apps_recording_output():
 def manual_test_all_apps_recording_output():
     execute_apps_each_benchmark("full", "manual")
 
-def test_apps_spot_check(benchmark_files: Dict[str, str], size_description: str,  apks_dir_path: str):
-    execution_input_approach = "monkey"
-    test_apk_method = test_apk_method_factory(execution_input_approach, {"seconds_to_test": 5})
-
-    experiment_args = subset_setup_generic(benchmark_files, size_description)
-    ids_subset = experiment_args["ids_subset"]
-
-    name = benchmark_files["benchmark_name"]
-    
-    experiment_name = f"execution-spotcheck-{size_description}-{name}"
-    description = f"Running instrumented apps from {name} benchmark"
-
-    execute_apps_generic_experiment(apks_dir_path, benchmark_files, experiment_name, description, ids_subset, test_apk_method)
-
 def execute_apps_each_benchmark(size_description: str, execution_input_approach: str):
 
     test_apk_method = test_apk_method_factory(execution_input_approach, {})
@@ -94,7 +80,19 @@ def execute_apps_each_benchmark(size_description: str, execution_input_approach:
         execute_apps_generic_experiment(instrumented_apks_dir_path, benchmark_files, experiment_name, description, ids_subset, test_apk_method)
 
     
+def test_apps_spot_check(benchmark_files: Dict[str, str], size_description: str,  apks_dir_path: str):
+    execution_input_approach = "monkey"
+    test_apk_method = test_apk_method_factory(execution_input_approach, {"seconds_to_test": 5})
+
+    experiment_args = subset_setup_generic(benchmark_files, size_description)
+    ids_subset = experiment_args["ids_subset"]
+
+    name = benchmark_files["benchmark_name"]
     
+    experiment_name = f"execution-spotcheck-{size_description}-{name}"
+    description = f"Running instrumented apps from {name} benchmark"
+
+    execute_apps_generic_experiment(apks_dir_path, benchmark_files, experiment_name, description, ids_subset, test_apk_method)
 
 
 def install_apps(apks_to_install_directory_path: str, benchmark_files: Dict[str, str], ids_subset: List[int]):

@@ -65,8 +65,8 @@ def get_wild_benchmarks() -> List[Dict[str, str]]:
     fossdroid_files: Dict[str, str] = get_fossdroid_files()
     gpbench_files: Dict[str, str] = get_gpbench_files()
 
-    # return [fossdroid_files]
-    return [gpbench_files]
+    return [fossdroid_files]
+    # return [gpbench_files]
     # return [fossdroid_files, gpbench_files]
 
 #### End External & Data File Paths Settings
@@ -86,7 +86,8 @@ def subset_setup_generic(benchmark_files: Dict[str, str], type: str) -> Dict[str
             experiment_args["ids_subset"] = [4]
             # experiment_args["ids_subset"] = [1,2,3,4]
         elif benchmark_name == "fossdroid":
-            experiment_args["ids_subset"] = [0,1,2,3]
+            # experiment_args["ids_subset"] = [0,1,2,3]
+            experiment_args["ids_subset"] = [12]
         elif benchmark_name == "droidbench3":
             experiment_args["ids_subset"] = [0,1]
         experiment_args["always_new_experiment_directory"] = False

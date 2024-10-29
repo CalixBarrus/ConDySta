@@ -115,7 +115,7 @@ def _uninstall_apk(apk_path):
 
 
 def test_apk_method_factory(execution_input_approach: str, monkey_kwargs: Dict[str, str]) -> Callable[[ApkModel, str], None]:
-    default_seconds_to_test = 5
+    default_seconds_to_test = 60
     default_force_stop_when_finished = True
 
     seconds_to_test = default_seconds_to_test

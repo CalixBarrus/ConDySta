@@ -30,7 +30,9 @@ public class Snapshot {
 
     // Personally identifiable information known a priori
     // mint_mobile_SIM_id, nexus_6_IMEI, serial #, advertising ID, Wifi Mac Address, Bluetooth mac address, google account email, google account password
-    private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396", "ZX1H22KHQK", "b91481e8-4bfc-47ce-82b6-728c3f6bff60", "f8:cf:c5:d1:02:e8", "f8:cf:c5:d1:02:e7", "tester.sefm@gmail.com", "Class-Deliver-Put-Earn-5");
+    private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396", "ZX1H22KHQK", "b91481e8-4bfc-47ce-82b6-728c3f6bff60", "f8:cf:c5:d1:02:e8", "f8:cf:c5:d1:02:e7", "tester.sefm@gmail.com", "Class-Deliver-Put-Earn-5", 
+        // Unique-ish Strings observed from "Ljava/util/Locale; toString", "Ljava/util/Locale; toString", "Landroid/provider/Settings$Secure; getString", "Landroid/net/nsd/NsdServiceInfo; getServiceName", respectively.
+        "en_US", "3a15cc3d742be836", "Q2hhbm5lbF8wMA:OhXMPXQr6DY:");
 
     private static final String HARNESSED_PII_PATTERN = "\\*\\*\\*\\d{12}\\*\\*\\*";
 
@@ -231,6 +233,7 @@ public class Snapshot {
                 if (stringInstance.contains(piiString)) {
                     // Tainted String found!
                     Log.d(TAG, invocationDescription + ";" + accessPath + ";" + stringInstance);
+                    Log.d(DEBUG_TAG, "String matched against: " + piiString);
                     childFoundLeak = true;
                 }
             }
@@ -240,8 +243,17 @@ public class Snapshot {
             if (pattern.matcher(stringInstance).find()) {
                 // Tainted String found!
                 Log.d(TAG, invocationDescription + ";" + accessPath + ";" + stringInstance);
+                Log.d(DEBUG_TAG, "String matched against pattern: " + HARNESSED_PII_PATTERN);
                 childFoundLeak = true;
             }
+
+            // if (stringInstance.contains("***")) {
+            //     // Tainted String found!
+            //     Log.d(DEBUG_TAG, invocationDescription + ";" + accessPath + ";" + stringInstance);
+            //     Log.d(DEBUG_TAG, "String matched against: " + "***");
+            //     Log.d(DEBUG_TAG, "Result of RE matcher: " + pattern.matcher(stringInstance));
+            //     Log.d(DEBUG_TAG, "Result of RE code find: " + pattern.matcher(stringInstance).find());
+            // }
 
         }
 
