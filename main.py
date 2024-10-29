@@ -1,6 +1,6 @@
 import subprocess
 from experiment import run
-from experiment.benchmarks import test_full_flowdroid_comparison_wild_benchmarks, test_full_flowdroid_on_wild_benchmarks, test_full_observation_processing, icc_bench_linux, test_rebuild_fossdroid_apks_small, test_rebuild_wild_benchmarks_full, test_rebuild_wild_benchmarks_several, test_small_flowdroid_comparison_wild_benchmarks, test_small_flowdroid_on_wild_benchmarks, test_small_observation_processing, test_spot_check_flowdroid_comparison, test_spot_check_flowdroid_output_processing, test_spotcheck_observation_processing
+from experiment.benchmarks import test_full_flowdroid_comparison_wild_benchmarks, test_full_flowdroid_on_wild_benchmarks, test_full_observation_processing, icc_bench_linux, test_rebuild_fossdroid_apks_small, test_rebuild_wild_benchmarks_full, test_rebuild_wild_benchmarks_several, test_small_flowdroid_comparison_wild_benchmarks, test_small_flowdroid_on_wild_benchmarks, test_small_observation_processing, test_spot_check_flowdroid_comparison, test_spot_check_flowdroid_comparison_output_processing, test_spot_check_flowdroid_output_processing, test_spotcheck_observation_processing
 from experiment.common import get_fossdroid_files, get_gpbench_files
 from experiment.fossdroid import test_fossdroid_validation_experiment
 from experiment.gpbench import run_ic3_on_apk
@@ -30,7 +30,10 @@ if __name__ == '__main__':
 
     # test_small_observation_processing("h5")
     # test_small_flowdroid_comparison_wild_benchmarks()
-    # test_spot_check_flowdroid_output_processing("/home/calix/programming/ConDySta/data/experiments/2024-10-23-flowdroid-comparison-small-gpbench/augmented-flowdroid-logs")
+    # test_spot_check_flowdroid_output_processing("full", "/home/calix/programming/ConDySta/data/experiments/2024-10-23-flowdroid-comparison-full-gpbench/augmented-flowdroid-logs")
+
+    # Final GPBench Analysis:
+    # test_spot_check_flowdroid_comparison_output_processing("full", "/home/calix/programming/ConDySta/data/experiments/2024-10-23-flowdroid-comparison-full-gpbench/unmodified-flowdroid-logs", "/home/calix/programming/ConDySta/data/experiments/2024-10-23-flowdroid-comparison-full-gpbench/augmented-flowdroid-logs", "/home/calix/programming/ConDySta/data/experiments/2024-10-21-execution-full-gpbench-manual/logcat-output")
 
     # recursion depth of 3 on gpbench w/ monkey
     # test_spotcheck_observation_processing(get_gpbench_files(), "/home/calix/programming/ConDySta/data/experiments/2024-10-09-execution-full-gpbench0/logcat-output")
@@ -72,7 +75,9 @@ if __name__ == '__main__':
     # manual_test_all_apps_recording_output()
     # test_full_observation_processing()    
 
-    test_full_flowdroid_comparison_wild_benchmarks()
+    test_small_flowdroid_comparison_wild_benchmarks()
+    # test_full_flowdroid_comparison_wild_benchmarks()
+    
 
 
     
