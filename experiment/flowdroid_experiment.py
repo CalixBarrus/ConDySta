@@ -74,7 +74,7 @@ def flowdroid_comparison_with_observation_processing_experiment(**kwargs):
         augmented_source_sink_results = flowdroid_on_benchmark_df(experiment_dir_path, benchmark_df, flowdroid_logs_directory_name=flowdroid_logs_directory_name, **kwargs)
 
         # TODO: compute summary & interpretation of results_df
-        count_discovered_sources = source_sink_files["Discovered Sources"]
+        count_discovered_sources = source_sink_files["Observed Source Signatures"]
         results_df = summary_df_for_fd_comparison(unmodified_source_sink_results, augmented_source_sink_results, count_discovered_sources)
         # results_df = pd.merge(suffix_on_flowdroid_results(unmodified_source_sink_results, " Unmodified Source/Sink"), 
         #                 suffix_on_flowdroid_results(augmented_source_sink_results, " Augmented Source/Sink"))
@@ -313,16 +313,16 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
 
         # Unmodified FD flows
         unmodified_log_path = flowdroid_logs_path(unmodified_fd_logs_path, input_model)
-        logger.debug(os.path.basename(unmodified_log_path))
+        # logger.debug(os.path.basename(unmodified_log_path))
         if os.path.isfile(unmodified_log_path):
             try:
-                unmodified_fd_flows: List[Flow] = get_flowdroid_flows(unmodified_log_path, input_model.apk().apk_path)
+                unmodified_fd_flows: Set[Flow] = set(get_flowdroid_flows(unmodified_log_path, input_model.apk().apk_path))
             except FlowdroidLogException as e:
                 msg = f"Log for unmodified run at {unmodified_log_path}, probably timed out, skipping comparison on {input_model.input_identifier()}"
                 logger.info(msg)
                 continue
         else:
-            unmodified_fd_flows: List[Flow] = None
+            unmodified_fd_flows: Set[Flow] = None
 
         # logger.debug("unmodified flows: " + str(len(unmodified_fd_flows)))
 
@@ -333,7 +333,7 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
             logger.info(msg)
             continue
         try:
-            augmented_fd_flows: List[Flow] = get_flowdroid_flows(augmented_log_path, input_model.apk().apk_path)
+            augmented_fd_flows: Set[Flow] = set(get_flowdroid_flows(augmented_log_path, input_model.apk().apk_path))
         except FlowdroidLogException as e:
             msg = f"Log at {augmented_log_path}, probably timed out, skipping comparison on {input_model.input_identifier()}"
             logger.info(msg)
@@ -375,8 +375,8 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
             new_flows = [flow for flow in augmented_fd_flows if flow not in unmodified_fd_flows]
 
         # # Check the calling method & class of the intermediate source against the observed methods and classes, filter down. 
-        new_flows_with_matching_class = []
-        new_flows_with_matching_class_and_method = []
+        new_flows_with_matching_class = set()
+        new_flows_with_matching_class_and_method = set()
         for flow in new_flows:
             
             flow_source_signature = MethodSignature.from_java_style_signature(flow.get_source_statementgeneric())
@@ -391,6 +391,7 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
                     # logger.debug(f"Flow source {flow_source_signature} matched against more than 1 observed source {source_context.loc[matching_observed_sources, "Source Signature"]}" )
                 else: 
                     logger.debug(f"Flow source {flow.get_source_statementgeneric()} not found in source_context")
+                    continue
                     # logger.debug(source_context["Source Signature"].values)
 
             # Does the flow's enclosing class match any of the class & methods from the observed contexts?
@@ -401,9 +402,9 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
             for class_and_method in matching_observed_class_and_method:
                 enclosing_class, enclosing_method = str(class_and_method).split(" ")
                 if flow_source_enclosing_method_signature.base_type == enclosing_class:
-                    new_flows_with_matching_class.append(flow)
+                    new_flows_with_matching_class.add(flow)
                 if flow_source_enclosing_method_signature.base_type == enclosing_class and flow_source_enclosing_method_signature.method_name == enclosing_method:
-                    new_flows_with_matching_class_and_method.append(flow)
+                    new_flows_with_matching_class_and_method.add(flow)
                     
                  
 

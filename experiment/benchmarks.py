@@ -117,7 +117,7 @@ def flowdroid_comparison_wild_benchmarks(size: str):
     for benchmark_files in get_wild_benchmarks():
         experiment_args = flowdroid_setup_generic(benchmark_files, size)
 
-        logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, "full", "extendedStrList")
+        logcat_directory_path = recent_executions_for_wild_benchmark(benchmark_files, "full", "intercept")
         experiment_args["logcat_directory_path"] = logcat_directory_path
         experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
 
@@ -179,15 +179,16 @@ def test_spot_check_flowdroid_comparison_output_processing(size: str, unmodified
     source_sink_files: pd.DataFrame = observation_processing(experiment_dir_path, benchmark_df, **experiment_args)
 
     unmodified_source_sink_results = parse_flowdroid_results(experiment_dir_path, benchmark_df, unmodified_fd_logs_path, **experiment_args)
-    print(source_sink_files["Augmented Source Sink Path"].to_string())
+    # print(source_sink_files["Augmented Source Sink Path"].to_string())
     benchmark_df["Source Sink Path"] = source_sink_files["Augmented Source Sink Path"]
     # benchmark_df["Augmented Source Sink Path"] = source_sink_files["Augmented Source Sink Path"]
+    # logger.debug(source_sink_files.to_string())
     benchmark_df["Observed Sources Path"] = source_sink_files["Observed Sources Path"]
     augmented_source_sink_results = parse_flowdroid_results(experiment_dir_path, benchmark_df, augmented_fd_logs_path, **experiment_args)
 
     filtering_flowdroid_comparison(experiment_dir_path, benchmark_df, unmodified_fd_logs_path, augmented_fd_logs_path, logcat_directory_path)
 
-    count_discovered_sources = source_sink_files["Discovered Sources"]
+    count_discovered_sources = source_sink_files["Observed Source Signatures"]
     results_df = summary_df_for_fd_comparison(unmodified_source_sink_results, augmented_source_sink_results, count_discovered_sources)
 
     results_df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
@@ -215,7 +216,7 @@ def flowdroid_on_wild_benchmarks(size: str):
 
 def test_spot_check_flowdroid_on_wild_benchmarks(benchmark_files: Dict[str, str], logcat_directory_path: str, ids_subset=None):
     experiment_args = flowdroid_setup_generic(benchmark_files, "misc")
-    experiment_args["timeout"] = 15 * 60
+    experiment_args["timeout"] = 3 * 60 * 60
     experiment_args["ids_subset"] = ids_subset
     experiment_args["always_new_experiment_directory"] = True
 
@@ -224,6 +225,9 @@ def test_spot_check_flowdroid_on_wild_benchmarks(benchmark_files: Dict[str, str]
     description = f"Flowdroid run on {name} benchmark."
     description += "\nSpot Check"
     experiment_args["experiment_description"] = description
+
+    # experiment_args["source_sink_list_path"] = "data/sources-and-sinks/SS-GooglePlayLogin copy.txt"
+    experiment_args["source_sink_list_path"] = "data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
 
     experiment_setup_and_save_csv_fixme(flowdroid_on_benchmark_df, **experiment_args)
 

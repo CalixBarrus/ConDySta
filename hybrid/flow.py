@@ -126,7 +126,7 @@ the source <android.media.AudioManager: int getStreamMaxVolume(int)> in method <
         """
 
         return f"""The sink {self.get_sink_statementgeneric()} in method {self.get_sink_method_text()} was called with values from
-the source {self.get_source_statementgeneric()} in method {self.get_source_statementgeneric()}"""
+the source {self.get_source_statementgeneric()} in method {self.get_source_method_text()}"""
 
     def __str__(self):
         # return f"from: {self.get_source_statementgeneric()}; to: {self.get_sink_statementgeneric()}"

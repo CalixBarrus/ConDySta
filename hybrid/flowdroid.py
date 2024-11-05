@@ -115,7 +115,7 @@ def run_flowdroid_help(flowdroid_jar_path: str):
 
 
 def run_flowdroid_with_fdconfig(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, flowdroid_args: "FlowdroidArgs", output_log_path: str = "", timeout: int=None):
-    cmd = ["java", "-Xmx16G", "-jar" , flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
+    cmd = ["java", "-Xmx64G", "-jar" , flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
 
     run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True, timeout=timeout, verbose=True)
 
