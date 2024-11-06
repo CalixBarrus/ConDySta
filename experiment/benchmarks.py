@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+from experiment import external_path
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_droidbench_files_paths3, get_flowdroid_file_paths, get_fossdroid_files, get_wild_benchmarks, get_gpbench_files, observation_arguments_default, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
 from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, filtering_flowdroid_comparison, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing, parse_flowdroid_results, summary_df_for_fd_comparison
 from experiment.instrument import rebuild_apps_no_instrumentation
@@ -298,42 +299,42 @@ def rebuild_wild_benchmarks(size: str):
         rebuild_apps_no_instrumentation(experiment_args["benchmark_dir_path"], experiment_name, experiment_description, ids_subset)
 
 def icc_bench_mac():
-    benchmark_folder_path: str = "/Users/calix/Documents/programming/research-programming/benchmarks/gpbench/apks"
-    # benchmark_folder_path: str = "/home/calix/programming/benchmarks/gpbench"
+    benchmark_folder_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/benchmarks/gpbench/apks")
+    # benchmark_folder_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/gpbench")
 
-    flowdroid_jar_path: str = "/Users/calix/Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
-    # flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"
+    flowdroid_jar_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar")
+    # flowdroid_jar_path: str = os.path.join(external_path.home_directory, "programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar")
 
-    android_path: str = "/Users/calix/Library/Android/sdk/platforms/"
+    android_path: str = os.path.join(external_path.home_directory, "Library/Android/sdk/platforms/")
     # android_path: str = "/usr/lib/android-sdk/platforms/"
 
-    source_sink_path: str = "/Users/calix/Documents/programming/research-programming/ConDySta/data/sources-and-sinks/ss-gpl.txt"
-    # source_sink_path: str = "/home/calix/programming/ConDySta/data/sources-and-sinks/ss-gpl.txt"
+    source_sink_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/ConDySta/data/sources-and-sinks/ss-gpl.txt")
+    # source_sink_path: str = os.path.join(external_path.home_directory, "programming/ConDySta/data/sources-and-sinks/ss-gpl.txt")
 
-    icc_bench_dir_path: str = "/Users/calix/Documents/programming/research-programming/benchmarks/ICCBench20"
+    icc_bench_dir_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/benchmarks/ICCBench20")
 
     ic3_jar_path = ""
 
     icc_bench(flowdroid_jar_path, android_path, icc_bench_dir_path, ic3_jar_path)
 
 def icc_bench_linux():
-    # benchmark_folder_path: str = "/Users/calix/Documents/programming/research-programming/benchmarks/gpbench/apks"
-    benchmark_folder_path: str = "/home/calix/programming/benchmarks/gpbench"
+    # benchmark_folder_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/benchmarks/gpbench/apks"
+    benchmark_folder_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/gpbench")
 
-    # flowdroid_jar_path: str = "/Users/calix/Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
-    flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"
+    # flowdroid_jar_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
+    flowdroid_jar_path: str = os.path.join(external_path.home_directory, "programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar")
 
-    # android_path: str = "/Users/calix/Library/Android/sdk/platforms/"
+    # android_path: str = os.path.join(external_path.home_directory, "Library/Android/sdk/platforms/"
     android_path: str = "/usr/lib/android-sdk/platforms/"
 
-    # source_sink_path: str = "/Users/calix/Documents/programming/research-programming/ConDySta/data/sources-and-sinks/ss-gpl.txt"
-    source_sink_path: str = "/home/calix/programming/ConDySta/data/sources-and-sinks/ss-gpl.txt"
+    # source_sink_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/ConDySta/data/sources-and-sinks/ss-gpl.txt"
+    source_sink_path: str = os.path.join(external_path.home_directory, "programming/ConDySta/data/sources-and-sinks/ss-gpl.txt")
 
-    icc_bench_dir_path: str = "/home/calix/programming/benchmarks/ICCBench20/benchmark/apks"
+    icc_bench_dir_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/ICCBench20/benchmark/apks")
 
-    ic3_jar_path = "/home/calix/programming/ic3/target/ic3-0.2.1-full.jar"
-    # ic3_jar_path: str = "/home/calix/programming/ic3-jars/jordansamhi-tools/ic3.jar"
-    # ic3_jar_path = "/home/calix/programming/ic3-jars/jordansamhi-raicc/ic3-raicc.jar"
+    ic3_jar_path = os.path.join(external_path.home_directory, "programming/ic3/target/ic3-0.2.1-full.jar")
+    # ic3_jar_path: str = os.path.join(external_path.home_directory, "programming/ic3-jars/jordansamhi-tools/ic3.jar"
+    # ic3_jar_path = os.path.join(external_path.home_directory, "programming/ic3-jars/jordansamhi-raicc/ic3-raicc.jar"
 
     icc_bench(flowdroid_jar_path, android_path, icc_bench_dir_path, ic3_jar_path)
     
@@ -361,16 +362,16 @@ def icc_bench_linux():
 #     return results_df_path, ic3_output_dir_path, ic3_logs_dir_path, fd_output_dir_path
 
 def droidbench_linux():
-    benchmark_folder_path: str = "/home/calix/programming/benchmarks/DroidBenchExtended"
+    benchmark_folder_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/DroidBenchExtended")
 
-    # flowdroid_jar_path: str = "/Users/calix/Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
-    flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar"
+    # flowdroid_jar_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
+    flowdroid_jar_path: str = os.path.join(external_path.home_directory, "programming/flowdroid-jars/fd-2.7.1/soot-infoflow-cmd-jar-with-dependencies.jar")
 
     android_path: str = "/usr/lib/android-sdk/platforms/"
 
-    source_sink_path: str = "/home/calix/programming/ConDySta/data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt"
+    source_sink_path: str = os.path.join(external_path.home_directory, "programming/ConDySta/data/sources-and-sinks/flowdroid-default-sources-and-sinks.txt")
 
-    droidbench_dir_path: str = "/home/calix/programming/benchmarks/DroidBenchExtended/benchmark/apks"
+    droidbench_dir_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/DroidBenchExtended/benchmark/apks")
 
     droidbench(flowdroid_jar_path, android_path, source_sink_path, droidbench_dir_path)
 

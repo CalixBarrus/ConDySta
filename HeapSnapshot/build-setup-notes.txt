@@ -6,8 +6,8 @@ sudo update-alternatives --config java
 ./gradlew tasks
 
 
-# set the android SDK version
-SDK location not found. Define a valid SDK location with an ANDROID_HOME environment variable or by setting the sdk.dir path in your project's local properties file at '/home/calix/programming/ConDySta/HeapSnapshot/local.properties'.
+# TODO: how does this local properties file work? I should use this...
+SDK location not found. Define a valid SDK location with an ANDROID_HOME environment variable or by setting the sdk.dir path in your project's local properties file at '~/programming/ConDySta/HeapSnapshot/local.properties'.
 
 # export ANDROID_SDK_ROOT="$HOME/.android_sdk" from android-setup readme
 # export ANDROID_SDK_ROOT="$HOME/Android/Sdk" from android-setup readme
@@ -19,7 +19,7 @@ sudo update-alternatives --config java
 $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-33"
 
 
-# makes the apk? 
+# make the apk
 ./gradlew build 
 # puts debug build of apk at build/outputs/apk/debug/app-debug.apk
 

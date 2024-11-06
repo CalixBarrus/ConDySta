@@ -2,6 +2,7 @@ Setup Notes:
 
 Java Setup:
 I'm currently using Java 17
+gradle, used in HeapSnapshot directory, requires Java 11+
 
 Python Setup:
 Dependency in flow.py for >= python 3.9
@@ -64,38 +65,6 @@ Other dependencies:
 Install apktool (https://apktool.org/docs/install/)
 apktool needs to be on the path.
 
-Get a JAR of FlowDroid, and make sure the path in hybrid_config.py points to it.
-
-You probably will want to download and use benchmarks, I used the ones from ReproDroid's website (https://foellix.github.io/ReproDroid/).
-
-Folders: 
-droidbench apks -> https://github.com/FoelliX/ReproDroid?tab=readme-ov-file (download links are dead as of Oct 2024!!!)
-
-gpbench data -> https://resess.github.io/artifacts/StaticTaint/
-fossdroid data -> https://github.com/amordahl/RethinkingAndroid_ISSTA2021_FossDroid_Dataset/tree/master
-wild-apps -> scripts -> fossdroid_ground_truth.xml, gpbench_ground_truth.xml, clean_fossdroid_ground_truth.py, generate_gpbench_ground_truth_xml.py
-
-flowdroid-jars -> just fd-2-13.0, 
-
-Dynamic analysis logs
--> shallow on gpbench
--> shallow on fossdroid
--> intercept on fossdroid
--> string & deep on gpbench subset
-
-FD Experiment logs
--> shallow on gpbench
--> shallow on fossdroid
--> intercept on fossdroid
--> string & deep on gpbench subset
-
-Leaks filtering & context details
--> shallow on gpbench
--> shallow on fossdroid
--> intercept on fossdroid 
-
-Intermediate / original source mapping Notes
-word doc or smthng
 
 
 

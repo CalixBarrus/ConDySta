@@ -1,6 +1,6 @@
 AppID,AppName,ICC Model Path
-1,com.echangecadeaux,/home/calix/programming/IC3/dir_iccmodel/com.echangecadeaux_28.txt
-2,com.rtp.livepass.android,/home/calix/programming/IC3/dir_iccmodel/com.rtp.livepass.android_45087.txt
+1,com.echangecadeaux,~/programming/IC3/dir_iccmodel/com.echangecadeaux_28.txt
+2,com.rtp.livepass.android,~/programming/IC3/dir_iccmodel/com.rtp.livepass.android_45087.txt
 3,com.tripadvisor.tripadvisor,
 4,ca.intact.mydrivingdiscount,
 5,com.asiandate,
@@ -9,14 +9,14 @@ AppID,AppName,ICC Model Path
 8,com.passportparking.mobile.parkvictoria,
 9,com.passportparking.mobile.toronto,
 10,tc.tc.scsm.phonegap,
-11,com.onetapsolutions.morneau.activity,/home/calix/programming/IC3/dir_iccmodel/com.onetapsolutions.morneau.activity_16.txt
+11,com.onetapsolutions.morneau.activity,~/programming/IC3/dir_iccmodel/com.onetapsolutions.morneau.activity_16.txt
 12,net.fieldwire.app,
-13,com.ackroo.mrgas,/home/calix/programming/IC3/dir_iccmodel/com.ackroo.mrgas_2.txt
-14,com.airbnb.android,/home/calix/programming/IC3/dir_iccmodel/com.airbnb.android_16040289.txt
+13,com.ackroo.mrgas,~/programming/IC3/dir_iccmodel/com.ackroo.mrgas_2.txt
+14,com.airbnb.android,~/programming/IC3/dir_iccmodel/com.airbnb.android_16040289.txt
 15,com.bose.gd.events,
-16,com.phonehalo.itemtracker,/home/calix/programming/IC3/dir_iccmodel/com.phonehalo.itemtracker_40000000.txt
+16,com.phonehalo.itemtracker,~/programming/IC3/dir_iccmodel/com.phonehalo.itemtracker_40000000.txt
 17,com.viagogo.consumer.viagogo.playstore,
-18,com.yelp.android,/home/calix/programming/IC3/dir_iccmodel/com.yelp.android_19041703.txt
+18,com.yelp.android,~/programming/IC3/dir_iccmodel/com.yelp.android_19041703.txt
 19,onxmaps.hunt,
 20,com.mobistartapp.flashlight,
 21,com.monitor.phone.s0ft.phonemonitor,

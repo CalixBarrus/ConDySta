@@ -1,5 +1,5 @@
 # Copyright 2020 Austin Mordahl
-# Forked  in 2024 by Calix Barrus
+# Forked in 2024
 
 from typing import Dict, List
 import logging
@@ -292,11 +292,11 @@ def compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFram
 
 
     # Debug
-    # ground_truth_flows_df[apk_name_mask].to_csv(os.path.join("/home/calix/programming/ConDySta/data/temp", "app_flows.csv"))
+    # ground_truth_flows_df[apk_name_mask].to_csv(os.path.join("~/programming/ConDySta/data/temp", "app_flows.csv"))
 
     # # tree = ET.ElementTree(inconclusive_flows[0].element)
     # # ET.indent(tree) # Pretty print the result, requires python 3.9
-    # # tree.write(os.path.join("/home/calix/programming/ConDySta/data/temp", "detected_leak.xml"))
+    # # tree.write(os.path.join("~/programming/ConDySta/data/temp", "detected_leak.xml"))
     # for flow in inconclusive_flows:
     #     logger.debug(str(flow))
         

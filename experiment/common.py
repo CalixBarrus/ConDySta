@@ -17,8 +17,8 @@ logger = util.logger.get_logger(__name__)
 
 def get_fossdroid_files() -> Dict[str, str]:
     fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
-    fossdroid_ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/fossdroid_ground_truth.xml"
-    fossdroid_description_path = "data/benchmark-descriptions/fossdroid-ids-ordering.csv"
+    fossdroid_ground_truth_xml_path = external_path.fossdroid_ground_truth_xml_path
+    fossdroid_description_path = os.path.join(get_project_root_path(), "data/benchmark-descriptions/fossdroid-ids-ordering.csv")
 
     return {
             "benchmark_name": "fossdroid",
@@ -30,8 +30,8 @@ def get_fossdroid_files() -> Dict[str, str]:
 
 def get_gpbench_files() -> Dict[str,str]:
     gpbench_apks_dir_path: str = external_path.gpbench_apks_dir_path
-    ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/gpbench_ground_truth.xml"
-    gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
+    ground_truth_xml_path = external_path.gpbench_ground_truth_xml_path
+    gpbench_description_path = os.path.join(get_project_root_path(), "data/benchmark-descriptions/gpbench-info.csv")
     return {
             "benchmark_name": "gpbench",
             "benchmark_dir_path": gpbench_apks_dir_path, 
@@ -42,8 +42,6 @@ def get_gpbench_files() -> Dict[str,str]:
 
 def get_droidbench_files_paths3() -> Dict[str, str]:
     droidbench_apks_dir_path: str = external_path.droidbench_apks_dir_path
-    # ground_truth_xml_path = "/home/calix/programming/benchmarks/wild-apps/gpbench_ground_truth.xml"
-    # gpbench_description_path = "data/benchmark-descriptions/gpbench-info.csv"
     "data/sources-and-sinks/SS-Bench.txt"
     return {
             "benchmark_name": "droidbench3",
@@ -54,9 +52,9 @@ def get_droidbench_files_paths3() -> Dict[str, str]:
             }
 
 def get_flowdroid_file_paths() -> Dict[str, str]:
-    flowdroid_jar_path: str = "/home/calix/programming/flowdroid-jars/fd-2.13.0/soot-infoflow-cmd-2.13.0-jar-with-dependencies.jar"
-    android_path: str = "/home/calix/.android_sdk/platforms"
-    # android_path: str = "/home/calix/Android/Sdk/platforms"
+    flowdroid_jar_path: str = external_path.flowdroid_jar_path
+    
+    android_path: str = external_path.android_platforms_directory
     return {
             "flowdroid_jar_path": flowdroid_jar_path,
             "android_path": android_path,
