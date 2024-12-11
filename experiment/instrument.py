@@ -129,6 +129,14 @@ def count_smali_LOC(smali_file_path: str) -> int:
 
     return count
 
+class DecompileApk(StepInfoInterface):
+    # Input: df with columns "apk_path", "decompiled_apk_path"
+    # decompiles apk into "decompiled_apk_path"
+    pass
+    
+
+class CopyApk(StepInfoInterface):
+    pass
 
 
 

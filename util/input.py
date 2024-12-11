@@ -75,6 +75,7 @@ class InputModel:
             return str(self.benchmark_id) + "." + self.apk().apk_name
 
         else:
+            # TODO: change to [id].[first apk name] or [id].[first apk name - .apk]$[group index].apk
             if grouped_apk_idx == -1:
                 return str(self.benchmark_id) + "." + "group_of_" + str(len(self._apks))
             else:

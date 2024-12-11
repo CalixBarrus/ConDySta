@@ -1,55 +1,18 @@
 # from datetime import timedelta
+from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple
 import typing
 import pandas as pd
 import os
 
 from experiment import external_path
+from experiment.LoadBenchmark import get_droidbench_files_paths3, get_fossdroid_files, get_gpbench_files
 from hybrid.flowdroid import FlowdroidArgs
-from hybrid.source_sink import create_source_sink_file_ssgpl
 from intercept.instrument import SmaliInstrumentationStrategy, instrumentation_strategy_factory
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
 
 import util.logger
 logger = util.logger.get_logger(__name__)
-
-#### Start External File Paths Settings
-
-def get_fossdroid_files() -> Dict[str, str]:
-    fossdroid_benchmark_dir_path = external_path.fossdroid_benchmark_apks_dir_path
-    fossdroid_ground_truth_xml_path = external_path.fossdroid_ground_truth_xml_path
-    fossdroid_description_path = os.path.join(get_project_root_path(), "data/benchmark-descriptions/fossdroid-ids-ordering.csv")
-
-    return {
-            "benchmark_name": "fossdroid",
-            "benchmark_dir_path": fossdroid_benchmark_dir_path, 
-            "ground_truth_xml_path": fossdroid_ground_truth_xml_path, 
-            "source_sink_list_path": get_fossdroid_source_sink_list_path(),
-            "benchmark_description_path": fossdroid_description_path,
-            }
-
-def get_gpbench_files() -> Dict[str,str]:
-    gpbench_apks_dir_path: str = external_path.gpbench_apks_dir_path
-    ground_truth_xml_path = external_path.gpbench_ground_truth_xml_path
-    gpbench_description_path = os.path.join(get_project_root_path(), "data/benchmark-descriptions/gpbench-info.csv")
-    return {
-            "benchmark_name": "gpbench",
-            "benchmark_dir_path": gpbench_apks_dir_path, 
-            "ground_truth_xml_path": ground_truth_xml_path, 
-            "benchmark_description_path": gpbench_description_path,
-            "source_sink_list_path": get_ssgpl_list_path(),
-            }
-
-def get_droidbench_files_paths3() -> Dict[str, str]:
-    droidbench_apks_dir_path: str = external_path.droidbench_apks_dir_path
-    "data/sources-and-sinks/SS-Bench.txt"
-    return {
-            "benchmark_name": "droidbench3",
-            "benchmark_dir_path": droidbench_apks_dir_path, 
-            # "ground_truth_xml_path": ground_truth_xml_path, 
-            # "benchmark_description_path": gpbench_description_path,
-            "source_sink_list_path": get_droidbench_ss_list_path(),
-            }
 
 def get_flowdroid_file_paths() -> Dict[str, str]:
     flowdroid_jar_path: str = external_path.flowdroid_jar_path
@@ -193,24 +156,22 @@ def observation_arguments_default(logcat_directory_path: str) -> Dict[str, str]:
 
 
 
+class AbstractStep(ABC):
+    # Abstracts repeated operations that should be done on a per step basis (save off metadata)
+    @abstractmethod
+    def execute(self, input=""):
+        pass
+
+    @property
+    @abstractmethod
+    def params(self) -> List[str]:
+        # params that will be saved off as metadata for the given step. 
+        raise NotImplementedError()
+    
+    # do metadata management inside of here
+    # have a test & debug & performance setting/mode
+
 #### Start Internal File Stuff
-def get_ssgpl_list_path():
-    """ Generate the file path where SS-GooglePlayLogin.txt is expected. Generate it if it's not present."""
-    sources_sinks_dir_path = source_sink_dir_path() # type: ignore
-    ssgpl_list_path = os.path.join(sources_sinks_dir_path, "SS-GooglePlayLogin.txt")
-
-    if not os.path.isfile(ssgpl_list_path):
-        create_source_sink_file_ssgpl(ssgpl_list_path)
-
-    return ssgpl_list_path
-
-def get_droidbench_ss_list_path() -> str:
-    # "data/sources-and-sinks/SS-Bench.txt"
-    return os.path.join(get_project_root_path(), "data", "sources-and-sinks", "SS-Bench.txt")
-
-def get_fossdroid_source_sink_list_path() -> str:
-    project_root = get_project_root_path()
-    return os.path.join(project_root, "data", "sources-and-sinks", "SS-from-fossdroid-ground-truth.txt")
 
 def benchmark_description_path_from_benchmark_files(benchmark_files: Dict[str, str]) -> str:
     return "" if "benchmark_description_path" not in benchmark_files.keys() else benchmark_files["benchmark_description_path"]
@@ -230,6 +191,7 @@ def setup_dirs_with_dependency_info(experiment_name: str, experiment_description
     return df_path, setup_additional_directories(experiment_dir_path, dir_names)
 
 def setup_experiment_dir(experiment_name: str, experiment_description: str, dependency_dict: Dict[str,typing.Any], always_new_experiment_directory: bool=False) -> Tuple[str, str]:
+    # TODO: this should be refactored into ResultPathManager
     experiment_description += ('\n')
     for key, value in dependency_dict.items():
         if key in ["experiment_name", "experiment_description"]:
@@ -350,7 +312,7 @@ def find_xml_paths_in_dir_recursive(dir_path: str) -> List[str]:
             result += find_xml_paths_in_dir_recursive(new_path)
     return result
 
-def benchmark_df_from_benchmark_directory_path(benchmark_directory_path: str, benchmark_description_csv_path: str="", ids_subset: pd.Series=None):
+def benchmark_df_from_benchmark_directory_path(benchmark_directory_path: str, benchmark_description_csv_path: str="", ids_subset: pd.Series=None) -> pd.DataFrame:
 
     inputs_model = input_apks_from_dir(benchmark_directory_path)
     benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=benchmark_description_csv_path)
@@ -420,6 +382,8 @@ def description_df_from_path(benchmark_description_path: str):
         description_df["AppID"] = description_df.index
 
     return description_df
+
+### End LoadBenchmarksStep
 
 def get_project_root_path() -> str:
 

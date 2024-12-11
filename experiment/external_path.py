@@ -8,7 +8,8 @@ fossdroid_ground_truth_xml_path = home_dir + "/programming/benchmarks/wild-apps/
 gpbench_apks_dir_path: str = home_dir + "/programming/benchmarks/wild-apps/data/gpbench/apks"
 gpbench_ground_truth_xml_path: str = home_dir + "/programming/benchmarks/wild-apps/gpbench_ground_truth.xml"
 
-droidbench_apks_dir_path: str = home_dir + "/programming/benchmarks/DroidBenchExtended/benchmark/apks"
+# droidbench_apks_dir_path: str = home_dir + "/programming/benchmarks/DroidBenchExtended/benchmark/apks"
+droidbench_apks_dir_path: str = home_dir + "/Documents/programming/research-programming/benchmarks/DroidBenchExtended/benchmark/apks"
 
 android_platforms_directory: str = home_dir + "/.android_sdk/platforms"
 

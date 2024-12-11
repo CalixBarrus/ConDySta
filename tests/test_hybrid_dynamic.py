@@ -16,3 +16,4 @@ def test_find_logcat_errors_class_not_found_errors():
     errors = dynamic.find_logcat_errors(path)
 
     assert errors == ["42"]
+

@@ -3,8 +3,9 @@
 import os
 import time
 from typing import Callable, Dict, List
+from experiment.LoadBenchmark import get_fossdroid_files
 from experiment.benchmarks import recent_instrumented_apps_for_wild_benchmark
-from experiment.common import benchmark_description_path_from_benchmark_files, benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_fossdroid_files, get_wild_benchmarks, setup_additional_directories, setup_experiment_dir, subset_setup_generic
+from experiment.common import benchmark_description_path_from_benchmark_files, benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_wild_benchmarks, setup_additional_directories, setup_experiment_dir, subset_setup_generic
 from hybrid.hybrid_config import apk_logcat_output_path, apk_path
 from intercept.install import check_device_is_ready, clean_apps_off_phone, get_package_name, install_apk, list_installed_3rd_party_apps, uninstall_apk
 from intercept.monkey import _clear_logcat, _dump_logcat, force_stop_app, test_apk_manual, test_apk_method_factory, test_apk_monkey
