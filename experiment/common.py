@@ -6,9 +6,7 @@ import pandas as pd
 import os
 
 from experiment import external_path
-from experiment.LoadBenchmark import get_droidbench_files_paths3, get_fossdroid_files, get_gpbench_files
 from hybrid.flowdroid import FlowdroidArgs
-from intercept.instrument import SmaliInstrumentationStrategy, instrumentation_strategy_factory
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
 
 import util.logger
@@ -22,15 +20,6 @@ def get_flowdroid_file_paths() -> Dict[str, str]:
             "flowdroid_jar_path": flowdroid_jar_path,
             "android_path": android_path,
             }
-
-
-def get_wild_benchmarks() -> List[Dict[str, str]]:
-    fossdroid_files: Dict[str, str] = get_fossdroid_files()
-    gpbench_files: Dict[str, str] = get_gpbench_files()
-
-    return [fossdroid_files]
-    # return [gpbench_files]
-    # return [fossdroid_files, gpbench_files]
 
 #### End External & Data File Paths Settings
 
@@ -130,23 +119,6 @@ def instrumentation_arguments_default(benchmark_files: Dict[str, str]=None) -> D
 
     return arguments
 
-def instrumentation_strategy_factory_wrapper(**kwargs) -> List[SmaliInstrumentationStrategy]:
-    # TODO: harness sources strategy in theory needs app specific information on which sources to harness (login vs. spyware scenario)
-    # This method should contain the logic called inside an experiment for creating the dependency for instrumentation that will be injected.
-
-    instrumentation_strategies = kwargs["instrumentation_strategy"]
-    if not isinstance(instrumentation_strategies, list):
-        instrumentation_strategies = [instrumentation_strategies]
-
-    instrumenters: List[SmaliInstrumentationStrategy] = []
-    for strategy_name in instrumentation_strategies:
-        if "HarnessSources" == strategy_name:
-            instrumenters.append(instrumentation_strategy_factory(strategy_name, kwargs["harness_sources"]))
-        else: 
-            instrumenters.append(instrumentation_strategy_factory(strategy_name))
-
-    return instrumenters
-
 def observation_arguments_default(logcat_directory_path: str) -> Dict[str, str]:
     experiment_args = {}
     experiment_args["logcat_processing_strategy"] = "InstrReportReturnAndArgsDynamicLogProcessingStrategy"
@@ -160,6 +132,7 @@ class AbstractStep(ABC):
     # Abstracts repeated operations that should be done on a per step basis (save off metadata)
     @abstractmethod
     def execute(self, input=""):
+        # Maybe this should be more than one method depending on how the outputs be (if its a df, stuff written to an input col, or both)
         pass
 
     @property
@@ -431,10 +404,11 @@ def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_descripti
 
 
 if __name__ == "__main__":
-    benchmark_files = get_droidbench_files_paths3()
-    benchmark_directory_path = benchmark_files["benchmark_dir_path"]
-    # benchmark_description_csv_path = benchmark_files[""]
-    inputs_model = input_apks_from_dir(benchmark_directory_path)
-    # benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=benchmark_description_csv_path)
-    benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model)
-    benchmark_df.to_csv("droidbench3-test.csv")
+    # benchmark_files = get_droidbench_files_paths3()
+    # benchmark_directory_path = benchmark_files["benchmark_dir_path"]
+    # # benchmark_description_csv_path = benchmark_files[""]
+    # inputs_model = input_apks_from_dir(benchmark_directory_path)
+    # # benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=benchmark_description_csv_path)
+    # benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model)
+    # benchmark_df.to_csv("droidbench3-test.csv")
+    pass

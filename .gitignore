@@ -24,6 +24,7 @@ data/logger/condysta.log*
 .DS_Store
 .vscode
 
+tests/data/*
 
 
 HeapSnapshot/*.iml

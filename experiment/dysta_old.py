@@ -6,7 +6,7 @@ from hybrid.log_process_fd import get_flowdroid_reported_leaks_count
 import intercept.clean
 from hybrid import results
 from hybrid.clean import clean
-from hybrid.dynamic import logcat_processing_strategy_factory
+from hybrid.dynamic import logcat_to_sources_strategy_factory
 from hybrid.flowdroid import run_flowdroid_config
 from hybrid.hybrid_config import HybridAnalysisConfig, flowdroid_logs_path, apk_logcat_output_path, \
     flowdroid_logs_path, flowdroid_logs_path
@@ -70,7 +70,7 @@ def dysta(config: HybridAnalysisConfig):
         if not os.path.isfile(logcat_output_path):
             results.HybridAnalysisResult.report_error(config, apk.apk_name, "No record of Dynamic Run")
             continue
-        strategy = logcat_processing_strategy_factory(logcat_processing_strategy)
+        strategy = logcat_to_sources_strategy_factory(logcat_processing_strategy)
         new_sources: SourceSinkSignatures = strategy.sources_from_log(logcat_output_path)
 
         # new_sources_count = (new_sources - original_sources).source_count()
@@ -100,7 +100,7 @@ def dysta(config: HybridAnalysisConfig):
 
     run_grouped_instrumented_apks(config, input_apks.grouped_inputs)
 
-    strategy = logcat_processing_strategy_factory(logcat_processing_strategy)
+    strategy = logcat_to_sources_strategy_factory(logcat_processing_strategy)
     for grouped_input in input_apks.grouped_inputs:
         for grouped_apk_index, apk in enumerate(grouped_input.apks()):
             logcat_output_path = apk_logcat_output_path(logcat_dir_path, grouped_input, grouped_apk_index)

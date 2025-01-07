@@ -2,8 +2,11 @@ import copy
 import os
 import shutil
 import subprocess
-from typing import List
+from typing import List, Tuple
 
+import pandas as pd
+
+from experiment.paths import StepInfoInterface
 from hybrid.hybrid_config import HybridAnalysisConfig
 from hybrid import hybrid_config
 from util.input import ApkModel
@@ -11,6 +14,32 @@ from util.subprocess import run_command
 
 import util.logger
 logger = util.logger.get_logger(__name__)
+
+class DecodeApk(StepInfoInterface):
+    apktool_path: str
+
+    def __init__(self):
+        self.apktool_path = "apktool" # TODO: move this to external_path
+
+    @property
+    def step_name(self) -> str:
+        return "decode"
+
+    @property
+    def version(self) -> Tuple[int, int, int]:
+        return (0, 1, 0)
+
+    @property
+    def concise_params(self) -> List[str]:
+        return []
+
+    def execute(self, input_df: pd.DataFrame):
+        # Input: df with columns "Input APK Path", "Decompiled Path"
+        # Output: in paths indicated by "Decompiled Path"
+
+        for i in input_df.index:
+            _decode_apk(self.apktool_path, input_df.loc[i, "Input APK Path"], input_df.loc[i, "Decompiled Path"])
+
 
 # def decode_apk(config: HybridAnalysisConfig, apk:ApkModel, clean:bool=False):
 def decode_apk(decoded_apks_directory_path: HybridAnalysisConfig, apk:ApkModel, clean:bool=False):
@@ -29,8 +58,13 @@ def decode_apk(decoded_apks_directory_path: HybridAnalysisConfig, apk:ApkModel, 
     # decompile to decoded_apks_path
     # Pull off the ".apk" of the name of the output file
     apktool_path = "apktool" # TODO: move this to external_path
-    cmd = [apktool_path, "--quiet", "d", apk.apk_path, "-o", decoded_apk_path]
-    cmd = [apktool_path, "d", apk.apk_path, "-o", decoded_apk_path]
+    apk_path = apk.apk_path
+
+    _decode_apk(apktool_path, apk_path, decoded_apk_path)
+
+def _decode_apk(apktool_path, apk_path, decoded_apk_path):
+    cmd = [apktool_path, "--quiet", "d", apk_path, "-o", decoded_apk_path]
+    cmd = [apktool_path, "d", apk_path, "-o", decoded_apk_path]
 
     logger.debug(" ".join(cmd))
     apk_tool_message = run_command(cmd)

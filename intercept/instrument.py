@@ -1,12 +1,16 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 import os
 import re
 import shutil
 from typing import Callable, List, Tuple, Union
 
+import pandas as pd
+
+from experiment.paths import StepInfoInterface
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.source_sink import MethodSignature
+from intercept.InstrumentationReport import InstrumentationReport
 from util.input import ApkModel
 from util.subprocess import run_command
 
@@ -20,10 +24,12 @@ SMALI_STRING_CLASS_NAME: str = "Ljava/lang/String;"
 
 class SmaliInstrumentationStrategy(ABC):
 
+    @abstractmethod
     def instrument_file(self, smali_file: 'SmaliFile') -> List['CodeInsertionModel']:
         """Hook gets called on each SmaliFile model in a given DecodedApkModel"""
         raise NotImplementedError("Interface not implemented")
 
+    @abstractmethod
     def needs_to_insert_directory(self) -> bool:
         """
         :return: Whether this instrumenter requires additional
@@ -31,6 +37,7 @@ class SmaliInstrumentationStrategy(ABC):
         """
         raise NotImplementedError("Interface not implemented")
 
+    @abstractmethod
     def path_to_directory(self) -> str:
         """
         This method shouldn't be called unless
@@ -39,6 +46,118 @@ class SmaliInstrumentationStrategy(ABC):
         into a smali_classes file.
         """
         raise NotImplementedError("Interface not implemented")
+    
+def instrumentation_strategy_factory_wrapper(**kwargs) -> List[SmaliInstrumentationStrategy]:
+    # TODO: harness sources strategy in theory needs app specific information on which sources to harness (login vs. spyware scenario)
+    # This method should contain the logic called inside an experiment for creating the dependency for instrumentation that will be injected.
+
+    instrumentation_strategies = kwargs["instrumentation_strategy"]
+    if not isinstance(instrumentation_strategies, list):
+        instrumentation_strategies = [instrumentation_strategies]
+
+    instrumenters: List[SmaliInstrumentationStrategy] = []
+    for strategy_name in instrumentation_strategies:
+        if "HarnessSources" == strategy_name:
+            instrumenters.append(instrumentation_strategy_factory(strategy_name, kwargs["harness_sources"]))
+        else:
+            instrumenters.append(instrumentation_strategy_factory(strategy_name))
+
+    return instrumenters
+
+
+
+def instrumentation_strategy_factory(
+        strategy_name: str, sources_to_harness_path: str = "") -> \
+        'SmaliInstrumentationStrategy':
+    
+    if strategy_name == \
+            "LogStringReturnInstrumentationStrategy":
+        return LogStringReturnInstrumentationStrategy()
+    elif strategy_name == \
+            "StringReturnInstrumentationStrategy":
+        return StringReturnInstrumentationStrategy()
+    elif strategy_name == \
+            "StringReturnValuesInstrumentationStrategy":
+        return StringReturnValuesInstrumentationStrategy()
+    elif strategy_name == \
+            "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy":
+        # TODO: this should be controlled by experiment inputs & visible to experiment setup procedure 
+        do_instrument_args = False
+        
+        logger.info(f"do_instrument_args = {do_instrument_args}")
+        return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(do_instrument_args)
+    elif strategy_name == "HarnessSources":
+        assert sources_to_harness_path != ""
+        signatures = sources_to_harness(sources_to_harness_path)
+        logger.info(f"Harnessing sources on list of {len(signatures)} method signatures")
+        return HarnessSources(signatures)
+    elif strategy_name == "HarnessObservations":
+        # needs to point to where observations will be
+        return HarnessObservations()
+    else:
+        raise ValueError(f"Invalid instrumentation strategy:"
+                         f" {strategy_name}")
+
+class InstrumentSmali(StepInfoInterface):
+    observations_column: str = "Observations Lists"
+    strategies: List['SmaliInstrumentationStrategy']
+    _concise_params: str
+    def __init__(self, strategy_names: List[str]) -> None:
+        self.strategies = []
+        
+        self._concise_params = ""
+        for strategy_name in strategy_names:
+            self.strategies.append(instrumentation_strategy_factory(strategy_name))
+
+            if strategy_name is "HarnessSources":
+                self._concise_params += "source-substitution"
+            # TODO: fill out more of these cases
+
+            
+
+    @property
+    def step_name(self) -> str:
+        return "instrument"
+
+    @property
+    def version(self) -> Tuple[int]:
+        return (0, 1, 0)
+
+    @property
+    def concise_params(self) -> List[str]:
+        return self._concise_params
+
+    def execute(self, input_df: pd.DataFrame, output_path_column: str=""):
+        # Input: df with columns "Decompiled Path", ["{output_path}", "Observations Lists"]
+        # Output: in-place on "Decompiled Path" or changes are made to copies at a path in the indicated column name.
+        # observations columns should be provided if HarnessObservations is used as a strategy.
+        
+
+        smali_paths: pd.Series = pd.Series()
+        if output_path_column == "":
+            smali_path_column = "Decompiled Path"
+        else: 
+            # copy smalis into new dirs
+            for i in input_df.index:
+                # dirs_exist_ok -> Overwrite files & directories if they are already there.
+                shutil.copytree(input_df.loc[i, "Decompiled Path"], input_df.loc[i, output_path_column],
+                        dirs_exist_ok=True)
+
+            smali_path_column = output_path_column
+
+        # handle observations_column optional parameter
+        if not self.observations_column in input_df.columns:
+            input_df.loc[self.observations_column] = None
+
+        for i in smali_paths.index:
+
+            smali_path = input_df.at[i, smali_path_column]
+            context = input_df.at[i, self.observations_column]
+            
+            decoded_apk_model = DecodedApkModel(smali_path)
+            decoded_apk_model.instrument(self.strategies, observation_context=context)
+            return decoded_apk_model
+
 
 # def instrument_batch(config: HybridAnalysisConfig, apks: List[ApkModel]):
 def instrument_batch(decoded_apks_directory_path: str, instrumentation_strategy: List[SmaliInstrumentationStrategy], apks: List[ApkModel]):
@@ -57,10 +176,10 @@ def instrument_apk(decoded_apks_directory_path: str, instrumenters: List[SmaliIn
     # instrumenters: List[SmaliInstrumentationStrategy] = [instrumentation_strategy_factory(instrumentation_strategy) for instrumentation_strategy in instrumentation_strategies]
     # decoded_apks_directory_path = config._decoded_apks_path
 
-    decoded_apk_model = DecodedApkModel(decoded_apk_path(decoded_apks_directory_path, apk))
+    decoded_apk_path = decoded_apk_path(decoded_apks_directory_path, apk)
 
+    decoded_apk_model = DecodedApkModel(decoded_apk_path)
     decoded_apk_model.instrument(instrumenters)
-
     return decoded_apk_model
 
 ### Begin Model Classes ###
@@ -175,7 +294,7 @@ class DecodedApkModel:
 
         return result_smali_file_paths
 
-    def instrument(self, instrumenters: List[SmaliInstrumentationStrategy]):
+    def instrument(self, instrumenters: List[SmaliInstrumentationStrategy], observation_context: List[Tuple[InstrumentationReport, str, str]]=None):
         for instrumenter in instrumenters:
             if instrumenter.needs_to_insert_directory():
                 self.insert_smali_directory(instrumenter.path_to_directory())
@@ -187,7 +306,12 @@ class DecodedApkModel:
                 # Apply each instrumentation strategy
                 insertions = []
                 for index, instrumenter in enumerate(instrumenters):
-                    new_insertions = instrumenter.instrument_file(smali_file)
+
+                    if isinstance(instrumenter, HarnessObservations):
+                        new_insertions = instrumenter.instrument_file(smali_file, observation_context)
+                    else:
+                        new_insertions = instrumenter.instrument_file(smali_file)
+
                     insertions_count[index] += len(new_insertions)
                     insertions += new_insertions
 
@@ -1005,29 +1129,6 @@ class SmaliMethodInvocation:
         return result_invocation
 
 
-# dataclass requires Python 3.10+
-# kw_only -> constructor calls have to use keywords
-# slots -> errors will be thrown if any fields not declared here are accessed
-@dataclass(kw_only=True,slots=True)
-class InstrumentationReport:
-    """ This model class is intended to contain information that will be left 
-    in hard coded strings in the instrumented code, to be later recovered and reconstructed by a log analysis.
-    It is meant to contain all the info that the Static Analysis-based Instrumentation code knows.
-    """
-    invocation_java_signature: str
-    invoke_id: int
-    enclosing_method_name: str
-    enclosing_class_name: str
-    is_arg_register: bool
-    is_return_register: bool
-    invocation_argument_register_index: int
-    is_before_invoke: bool
-    invocation_argument_register_name: str
-    invocation_argument_register_type: str
-    is_static: bool
-
-### End Model Classes
-
 ### Begin Instrumentation Strategy Classes
 
 
@@ -1569,6 +1670,19 @@ class HarnessSources(SmaliInstrumentationStrategy):
     def needs_to_insert_directory(self) -> bool:
         # This strategy DOES rely on decompiled code, but right now it's paired with StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy, and that strategy should get all the relevant code inserted. 
         return False
+    
+class HarnessObservations(SmaliInstrumentationStrategy):
+    pass
+
+    
+
+    def instrument_file(self, smali_file: 'SmaliFile', observations: List[Tuple[InstrumentationReport, str, str]]):
+        pass
+
+    def needs_to_insert_directory(self):
+        raise False
+
+    
 
 
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,
@@ -1687,37 +1801,6 @@ def overwrite_object_register_with_value(dest_register: str, source_register: st
 # """
 
 
-def instrumentation_strategy_factory(
-        strategy_name: str, sources_to_harness_list: str = "") -> \
-        'SmaliInstrumentationStrategy':
-    
-    if strategy_name == \
-            "LogStringReturnInstrumentationStrategy":
-        return LogStringReturnInstrumentationStrategy()
-    elif strategy_name == \
-            "StringReturnInstrumentationStrategy":
-        return StringReturnInstrumentationStrategy()
-    elif strategy_name == \
-            "StringReturnValuesInstrumentationStrategy":
-        return StringReturnValuesInstrumentationStrategy()
-    elif strategy_name == \
-            "StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy":
-        # TODO: this should be controlled by experiment inputs & visible to experiment setup procedure 
-        do_instrument_args = False
-        
-        logger.info(f"do_instrument_args = {do_instrument_args}")
-        return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(do_instrument_args)
-    elif strategy_name == \
-            "HarnessSources":
-        # TODO: this should be handled in a more transparent way, like maybe pass in a file path, and have the text in sources_to_harness be written down in the data folder
-        assert sources_to_harness_list != ""
-        signatures = sources_to_harness(sources_to_harness_list)
-        logger.info(f"Harnessing sources on list of {len(signatures)} method signatures")
-        return HarnessSources(signatures)
-    else:
-        raise ValueError(f"Invalid instrumentation strategy:"
-                         f" {strategy_name}")
-
 def sources_to_harness(sources_list: str) -> List[MethodSignature]:
 
     with open(sources_list, "r") as file:
@@ -1729,3 +1812,5 @@ def sources_to_harness(sources_list: str) -> List[MethodSignature]:
 
 if __name__ == '__main__':
     pass
+
+

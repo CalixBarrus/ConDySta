@@ -2,12 +2,15 @@ from abc import ABC
 import os
 import re
 import shutil
-from typing import Set, List, Optional, Dict, Tuple
+from typing import Set, List, Optional, Dict, Tuple, Union
 
 from experiment.common import modified_source_sink_path
 from hybrid import results, sensitive_information
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures, SourceSinkXML
-from intercept.instrument import InstrumentationReport, SmaliMethodInvocation
+from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrument import SmaliMethodInvocation
+
+from hybrid.AccessPath import AccessPath
 
 
 from util.input import InputModel
@@ -16,7 +19,7 @@ import util.logger
 logger = util.logger.get_logger(__name__)
 
 
-class LogcatProcessingStrategy(ABC):
+class LogcatToSourcesStrategy(ABC):
     """
     Class encapsulates different strategies for processing the logs produced by an instrumented dynamic run of an app.
 
@@ -27,29 +30,29 @@ class LogcatProcessingStrategy(ABC):
         # Produce sources that have been identified as sensitive methods based on reports in the logs provided by log_path.
         raise NotImplementedError("Interface not implemented")
 
-def logcat_processing_strategy_factory(
-        logcat_processing_strategy: str) -> LogcatProcessingStrategy:
+def logcat_to_sources_strategy_factory(
+        logcat_to_sources_strategy: str) -> LogcatToSourcesStrategy:
     """
-    Return the correct instantiation of a LogcatProcessingStrategy.
+    Return the correct instantiation of a LogcatToSourcesStrategy.
 
     a_priori_personally_identifiable_information is pulled from sensitive_information by default.
     """
     # dynamic_log_processing_strategy = hybrid_config.dynamic_log_processing_strategy
 
-    if logcat_processing_strategy == \
-            "StringReturnDynamicLogProcessingStrategy":
+    if logcat_to_sources_strategy == \
+            "StringReturn":
         a_priori_personally_identifiable_information = sensitive_information.personally_identifiable_information
-        return StringReturnDynamicLogProcessingStrategy(a_priori_personally_identifiable_information)
-    elif logcat_processing_strategy == \
-            "InstrReportReturnOnlyDynamicLogProcessingStrategy":
-        return InstrReportReturnOnlyDynamicLogProcessingStrategy()
-    elif logcat_processing_strategy == "InstrReportReturnAndArgsDynamicLogProcessingStrategy":
-        return InstrReportReturnAndArgsDynamicLogProcessingStrategy()
+        return StringReturn(a_priori_personally_identifiable_information)
+    elif logcat_to_sources_strategy == \
+            "InstrReportReturnOnly":
+        return InstrReportReturnOnly()
+    elif logcat_to_sources_strategy == "InstrReportReturnAndArgs":
+        return InstrReportReturnAndArgs()
     else:
-        raise AssertionError("Unexpected strategy name: " + logcat_processing_strategy)
+        raise AssertionError("Unexpected strategy name: " + logcat_to_sources_strategy)
 
 
-class StringReturnDynamicLogProcessingStrategy(LogcatProcessingStrategy):
+class StringReturn(LogcatToSourcesStrategy):
     def __init__(self, target_PII) -> None:
         super().__init__()
         self.target_PII = target_PII
@@ -88,7 +91,7 @@ class StringReturnDynamicLogProcessingStrategy(LogcatProcessingStrategy):
         return sources_in_log
 
 
-class InstrReportReturnOnlyDynamicLogProcessingStrategy(LogcatProcessingStrategy):
+class InstrReportReturnOnly(LogcatToSourcesStrategy):
     """
     Identify and deserialize InstrumentationReport python objects from the log
     All logging is done tagged.
@@ -172,7 +175,7 @@ class InstrReportReturnOnlyDynamicLogProcessingStrategy(LogcatProcessingStrategy
         return set([MethodSignature.from_java_style_signature(signature) for signature in source_signatures])
 
 
-class InstrReportReturnAndArgsDynamicLogProcessingStrategy(LogcatProcessingStrategy):
+class InstrReportReturnAndArgs(LogcatToSourcesStrategy):
     """
     Identify and deserialize InstrumentationReport python objects from the log
     All logging is done tagged.
@@ -215,6 +218,11 @@ def get_selected_errors_from_logcat(logcat_path: str) -> str:
     errors += logcat_file_model.get_class_not_found_errors()
     return ";".join(errors)
     
+def log_to_tainting_invocation_register_context(logcat_path: str) -> 'InvocationRegisterContext':
+    logcat_file_model = LogcatLogFileModel(logcat_path)
+    # feed Observation Result all the instr reports (and access paths)
+    # ask it for InvocationRegisterContexts and return
+    raise NotImplementedError
 
 class LogcatLogFileModel:
     path: str
@@ -281,7 +289,8 @@ class LogcatLogFileModel:
     def scan_log_for_instrumentation_reports(self) -> List['InstrumentationReport']:
         return [report for report, _, _ in self.scan_log_for_instrumentation_report_tuples()]
 
-    def scan_log_for_instrumentation_report_tuples(self) -> List[Tuple['InstrumentationReport', str, str]]:
+    def scan_log_for_instrumentation_report_tuples(self) -> List[Tuple[InstrumentationReport, AccessPath, str]]:
+        # Tuples are instr_report, access_path, private_string
         # "Example 07-21 12:46:10.902  7001  7001 D Snapshot: InstrumentationReport(invoke_signature='<Lc..."
 
         report_tag = " D Snapshot: "
@@ -307,6 +316,8 @@ class LogcatLogFileModel:
                 if len(re.findall("InstrumentationReport", instr_report_string)) > 1:
                     logger.error(f"Instrumentation produced a bad string on line {i} of {os.path.basename(self.path)}; Tainted string was itself an Instrumentation Report! '{instr_report_string}'")
                     continue
+
+                access_path: AccessPath = AccessPath(access_path)
 
                 instr_report = eval(instr_report_string)
                 instr_report_tuples.append((instr_report, access_path, private_string))
@@ -514,8 +525,14 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
     result.arg_types = arg_types
     return result
 
+InvocationRegisterContext = Tuple[InstrumentationReport, AccessPath]
+
+
+
 class ExecutionObservation:
-    # InvocationObservation
+    # Parses all the instrumentation reports hashing related results by invocation_id. 
+    # Keeps track of what return/arg registers have been observed to have tainted values before/after the invocation
+
     # information for a given invocation that was observed to result in tainted values on 1 or more access paths
 
     def __init__(self) -> None:
@@ -527,19 +544,70 @@ class ExecutionObservation:
 
         self.return_tainted_after: Dict[int, bool] = dict()
 
+        self.argument_access_path_tainted_before: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
+        self.argument_access_path_tainted_after: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
+        self.argument_access_path_newly_tainted: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
+
+        self.return_access_path_tainted_after: Dict[int, Dict[AccessPath, bool]] = dict()
+
         self.invocation_java_signatures: Dict[int, str] = dict()
 
 
-    def parse_instrumentation_result(self, instrumentation_report: InstrumentationReport): 
-        invocation_id = instrumentation_report.invoke_id
+    Result = Union[InstrumentationReport, Tuple[InstrumentationReport, AccessPath, str]]
+    def parse_instrumentation_result(self, instrumentation_result: Result) -> None:
+        # To be called on each instrumentation result from a parsed by a LogcatFileModel. 
+        # Keeps track of information to be later queried through other functions.
 
-        # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
-        if invocation_id not in self._observed_invocation_ids:
-            self._observed_invocation_ids.add(invocation_id)
-            self.invocation_java_signatures[invocation_id] = instrumentation_report.invocation_java_signature
-            for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
-                if invocation_id not in dictionary.keys():
-                    dictionary[invocation_id] = dict()
+
+
+        if not isinstance(instrumentation_result, InstrumentationReport):
+            instrumentation_report, access_path, private_string = instrumentation_result
+
+            invocation_id = instrumentation_report.invoke_id
+
+            # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
+            if invocation_id not in self._observed_invocation_ids:
+
+                self._observed_invocation_ids.add(invocation_id)
+                self._initialize_invocation_id(invocation_id, instrumentation_report.invocation_java_signature)
+
+                # self.invocation_java_signatures[invocation_id] = instrumentation_report.invocation_java_signature
+                # for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
+                #     if invocation_id not in dictionary.keys():
+                #         dictionary[invocation_id] = dict()
+                # # For the access_paths too
+                # for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_newly_tainted]:
+                #     if invocation_id not in dictionary.keys():
+                #         dictionary[invocation_id] = dict()
+                        
+            self._update_register_taints(invocation_id, instrumentation_result)
+            self._update_access_path_taints(invocation_id, instrumentation_report, access_path, private_string)
+        else:
+            instrumentation_report = instrumentation_result
+            invocation_id: int = instrumentation_report.invoke_id
+
+            # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
+            if invocation_id not in self._observed_invocation_ids:
+                self._observed_invocation_ids.add(invocation_id)
+                self._initialize_invocation_id(invocation_id, instrumentation_result.invocation_java_signature)
+
+            self._update_register_taints(invocation_id, instrumentation_result)
+    
+    def _initialize_invocation_id(self, invocation_id: int, invocation_java_signature) -> None:
+            # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
+            if invocation_id not in self._observed_invocation_ids:
+                self._observed_invocation_ids.add(invocation_id)
+                self.invocation_java_signatures[invocation_id] = invocation_java_signature
+                for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
+                    if invocation_id not in dictionary.keys():
+                        dictionary[invocation_id] = dict()
+                # For the access_paths too, though they won't be used for plain InstrumentationReports.
+                for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_newly_tainted]:
+                    if invocation_id not in dictionary.keys():
+                        dictionary[invocation_id] = dict()
+
+    def _update_register_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport) -> None:
+
 
         # update observation data structures
         if instrumentation_report.is_arg_register:    
@@ -554,20 +622,50 @@ class ExecutionObservation:
             # If the register not observed to be tainted before, but is observed to be tainted after, then the register is newly tainted.
             # If the register is observed to be tainted before, and is observed to be tainted after, then the register is not newly tainted. 
             # If the register is not observed after, then we don't make conclusions.
-            if (invocation_argument_register_index in self.argument_register_tainted_after[invocation_id].keys()
-                        and self.argument_register_tainted_after[invocation_id][invocation_argument_register_index] is True):
-                    if invocation_argument_register_index in self.argument_register_tainted_before[invocation_id].keys():
-                        if self.argument_register_tainted_before[invocation_id][invocation_argument_register_index] is True:
-                            self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = True
-                        else: 
-                            # This branch is important for cases when a post report is processed before a pre report.
-                            self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = False
-            # newly_tainted = True if: not pre && post || post; False if: pre && post; blank if not post || pre || not pre, that is, if post if false or there is no pre observation. 
+            ######################## tainted before |                    | no observation before
+            # tainted after        | False          |                    | True
+            # no observation after | Blank          |                    | Blank
+
+            # We assume here that all non-blank entries in the before/after dictionary are True.
+            if invocation_argument_register_index in self.argument_register_tainted_after[invocation_id].keys():
+
+                if invocation_argument_register_index in self.argument_register_tainted_before[invocation_id].keys():
+                    self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = True
+                else:
+                    self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = False
 
         elif instrumentation_report.is_return_register:
             self.return_tainted_after[invocation_id] = True
         else: 
             assert False
+
+    def _update_access_path_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, access_path: AccessPath) -> None:
+        # update observation data structures
+        # if instrumentation_report.is_arg_register:
+        #     invocation_argument_register_index = instrumentation_report.invocation_argument_register_index
+
+        #     if instrumentation_report.is_before_invoke:
+        #         if invocation_argument_register_index not in self.argument_access_path_tainted_before[invocation_id].keys():
+        #             self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index] = dict()
+
+        #         self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index][access_path] = True
+
+        #     else:  # report is from after invoke
+        #         if invocation_argument_register_index not in self.argument_access_path_tainted_after[invocation_id].keys():
+        #             self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index] = dict()
+                    
+        #         self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index][access_path] = True
+
+
+        # elif instrumentation_report.is_return_register:
+        #     self.return_tainted_after[invocation_id][access_path] = True
+        # else: 
+        #     assert False
+        raise NotImplementedError
+
+
+
+
 
     def get_tainting_invocation_ids(self) -> Set[int]:
         # Returns ids for every invocation in which an argument became tainted, or the return was observed to be tainted.
@@ -584,6 +682,10 @@ class ExecutionObservation:
                     tainting_invocation_ids.add(invocation_id)
         
         return tainting_invocation_ids
+    
+    def get_tainting_invocation_contexts(self) -> List[InvocationRegisterContext]:
+        # TODO: how to set this up so an access path can be queried as tainted given some access max access path length to be considered?
+        raise NotImplementedError
     
     # def signature_from_invocation_id(self, invocation_id) -> str:
     #     return self.invocation_signatures[invocation_id]

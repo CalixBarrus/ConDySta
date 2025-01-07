@@ -6,12 +6,15 @@ from typing import Dict, List
 
 import pandas as pd
 from experiment import external_path
-from experiment.common import get_wild_benchmarks, instrumentation_arguments_default, instrumentation_strategy_factory_wrapper, subset_setup_generic
+from experiment.LoadBenchmark import get_wild_benchmarks
+from experiment.common import instrumentation_arguments_default, subset_setup_generic
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_project_root_path, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import experiment_setup
+from experiment.paths import StepInfoInterface
 from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from intercept import decode, instrument, intercept_main, keygen, rebuild, sign
+from intercept.instrument import instrumentation_strategy_factory_wrapper
 from util.input import ApkModel, input_apks_from_dir
 
 import util.logger
@@ -128,15 +131,7 @@ def count_smali_LOC(smali_file_path: str) -> int:
                 count += 1
 
     return count
-
-class DecompileApk(StepInfoInterface):
-    # Input: df with columns "apk_path", "decompiled_apk_path"
-    # decompiles apk into "decompiled_apk_path"
-    pass
     
-
-class CopyApk(StepInfoInterface):
-    pass
 
 
 

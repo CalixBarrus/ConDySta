@@ -54,16 +54,25 @@ class ResultPathManager:
     # TODO: lexicographic sort w/ exceptions for version #
     # TODO: grab recent path matching selected subset of features (most recent version, most recent date, matching params)
 
+    def get_result_paths(self, step_info: StepInfoInterface, input_models: pd.Series, keep: bool=True, reproduction: bool=False, extension: str="") -> pd.Series:
+        result_paths = pd.Series(index=input_models.index, dtype=str)
+        for i in input_models.index:
+            input_model = input_models[i]
+            result_paths[i] = self.get_result_path(step_info, input_model, keep, reproduction, extension)
+        
+        return result_paths
+
+
     def get_result_path(self, step_info: StepInfoInterface, input_model: InputModel=None, keep: bool=True, reproduction: bool=False, extension: str="") -> str:
         # Scheme: project_root/[exclusive_pipeline_dir/][date]_stepname_dataset_version_params/id.apk_name.apk[.extension]
 
         # TODO: refactor ideas from setup_experiment_dir into this function
         # TODO: implement reproduction; if true, add r[n] to a list of params, where [n] is the next available int not in dir.
 
-        # allow for an omitted date. Unpack version and concise_params
+        # allow for an omitted date or empty concise_params. Unpack version and concise_params
         date = [self.date] if self.date != "" else []
         version = [".".join([str(version_number) for version_number in step_info.version])]
-        params = ["_".join(step_info.concise_params)]
+        params = ["_".join(step_info.concise_params)] if step_info.concise_params != [] else []
         experiment_id = "_".join(date + [step_info.step_name] + [self.dataset_name] + version + params)
 
         if input_model is not None:

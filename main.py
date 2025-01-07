@@ -9,6 +9,7 @@ from experiment.gpbench import run_ic3_on_apk
 from experiment.instrument import instrument_test_wild_benchmarks, instrument_test_wild_benchmarks_few, instrument_test_wild_benchmarks_full, update_heap_snapshot_smali_files
 from experiment.run import install_all_apps_for_integration_testing, install_few_apps_for_integration_testing, install_original_fossdroid_apps, manual_test_all_apps_recording_output, manual_test_few_apps_recording_output, monkey_test_all_apps_recording_output, monkey_test_few_apps_recording_output, test_apps_spot_check, uninstall_all_3rd_party_apps
 from hybrid.log_process_fd import get_flowdroid_analysis_error
+from tests.test_intercept_harness import test_harness_with_observed_sources_smoke
 from util import logger
 from util.input import input_apks_from_dir
 logger = logger.get_logger(__name__)
@@ -84,11 +85,13 @@ if __name__ == '__main__':
     # test_full_observation_processing()    
 
     # test_small_flowdroid_comparison_wild_benchmarks()
-    # test_full_flowdroid_comparison_wild_benchmarks()
-    test_spot_check_flowdroid_on_wild_benchmarks(get_gpbench_files(), "", ids_subset=[4,7])
+    # # test_full_flowdroid_comparison_wild_benchmarks()
+    # test_spot_check_flowdroid_on_wild_benchmarks(get_gpbench_files(), "", ids_subset=[4,7])
 
     # fossdroid_validation_experiment()
 
     # record_manual_interactions("io.github.lonamiwebs.klooni_820.apk.log")
 
+
+    test_harness_with_observed_sources_smoke()
 

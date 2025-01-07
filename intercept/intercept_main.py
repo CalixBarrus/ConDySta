@@ -2,11 +2,12 @@
 import os
 from typing import Union, List
 
-from experiment.common import instrumentation_arguments_default, instrumentation_strategy_factory_wrapper, setup_additional_directories, setup_experiment_dir
+from experiment.common import instrumentation_arguments_default, setup_additional_directories, setup_experiment_dir
 from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig
 from intercept import decode, instrument, rebuild, keygen, sign, monkey
 
+from intercept.instrument import instrumentation_strategy_factory_wrapper
 from util.input import ApkModel, BatchInputModel, InputModel
 
 import util.logger

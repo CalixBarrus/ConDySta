@@ -9,16 +9,20 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import pandas as pd
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, logger, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
-from hybrid.dynamic import LogcatLogFileModel, LogcatProcessingStrategy, get_selected_errors_from_logcat, logcat_processing_strategy_factory
+from hybrid.dynamic import LogcatLogFileModel, LogcatToSourcesStrategy, get_selected_errors_from_logcat, logcat_to_sources_strategy_factory
 from hybrid.flow import Flow, compare_flows
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
 
 from hybrid.hybrid_config import apk_logcat_output_path, flowdroid_logs_path, time_path, source_sink_file_path, text_file_path
 from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_analysis_error, get_flowdroid_flows, get_flowdroid_memory, get_flowdroid_reported_leaks_count
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures
-from intercept.instrument import InstrumentationReport, SmaliMethodInvocation
+from hybrid.AccessPath import AccessPath
+from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrument import SmaliMethodInvocation
 from util.input import InputModel, input_apks_from_dir
 import util.logger
+
+
 logger = util.logger.get_logger(__name__)
 
 def experiment_setup_and_save_csv_fixme(experiment_runnable, **kwargs):
@@ -91,7 +95,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
     results_df = results_df_from_benchmark_df(benchmark_df)
     results_df["Selected Log Errors"] = ""
 
-    logcat_processing_strategy: LogcatProcessingStrategy = logcat_processing_strategy_factory(kwargs["logcat_processing_strategy"])
+    logcat_processing_strategy: LogcatToSourcesStrategy = logcat_to_sources_strategy_factory(kwargs["logcat_processing_strategy"])
 
     observed_source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["observed-source-sinks"])[0]
     augmented_source_sink_directory_path: str = setup_additional_directories(experiment_dir_path, ["augmented-source-sinks"])[0]
@@ -121,7 +125,7 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         observed_source_sinks: SourceSinkSignatures = logcat_processing_strategy.sources_from_log(possible_logcat_file_path)
 
         logcat_model = LogcatLogFileModel(possible_logcat_file_path)
-        instrumentation_report_tuples: List[InstrumentationReport] = logcat_model.scan_log_for_instrumentation_report_tuples()
+        instrumentation_report_tuples: List = logcat_model.scan_log_for_instrumentation_report_tuples()
         results_df.loc[i, "Instrumentation Reports"] = len(instrumentation_report_tuples)
         results_df.loc[i, "Observed Source Signatures"] = observed_source_sinks.source_count()
         observed_source_sink_file = source_sink_file_path(observed_source_sink_directory_path, input_model)
@@ -133,9 +137,10 @@ def observation_processing(experiment_dir_path: str, benchmark_df: pd.DataFrame,
         harness_calls_path = text_file_path(observed_strings_directory_path, input_model)
         with open(harness_calls_path, 'w') as out_file:
             out_file.write(f"Instrumentation reports observing tainted strings {len(instrumentation_report_tuples)} times.\n")
-            out_file.write("\n".join([f"String '{observed_string}' \nobserved at access path {access_path} \nby report {str(report)}" for report, access_path, observed_string in instrumentation_report_tuples]))
+            out_file.write("\n".join([f"String '{observed_string}' \nobserved at access path {str(access_path)} \nby report {str(report)}" for report, access_path, observed_string in instrumentation_report_tuples]))
             out_file.write(f"\n\nObserved {len(harnessed_source_calls)} calls to harnessed sources:\n")
             out_file.write("\n".join([f"Log line {i}, {line.strip()}" for i, line in harnessed_source_calls]))
+
 
         augmented_source_sinks: SourceSinkSignatures = observed_source_sinks.union(original_source_sinks)
         results_df.loc[i, "New Observed Sources"] = augmented_source_sinks.source_count() - original_source_sinks.source_count()
@@ -359,7 +364,7 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
             logger.info(msg)
             continue
         logcat_model = LogcatLogFileModel(possible_logcat_file_path)
-        instrumentation_report_tuples: List[Tuple[InstrumentationReport, str, str]] = logcat_model.scan_log_for_instrumentation_report_tuples()
+        instrumentation_report_tuples: List[Tuple[InstrumentationReport, AccessPath, str]] = logcat_model.scan_log_for_instrumentation_report_tuples()
 
         # logger.debug("observed_sources: " + str(len(instrumentation_report_tuples)))
 
@@ -446,7 +451,7 @@ def filtering_flowdroid_comparison(experiment_dir_path: str, benchmark_df: pd.Da
     filter_details_df_path = os.path.join(experiment_dir_path, "filter-details" + ".csv")
     filter_details_df.to_csv(filter_details_df_path)
 
-def identify_source_method_context(observed_sources: SourceSinkSignatures, instrumentation_report_tuples: List[Tuple[InstrumentationReport, str, str]]) -> pd.DataFrame:
+def identify_source_method_context(observed_sources: SourceSinkSignatures, instrumentation_report_tuples: List[Tuple[InstrumentationReport, AccessPath, str]]) -> pd.DataFrame:
     # Produces for each observed source, the set of calling methods & classes. 
 
     sources: Set[MethodSignature] = observed_sources.source_signatures
@@ -466,7 +471,7 @@ def identify_source_method_context(observed_sources: SourceSinkSignatures, instr
     # logger.debug("tuples length " + str(len(instrumentation_report_tuples)))
 
     reports: pd.DataFrame = pd.DataFrame({"invocation_java_signature": [report.invocation_java_signature for report, access_path, private_string in instrumentation_report_tuples], 
-                "access_path": [access_path for report, access_path, private_string in instrumentation_report_tuples], 
+                "access_path": [str(access_path) for report, access_path, private_string in instrumentation_report_tuples], 
                 "private_string": [private_string for report, access_path, private_string in instrumentation_report_tuples],
                 "enclosing_class_and_method": [SmaliMethodInvocation.smali_type_to_java_type(report.enclosing_class_name) + " " + report.enclosing_method_name for report, access_path, private_string in instrumentation_report_tuples],
                 })

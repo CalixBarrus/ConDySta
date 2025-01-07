@@ -105,3 +105,13 @@ class LoadBenchmark(StepInfoInterface):
         return benchmark_df_from_benchmark_directory_path(benchmark_directory_path, benchmark_description_path, ids_subset)
 
 
+def get_wild_benchmarks() -> List[Dict[str, str]]:
+    fossdroid_files: Dict[str, str] = get_fossdroid_files()
+    gpbench_files: Dict[str, str] = get_gpbench_files()
+
+    return [fossdroid_files]
+    # return [gpbench_files]
+    # return [fossdroid_files, gpbench_files]
+
+
+
