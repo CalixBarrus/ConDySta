@@ -8,6 +8,7 @@ from typing import Callable, List, Tuple, Union
 import pandas as pd
 
 from experiment.paths import StepInfoInterface
+from hybrid.AccessPath import AccessPath
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.source_sink import MethodSignature
 from intercept.InstrumentationReport import InstrumentationReport
@@ -1800,6 +1801,18 @@ def overwrite_object_register_with_value(dest_register: str, source_register: st
 #     move-object {source_register}, {dest_register}
 # """
 
+def instance_field_access_code(destination_register, base_object_register, access_path: AccessPath):
+
+    opcode = "iget-object" # will change if field is not an object or field is of a static class
+    destination_register = "v0"
+    base_object_register = "p0"
+    base_object_type = "Lde/ecspride/Datacontainer;"
+    field_name = "description"
+    field_type = "Ljava/lang/String;"
+    instance_field_reference = f"{base_object_type}->{field_name}:{field_type}"
+    code = f"    {opcode} {destination_register}, {base_object_register}, {instance_field_reference}"
+    return code
+
 
 def sources_to_harness(sources_list: str) -> List[MethodSignature]:
 
@@ -1807,7 +1820,6 @@ def sources_to_harness(sources_list: str) -> List[MethodSignature]:
         sources_text = file.read()
     signatures = [MethodSignature.from_source_string(line.strip()) for line in sources_text.splitlines()]
     return signatures
-
     
 
 if __name__ == '__main__':

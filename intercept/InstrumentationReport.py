@@ -16,6 +16,7 @@ class InstrumentationReport:
     invocation_java_signature: str
     enclosing_method_name: str
     enclosing_class_name: str
+
     is_arg_register: bool
     is_return_register: bool
     invocation_argument_register_index: int
@@ -23,3 +24,4 @@ class InstrumentationReport:
     invocation_argument_register_name: str
     invocation_argument_register_type: str
     is_static: bool
+

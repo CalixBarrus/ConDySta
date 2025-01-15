@@ -546,9 +546,11 @@ class ExecutionObservation:
 
         self.argument_access_path_tainted_before: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
         self.argument_access_path_tainted_after: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
+        self.argument_access_path_instrumentation_report: Dict[int, Dict[int, Dict[AccessPath, InstrumentationReport]]] = dict()
         self.argument_access_path_newly_tainted: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
 
         self.return_access_path_tainted_after: Dict[int, Dict[AccessPath, bool]] = dict()
+        self.return_access_path_instrumentation_report: Dict[int, Dict[AccessPath, InstrumentationReport]] = dict()
 
         self.invocation_java_signatures: Dict[int, str] = dict()
 
@@ -558,51 +560,33 @@ class ExecutionObservation:
         # To be called on each instrumentation result from a parsed by a LogcatFileModel. 
         # Keeps track of information to be later queried through other functions.
 
-
-
         if not isinstance(instrumentation_result, InstrumentationReport):
             instrumentation_report, access_path, private_string = instrumentation_result
-
             invocation_id = instrumentation_report.invoke_id
 
-            # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
-            if invocation_id not in self._observed_invocation_ids:
+            self._try_initialize_invocation_id(invocation_id, instrumentation_report)                        
 
-                self._observed_invocation_ids.add(invocation_id)
-                self._initialize_invocation_id(invocation_id, instrumentation_report.invocation_java_signature)
-
-                # self.invocation_java_signatures[invocation_id] = instrumentation_report.invocation_java_signature
-                # for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
-                #     if invocation_id not in dictionary.keys():
-                #         dictionary[invocation_id] = dict()
-                # # For the access_paths too
-                # for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_newly_tainted]:
-                #     if invocation_id not in dictionary.keys():
-                #         dictionary[invocation_id] = dict()
-                        
-            self._update_register_taints(invocation_id, instrumentation_result)
-            self._update_access_path_taints(invocation_id, instrumentation_report, access_path, private_string)
+            self._update_register_taints(invocation_id, instrumentation_report)
+            self._update_access_path_taints(invocation_id, instrumentation_report, access_path)
         else:
             instrumentation_report = instrumentation_result
             invocation_id: int = instrumentation_report.invoke_id
 
-            # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
-            if invocation_id not in self._observed_invocation_ids:
-                self._observed_invocation_ids.add(invocation_id)
-                self._initialize_invocation_id(invocation_id, instrumentation_result.invocation_java_signature)
+            self._try_initialize_invocation_id(invocation_id, instrumentation_report)
 
-            self._update_register_taints(invocation_id, instrumentation_result)
+            self._update_register_taints(invocation_id, instrumentation_report)
     
-    def _initialize_invocation_id(self, invocation_id: int, invocation_java_signature) -> None:
+    def _try_initialize_invocation_id(self, invocation_id: int, instrumentation_report: InstrumentationReport) -> None:
             # If this is the first time seeing a particular invocation_id, initialize the internal dictionaries for that id.
             if invocation_id not in self._observed_invocation_ids:
                 self._observed_invocation_ids.add(invocation_id)
-                self.invocation_java_signatures[invocation_id] = invocation_java_signature
+                self.invocation_java_signatures[invocation_id] = instrumentation_report.invocation_java_signature
+
                 for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
                     if invocation_id not in dictionary.keys():
                         dictionary[invocation_id] = dict()
                 # For the access_paths too, though they won't be used for plain InstrumentationReports.
-                for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_newly_tainted]:
+                for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_instrumentation_report, self.argument_access_path_newly_tainted]:
                     if invocation_id not in dictionary.keys():
                         dictionary[invocation_id] = dict()
 
@@ -630,9 +614,9 @@ class ExecutionObservation:
             if invocation_argument_register_index in self.argument_register_tainted_after[invocation_id].keys():
 
                 if invocation_argument_register_index in self.argument_register_tainted_before[invocation_id].keys():
-                    self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = True
-                else:
                     self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = False
+                else:
+                    self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = True
 
         elif instrumentation_report.is_return_register:
             self.return_tainted_after[invocation_id] = True
@@ -640,31 +624,60 @@ class ExecutionObservation:
             assert False
 
     def _update_access_path_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, access_path: AccessPath) -> None:
+        # Similar to _update_register_taints, but extra steps for extra layer of dictionaries
+
         # update observation data structures
-        # if instrumentation_report.is_arg_register:
-        #     invocation_argument_register_index = instrumentation_report.invocation_argument_register_index
+        if instrumentation_report.is_arg_register:
+            invocation_argument_register_index = instrumentation_report.invocation_argument_register_index
 
-        #     if instrumentation_report.is_before_invoke:
-        #         if invocation_argument_register_index not in self.argument_access_path_tainted_before[invocation_id].keys():
-        #             self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index] = dict()
+            if instrumentation_report.is_before_invoke:
+                if invocation_argument_register_index not in self.argument_access_path_tainted_before[invocation_id].keys():
+                    self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index] = dict()
+                if invocation_argument_register_index not in self.argument_access_path_instrumentation_report[invocation_id].keys():
+                    self.argument_access_path_instrumentation_report[invocation_id][invocation_argument_register_index] = dict()
 
-        #         self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index][access_path] = True
+                self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index][access_path] = True
+                # Save off or overwrite instrumentation report for this access path; 
+                # don't use before/after invoke info
+                self.argument_access_path_instrumentation_report[invocation_id][invocation_argument_register_index][access_path] = instrumentation_report
 
-        #     else:  # report is from after invoke
-        #         if invocation_argument_register_index not in self.argument_access_path_tainted_after[invocation_id].keys():
-        #             self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index] = dict()
-                    
-        #         self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index][access_path] = True
+            else:  # report is from after invoke
+                if invocation_argument_register_index not in self.argument_access_path_tainted_after[invocation_id].keys():
+                    self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index] = dict()
+                if invocation_argument_register_index not in self.argument_access_path_instrumentation_report[invocation_id].keys():
+                    self.argument_access_path_instrumentation_report[invocation_id][invocation_argument_register_index] = dict()
 
+                self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index][access_path] = True
+                self.argument_access_path_instrumentation_report[invocation_id][invocation_argument_register_index][access_path] = instrumentation_report
 
-        # elif instrumentation_report.is_return_register:
-        #     self.return_tainted_after[invocation_id][access_path] = True
-        # else: 
-        #     assert False
-        raise NotImplementedError
+        elif instrumentation_report.is_return_register:
+            for dictionary in [self.return_access_path_tainted_after, self.return_access_path_instrumentation_report]:
+                if not invocation_id in dictionary.keys():
+                    dictionary[invocation_id] = dict()
 
+            self.return_access_path_tainted_after[invocation_id][access_path] = True
+            self.return_access_path_instrumentation_report[invocation_id][access_path] = instrumentation_report
+        else: 
+            assert False
 
+        
+        # Update argument_access_path_newly_tainted
+        if instrumentation_report.is_arg_register:
+            invocation_argument_register_index = instrumentation_report.invocation_argument_register_index
 
+            if (invocation_argument_register_index in self.argument_access_path_tainted_after[invocation_id].keys()
+                and access_path in self.argument_access_path_tainted_after[invocation_id][invocation_argument_register_index].keys()):
+
+                if invocation_argument_register_index not in self.argument_access_path_newly_tainted[invocation_id].keys():
+                    self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index] = dict()
+
+                self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index][access_path] = True
+
+                # if Access path also tainted before
+                if (invocation_argument_register_index in self.argument_access_path_tainted_before[invocation_id].keys()
+                    and access_path in self.argument_access_path_tainted_before[invocation_id][invocation_argument_register_index].keys()):
+
+                    self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index][access_path] = False
 
 
     def get_tainting_invocation_ids(self) -> Set[int]:
@@ -684,11 +697,27 @@ class ExecutionObservation:
         return tainting_invocation_ids
     
     def get_tainting_invocation_contexts(self) -> List[InvocationRegisterContext]:
-        # TODO: how to set this up so an access path can be queried as tainted given some access max access path length to be considered?
-        raise NotImplementedError
-    
-    # def signature_from_invocation_id(self, invocation_id) -> str:
-    #     return self.invocation_signatures[invocation_id]
+        # Return True entries in argument_access_path_newly_tainted and return_tainted_after
+        register_contexts = []
+
+        for invocation_id, access_path_mapping in self.return_access_path_tainted_after.items():
+            for access_path, value in access_path_mapping.items():
+                if value:
+                    relevent_instrumentation_report = self.return_access_path_instrumentation_report[invocation_id][access_path]
+                    register_contexts.append((relevent_instrumentation_report, access_path))
+
+
+        for invocation_id, arguments in self.argument_access_path_newly_tainted.items():
+            for invocation_argument_register_index, access_path_mapping in arguments.items():
+                for access_path, value in access_path_mapping.items():
+                    if value:
+                        relevent_instrumentation_report = self.argument_access_path_instrumentation_report[invocation_id][invocation_argument_register_index][access_path]
+                        register_contexts.append((relevent_instrumentation_report, access_path))
+
+        return register_contexts
+        
+    def signature_from_invocation_id(self, invocation_id) -> str:
+        return self.invocation_signatures[invocation_id]
 
 
 
