@@ -1,4 +1,6 @@
 SS-Bench.txt, SS-GooglePlayLogin.txt, SS-GooglePlayLogin.txt are taken from Zhang's 2021 paper "Analyzing Android Taint Analysis Tools: FlowDroid, Amandroid, and DroidSafe"
+They are the S/S lists used for their experiments on DroidBench, GooglePlayBench apps 1-19 and GooglePlayBench apps 20-25, respectively.
+
 TODO: they further specify which sources & sinks are used by which apps, a detail that we aren't supporting.
 
 source-sinks-from-fossdroid-ground-truth.txt is for the dataset from Mordahl's 2021 paper "The Impact of Tool Configuration Spaces on the Evaluation of Configurable Taint Analysis for Android"

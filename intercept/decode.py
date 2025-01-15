@@ -42,7 +42,7 @@ class DecodeApk(StepInfoInterface):
 
 
 # def decode_apk(config: HybridAnalysisConfig, apk:ApkModel, clean:bool=False):
-def decode_apk(decoded_apks_directory_path: HybridAnalysisConfig, apk:ApkModel, clean:bool=False):
+def decode_apk(decoded_apks_directory_path: str, apk: ApkModel, clean:bool=False):
     # decoded_apk_path = hybrid_config.decoded_apk_path(config._decoded_apks_path, apk)
     decoded_apk_path = hybrid_config.decoded_apk_path(decoded_apks_directory_path, apk)
 
