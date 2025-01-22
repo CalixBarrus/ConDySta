@@ -6,11 +6,12 @@ from typing import Set, List, Optional, Dict, Tuple, Union
 
 from experiment.common import modified_source_sink_path
 from hybrid import results, sensitive_information
+from hybrid.invocation_register_context import InvocationRegisterContext
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures, SourceSinkXML
 from intercept.InstrumentationReport import InstrumentationReport
-from intercept.instrument import SmaliMethodInvocation
+from intercept.smali import SmaliMethodInvocation
 
-from hybrid.AccessPath import AccessPath
+from hybrid.access_path import AccessPath
 
 
 from util.input import InputModel
@@ -524,10 +525,6 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
                 1).replace("/", ".")
     result.arg_types = arg_types
     return result
-
-InvocationRegisterContext = Tuple[InstrumentationReport, AccessPath]
-
-
 
 class ExecutionObservation:
     # Parses all the instrumentation reports hashing related results by invocation_id. 

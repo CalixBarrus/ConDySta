@@ -15,6 +15,7 @@ from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from intercept import decode, instrument, intercept_main, keygen, rebuild, sign
 from intercept.instrument import instrumentation_strategy_factory_wrapper
+import intercept.smali
 from util.input import ApkModel, input_apks_from_dir
 
 import util.logger
@@ -111,8 +112,8 @@ def report_smali_LOC(results_df: pd.DataFrame, apks_df: pd.DataFrame, decoded_ap
 
         #look for and count smali files
         smali_file_paths = []
-        for smali_dir_path in instrument.DecodedApkModel.get_project_smali_directory_paths(decoded_apk_dir_path):
-            smali_file_paths = instrument.DecodedApkModel.scan_for_smali_file_paths(smali_dir_path)
+        for smali_dir_path in intercept.smali.DecodedApkModel.get_project_smali_directory_paths(decoded_apk_dir_path):
+            smali_file_paths = intercept.smali.DecodedApkModel.scan_for_smali_file_paths(smali_dir_path)
 
         """
         -JXmx256M

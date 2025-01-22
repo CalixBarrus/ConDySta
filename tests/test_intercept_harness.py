@@ -9,7 +9,8 @@ from experiment.common import benchmark_df_from_benchmark_directory_path
 from intercept.InstrumentationReport import InstrumentationReport
 from intercept.decode import DecodeApk
 from intercept.harness import harness_with_observed_sources
-from intercept.instrument import DecodedApkModel, InstrumentSmali
+from intercept.instrument_smali import InstrumentSmali
+from intercept.decoded_apk_model import DecodedApkModel
 from util.input import InputModel
 
 def check_number(num: str):

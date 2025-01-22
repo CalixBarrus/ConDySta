@@ -16,9 +16,9 @@ from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_with_fdconfig
 from hybrid.hybrid_config import apk_logcat_output_path, flowdroid_logs_path, time_path, source_sink_file_path, text_file_path
 from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_analysis_error, get_flowdroid_flows, get_flowdroid_memory, get_flowdroid_reported_leaks_count
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures
-from hybrid.AccessPath import AccessPath
+from hybrid.access_path import AccessPath
 from intercept.InstrumentationReport import InstrumentationReport
-from intercept.instrument import SmaliMethodInvocation
+from intercept.smali import SmaliMethodInvocation
 from util.input import InputModel, input_apks_from_dir
 import util.logger
 

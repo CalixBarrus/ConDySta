@@ -1,6 +1,6 @@
 
 
-from hybrid.AccessPath import AccessPath
+from hybrid.access_path import AccessPath
 
 
 def test_smoke():

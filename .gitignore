@@ -26,7 +26,6 @@ data/logger/condysta.log*
 
 tests/data/*
 
-
 HeapSnapshot/*.iml
 HeapSnapshot/.gradle
 /local.properties
@@ -47,3 +46,5 @@ HeapSnapshot/local.properties
 
 .ipynb_checkpoints
 .pytest_cache
+
+experiment/personal_info_copy.py
