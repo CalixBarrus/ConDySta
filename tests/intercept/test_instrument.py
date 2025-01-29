@@ -11,6 +11,7 @@ from hybrid.invocation_register_context import InvocationRegisterContext
 from intercept.instrument import HarnessObservations, HarnessSources
 from intercept.rebuild import rebuild_apk
 from intercept.decoded_apk_model import DecodedApkModel
+from tests.sample_results import get_mock_access_path, get_mock_instrumentation_report, get_mock_result
 from util.input import ApkModel
 
 # import util.logger
@@ -20,7 +21,7 @@ from util.input import ApkModel
 @pytest.fixture
 def rebuilt_apk_directory_path():
     # Delete APK between tests
-    yield "tests/data/rebuiltInstrumentableExample.apk"
+    yield "tests/data/rebuiltInstrumentableExample"
     
     # TODO: delete the rebuilt apk
 
@@ -79,16 +80,36 @@ def test_passing(decompiled_apk_copy):
 
 def test_decompiled_apk_copy_smoke(decompiled_apk_copy):
     assert os.path.exists(decompiled_apk_copy)
-    smali_dir = os.path.join(decompiled_apk_copy, "app-debug", "smali")
+    smali_dir = os.path.join(decompiled_apk_copy, "smali")
     assert os.path.exists(smali_dir)
 
+def mock_invocation_register_context() -> List[InvocationRegisterContext]:
+    instr_report = get_mock_instrumentation_report(is_arg=True, is_return=False, arg_register_index=0, content="blackbox-call")
+    access_path = get_mock_access_path("parent-string")
 
-def test_inject_field_accesses_smoke(decompiled_apk_copy):
+    return [(instr_report, access_path)]
 
-    decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
-    mock_context: List[InvocationRegisterContext] = [("instr report", "access path")]
+
+def test_inject_field_accesses_smoke(decompiled_apk_copy_persistent):
+
+    decoded_apk_model = DecodedApkModel(decompiled_apk_copy_persistent)
+    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
     instrumenters = [HarnessObservations(mock_context)]
     decoded_apk_model.instrument(instrumenters)
+
+def test_no_modification_recompile_successfully(decompiled_apk_copy, rebuilt_apk_directory_path, apk_model):
+    # integration test
+    
+    decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
+    # mock_context: List[InvocationRegisterContext] = [("instr report", "access path")]
+    # instrumenters = [HarnessObservations(mock_context)]
+    # decoded_apk_model.instrument(instrumenters)
+
+    # recompile the apk
+    # rebuilt_apk_directory_path = "tests/data/rebuiltInstrumentableExample"
+    rebuild_apk(os.path.dirname(decoded_apk_model.apk_root_path), rebuilt_apk_directory_path, apk_model, clean=True)
+    
+    assert os.path.exists(apk_path(rebuilt_apk_directory_path, apk_model))
     
 
 def test_inject_field_accesses_recompile_successfully(decompiled_apk_copy, rebuilt_apk_directory_path, apk_model):

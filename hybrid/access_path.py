@@ -1,6 +1,9 @@
 
 from typing import List
 
+from intercept import smali
+from intercept.smali import SmaliMethodInvocation
+
 
 class AccessPath:
     # Format corresponds to a List<FieldInfo> in Snapshot.java
@@ -27,6 +30,9 @@ class AccessPath:
 
         def __hash__(self):
             return hash((self.fieldClassName, self.fieldName))
+        
+        def get_smali_type(self):
+            return smali.java_type_to_smali_type(self.fieldClassName)
 
     fields: List[FieldInfo]
 

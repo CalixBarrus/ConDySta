@@ -129,10 +129,12 @@ class DecodedApkModel:
                 insertions = []
                 for index, instrumenter in enumerate(instrumenters):
 
-                    if isinstance(instrumenter, HarnessObservations):
-                        new_insertions = instrumenter.instrument_file(smali_file, observation_context)
-                    else:
-                        new_insertions = instrumenter.instrument_file(smali_file)
+
+                    if observation_context != None and isinstance(instrumenter, HarnessObservations):
+                        # new_insertions = instrumenter.instrument_file(smali_file, observation_context)
+                        instrumenter.set_observations(observation_context)
+
+                    new_insertions = instrumenter.instrument_file(smali_file)
 
                     insertions_count[index] += len(new_insertions)
                     insertions += new_insertions

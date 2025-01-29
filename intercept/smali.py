@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import re
 from intercept.code_insertion_model import CodeInsertionModel
 
 
@@ -147,6 +148,7 @@ class SmaliMethodInvocation:
         if self.move_result_line_number != -1:
             self.move_result_line_number += increment
 
+    # TODO: this needs to be moved outside of this class
     @staticmethod
     def smali_type_to_java_type(smali_type: str):
         if smali_type.startswith("L"):
@@ -185,7 +187,7 @@ class SmaliMethodInvocation:
                 return "double"
             else:
                 raise AssertionError("Unexpected primitive type: " + smali_type)
-
+            
     @staticmethod
     def is_wide_datatype(smali_type: str) -> bool:
         return smali_type == "J" or smali_type == "D"
@@ -747,4 +749,35 @@ class SmaliFile:
         with open(self.file_path, 'w') as file:
             file.writelines(contents)
 
+
+### Smali/Java Type Conversion
+    
+def java_type_to_smali_type(java_type: str) -> str:
+    # TODO: test this for edge cases
+    
+    if java_type == "void":
+        return "V"
+    elif java_type == "boolean":
+        return "Z"
+    elif java_type == "byte":
+        return "B"
+    elif java_type == "short":
+        return "S"
+    elif java_type == "char":
+        return "C"
+    elif java_type == "int":
+        return "I"
+    elif java_type == "long":
+        return "J"
+    elif java_type == "float":
+        return "F"
+    elif java_type == "double":
+        return "D"
+    else:
+        return "L" + java_type.replace(".", "/") + ";"
+    
+
+    
+
+### End Smali/Java Type Conversion
 

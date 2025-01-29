@@ -647,6 +647,9 @@ class HarnessObservations(SmaliInstrumentationStrategy):
     def __init__(self, observations: List[InvocationRegisterContext]):
 
         self.observations = observations
+
+    def set_observations(self, observations: List[InvocationRegisterContext]):
+        self.observations = observations
     
 
     def instrument_file(self, smali_file: 'SmaliFile')-> List[CodeInsertionModel]:        
@@ -670,17 +673,18 @@ class HarnessObservations(SmaliInstrumentationStrategy):
                 
                 # TODO: Check that dest register is still valid after the call; i.e., isn't next to a wide return register, isn't an arg register getting returned over, etc.
 
-                code = instance_field_access_code(destination_register, method_instrumentation_registers, access_path)
+                # TODO: Put the taint function info in some kind of variable
+                code = invocation_observation_taint_code(destination_register, method_instrumentation_registers, access_path)
 
                 # place code after move result if there is one, otherwise place code after invoke
                 target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
 
                 code_insertions.append(CodeInsertionModel(code, method_index, target_line_number, method_instrumentation_registers))
 
-                
+            return code_insertions
 
         # TODO: make sure 2 registers are being used
-        code_insertions = instrument_by_invocation(smali_file, self._instrument_invocation_statement)
+        code_insertions = instrument_by_invocation(smali_file, _instrument_invocation_statement)
 
         # start debug
         if len(code_insertions) > 0:
@@ -691,7 +695,11 @@ class HarnessObservations(SmaliInstrumentationStrategy):
     
 
     def needs_to_insert_directory(self):
-        raise False
+        return False
+
+    def path_to_directory(self):
+        raise NotImplementedError
+
 
 
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,
@@ -809,17 +817,72 @@ def overwrite_object_register_with_value(dest_register: str, source_register: st
 #     move-object {source_register}, {dest_register}
 # """
 
-def instance_field_access_code(base_object_register, instrumentation_registers, access_path: AccessPath):
-    destination_register = instrumentation_registers[0]
+def invocation_observation_taint_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath) -> str:
 
-    opcode = "iget-object" # will change if field is not an object or field is of a static class
-    destination_register = "v0"
-    base_object_register = "p0"
-    base_object_type = "Lde/ecspride/Datacontainer;"
-    field_name = "description"
-    field_type = "Ljava/lang/String;"
-    instance_field_reference = f"{base_object_type}->{field_name}:{field_type}"
-    code = f"    {opcode} {destination_register}, {base_object_register}, {instance_field_reference}"
+    # assert len(instrumentation_registers) == 2
+    tainted_str_register, access_path_register = instrumentation_registers[0], instrumentation_registers[1]
+    # call taint() to get the tainted string
+    code = f"""
+    invoke-static {{}}, Lcom/example/instrumentableexample/MainActivity;->taint()Ljava/lang/String;
+    move-result-object {tainted_str_register}
+"""
+    # get the target access path into a register
+    if len(access_path.fields) == 1:
+        # move contents of taint register into base_object_register (whose type must be compatible)
+        raise NotImplementedError()
+    elif len(access_path.fields) == 2:
+        # Field can be accessed directly
+        base_object_smali_type = access_path.fields[0].get_smali_type()
+
+        string_field_name = access_path.fields[1].fieldName        
+        string_type = "Ljava/lang/String;"
+        assert access_path.fields[1].get_smali_type() == string_type
+
+        code += f"""iput-object {base_object_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
+"""
+        pass
+    elif len(access_path.fields) > 2:
+        # Only this case requires the access path register
+
+        code += instance_child_access_code(base_object_register, access_path_register, access_path)
+        code += f"""iput-object {access_path_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
+"""
+
+    # code += f"""iput-object v2, v1, Lcom/example/instrumentableexample/Child$SubSubChild;->str:Ljava/lang/String;
+# """
+    return code
+
+def instance_child_access_code(base_object_register: str, access_path_register: str, access_path: AccessPath) -> str:
+    # After this code executes, access_path_register should contain the second to last object in the access path
+    if len(access_path.fields) == 2:
+        # TODO: case accounted for by calling code
+        pass
+
+    base_object_smali_type = access_path.fields[0].get_smali_type()
+    child_field_name = access_path.fields[1].fieldName
+    child_smali_type = access_path.fields[1].get_smali_type()
+
+    code = f"""iget-object {access_path_register}, {base_object_register}, {base_object_smali_type}->{child_field_name}:{child_smali_type}
+"""
+    # limit range to len(access_path.fields) - 2 since we're only getting the second to last object
+    # i.e., this code should only run if >= 4 fields in access path
+    for i in range(1, len(access_path.fields) - 2):
+        cur_parent_type = access_path.fields[i].get_smali_type()
+        cur_child_field_name = access_path.fields[i+1].fieldName
+        cur_child_type = access_path.fields[i+1].get_smali_type()
+
+        # read from & write to the same register
+        code = f"""iget-object {access_path_register}, {access_path_register}, {cur_parent_type}->{cur_child_field_name}:{cur_child_type}
+"""
+
+    # opcode = "iget-object" # will change if field is not an object or field is of a static class
+    # destination_register = "v0"
+    # base_object_register = "p0"
+    # base_object_type = "Lde/ecspride/Datacontainer;"
+    # field_name = "description"
+    # field_type = "Ljava/lang/String;"
+    # instance_field_reference = f"{base_object_type}->{field_name}:{field_type}"
+    # code = f"    {opcode} {destination_register}, {base_object_register}, {instance_field_reference}"
     return code
 
 
