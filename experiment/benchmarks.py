@@ -304,6 +304,21 @@ def test_hybrid_analysis_returns_only():
     pass
 
 def hybrid_analysis_with_existing_DA():
+    # TODO: setup documentation and workdir(s)
+
+    # Prepare dataframe
+
+    # analyze DA results to get observations
+
+    # create report on DA results & observations
+
+    # create instrumented apks using observations
+
+    # create report on instrumentations
+
+    # run SA on instrumented apks
+
+    # create report on SA results
     pass
 
 

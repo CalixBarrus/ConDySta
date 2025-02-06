@@ -48,3 +48,5 @@ HeapSnapshot/local.properties
 .pytest_cache
 
 experiment/personal_info_copy.py
+
+external_path.ini
