@@ -62,9 +62,9 @@ def decode_apk(decoded_apks_directory_path: str, apk: ApkModel, clean:bool=False
 
     _decode_apk(apktool_path, apk_path, decoded_apk_path)
 
-def _decode_apk(apktool_path, apk_path, decoded_apk_path):
-    cmd = [apktool_path, "--quiet", "d", apk_path, "-o", decoded_apk_path]
-    cmd = [apktool_path, "d", apk_path, "-o", decoded_apk_path]
+def _decode_apk(apktool_path, input_apk_path, decoded_apk_path):
+    cmd = [apktool_path, "--quiet", "d", input_apk_path, "-o", decoded_apk_path]
+    cmd = [apktool_path, "d", input_apk_path, "-o", decoded_apk_path]
 
     logger.debug(" ".join(cmd))
     apk_tool_message = run_command(cmd)

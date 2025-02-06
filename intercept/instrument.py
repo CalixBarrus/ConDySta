@@ -482,7 +482,7 @@ class StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(SmaliInstr
         return dest
 
 # TODO this is used by two Instrumentation Strategies. It should probably fit in the class somehow.
-def instrument_by_invocation(smali_file: SmaliFile, instrument_invocation: Callable[[int, SmaliMethod, List[str], SmaliMethodInvocation], List[CodeInsertionModel]]) -> List[CodeInsertionModel]:
+def instrument_by_invocation(smali_file: SmaliFile, instrument_invocation: Callable[[int, SmaliMethod, List[str], SmaliMethodInvocation], List[CodeInsertionModel]], registers_count=1) -> List[CodeInsertionModel]:
     code_insertions: List[CodeInsertionModel] = []
 
     for method_index, method in enumerate(smali_file.methods):
@@ -493,7 +493,7 @@ def instrument_by_invocation(smali_file: SmaliFile, instrument_invocation: Calla
 
         try:
             method_instrumentation_registers = smali_file.get_registers(
-                method_index, 1)
+                method_index, registers_count)
         except ValueError:
             # If the method has too many registers used,
             # don't instrument it
@@ -642,6 +642,7 @@ class HarnessSources(SmaliInstrumentationStrategy):
         return False
     
 class HarnessObservations(SmaliInstrumentationStrategy):
+    
     observations: List[InvocationRegisterContext]
 
     def __init__(self, observations: List[InvocationRegisterContext]):
@@ -673,8 +674,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
                 
                 # TODO: Check that dest register is still valid after the call; i.e., isn't next to a wide return register, isn't an arg register getting returned over, etc.
 
-                # TODO: Put the taint function info in some kind of variable
-                code = invocation_observation_taint_code(destination_register, method_instrumentation_registers, access_path)
+                code = self._invocation_observation_taint_code(destination_register, method_instrumentation_registers, access_path)
 
                 # place code after move result if there is one, otherwise place code after invoke
                 target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
@@ -683,8 +683,10 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
             return code_insertions
 
-        # TODO: make sure 2 registers are being used
-        code_insertions = instrument_by_invocation(smali_file, _instrument_invocation_statement)
+        code_insertions = []
+        if len(file_observations) > 0:
+            required_registers = 2
+            code_insertions = instrument_by_invocation(smali_file, _instrument_invocation_statement, required_registers)
 
         # start debug
         if len(code_insertions) > 0:
@@ -695,10 +697,51 @@ class HarnessObservations(SmaliInstrumentationStrategy):
     
 
     def needs_to_insert_directory(self):
-        return False
+        return True
 
     def path_to_directory(self):
-        raise NotImplementedError
+        dest = os.path.join("data/intercept/smali-files/taint-insertion")
+        return dest
+    
+    @staticmethod
+    def _invocation_observation_taint_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath) -> str:
+        # static_taint_method = "Lcom/example/instrumentableexample/MainActivity;->taint()Ljava/lang/String;"
+        static_taint_method = "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
+
+        # assert len(instrumentation_registers) == 2
+        tainted_str_register, access_path_register = instrumentation_registers[0], instrumentation_registers[1]
+        # call taint() to get the tainted string
+        # TODO: change HarnessObservations so this taint function gets added from assets.
+
+        code = f"""
+    invoke-static {{}}, {static_taint_method}
+    move-result-object {tainted_str_register}
+"""
+        # get the target access path into a register
+        if len(access_path.fields) == 1:
+            # move contents of taint register into base_object_register (whose type must be compatible)
+            raise NotImplementedError()
+        elif len(access_path.fields) == 2:
+            # Field can be accessed directly
+            base_object_smali_type = access_path.fields[0].get_smali_type()
+
+            string_field_name = access_path.fields[1].fieldName        
+            string_type = "Ljava/lang/String;"
+            assert access_path.fields[1].get_smali_type() == string_type
+
+            code += f"""    iput-object {base_object_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
+"""
+            pass
+        elif len(access_path.fields) > 2:
+            # Only this case requires the access path register
+
+            code += instance_child_access_code(base_object_register, access_path_register, access_path)
+            code += f"""    iput-object {access_path_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
+"""
+
+        # code += f"""iput-object v2, v1, Lcom/example/instrumentableexample/Child$SubSubChild;->str:Ljava/lang/String;
+        # """
+        return code
 
 
 
@@ -817,40 +860,7 @@ def overwrite_object_register_with_value(dest_register: str, source_register: st
 #     move-object {source_register}, {dest_register}
 # """
 
-def invocation_observation_taint_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath) -> str:
 
-    # assert len(instrumentation_registers) == 2
-    tainted_str_register, access_path_register = instrumentation_registers[0], instrumentation_registers[1]
-    # call taint() to get the tainted string
-    code = f"""
-    invoke-static {{}}, Lcom/example/instrumentableexample/MainActivity;->taint()Ljava/lang/String;
-    move-result-object {tainted_str_register}
-"""
-    # get the target access path into a register
-    if len(access_path.fields) == 1:
-        # move contents of taint register into base_object_register (whose type must be compatible)
-        raise NotImplementedError()
-    elif len(access_path.fields) == 2:
-        # Field can be accessed directly
-        base_object_smali_type = access_path.fields[0].get_smali_type()
-
-        string_field_name = access_path.fields[1].fieldName        
-        string_type = "Ljava/lang/String;"
-        assert access_path.fields[1].get_smali_type() == string_type
-
-        code += f"""iput-object {base_object_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
-"""
-        pass
-    elif len(access_path.fields) > 2:
-        # Only this case requires the access path register
-
-        code += instance_child_access_code(base_object_register, access_path_register, access_path)
-        code += f"""iput-object {access_path_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
-"""
-
-    # code += f"""iput-object v2, v1, Lcom/example/instrumentableexample/Child$SubSubChild;->str:Ljava/lang/String;
-# """
-    return code
 
 def instance_child_access_code(base_object_register: str, access_path_register: str, access_path: AccessPath) -> str:
     # After this code executes, access_path_register should contain the second to last object in the access path
@@ -862,7 +872,7 @@ def instance_child_access_code(base_object_register: str, access_path_register: 
     child_field_name = access_path.fields[1].fieldName
     child_smali_type = access_path.fields[1].get_smali_type()
 
-    code = f"""iget-object {access_path_register}, {base_object_register}, {base_object_smali_type}->{child_field_name}:{child_smali_type}
+    code = f"""    iget-object {access_path_register}, {base_object_register}, {base_object_smali_type}->{child_field_name}:{child_smali_type}
 """
     # limit range to len(access_path.fields) - 2 since we're only getting the second to last object
     # i.e., this code should only run if >= 4 fields in access path
@@ -872,7 +882,7 @@ def instance_child_access_code(base_object_register: str, access_path_register: 
         cur_child_type = access_path.fields[i+1].get_smali_type()
 
         # read from & write to the same register
-        code = f"""iget-object {access_path_register}, {access_path_register}, {cur_parent_type}->{cur_child_field_name}:{cur_child_type}
+        code = f"""    iget-object {access_path_register}, {access_path_register}, {cur_parent_type}->{cur_child_field_name}:{cur_child_type}
 """
 
     # opcode = "iget-object" # will change if field is not an object or field is of a static class

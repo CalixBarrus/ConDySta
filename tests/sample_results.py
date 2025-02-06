@@ -8,7 +8,7 @@ def get_mock_instrumentation_report(is_arg=False, is_return=True, arg_register_i
     if content == "placeholder":
         return InstrumentationReport(
                 invoke_id=1,
-                invocation_java_signature="java.lang.String toString()",
+                invocation_java_signature="<java.lang.String toString()>",
                 enclosing_method_name="exampleMethod",
                 enclosing_class_name="ExampleClass",
                 is_arg_register=is_arg,
@@ -22,7 +22,8 @@ def get_mock_instrumentation_report(is_arg=False, is_return=True, arg_register_i
     elif content == "blackbox-call":
         return InstrumentationReport(
                 invoke_id=1,
-                invocation_java_signature="com.example.instrumentableexample.Parent blackBox(com.example.instrumentableexample.Parent)", 
+                invocation_java_signature="<com.example.instrumentableexample.MainActivity: com.example.instrumentableexample.Parent blackBox(com.example.instrumentableexample.Parent)>", 
+                # invocation_java_signature="<com.example.instrumentableexample.Parent blackBox(com.example.instrumentableexample.Parent)>", 
                 enclosing_method_name="onCreate",
                 enclosing_class_name="Lcom/example/instrumentableexample/MainActivity;",
                 is_arg_register=is_arg,

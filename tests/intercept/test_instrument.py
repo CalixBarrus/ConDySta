@@ -95,7 +95,29 @@ def test_inject_field_accesses_smoke(decompiled_apk_copy_persistent):
     decoded_apk_model = DecodedApkModel(decompiled_apk_copy_persistent)
     mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
     instrumenters = [HarnessObservations(mock_context)]
+
     decoded_apk_model.instrument(instrumenters)
+
+def count_lines_in_file(path: str) -> int:
+
+    with open(path, "r") as file:
+        # skip blank lines
+        return len(list(filter(lambda line: line.strip() != "", file.readlines())))
+
+def test_inject_field_accesses_lines_added(decompiled_apk_copy):
+
+    decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
+    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
+    instrumenters = [HarnessObservations(mock_context)]
+    
+    main_file_path = os.path.join(decompiled_apk_copy, "smali_classes3/com/example/instrumentableexample/MainActivity.smali")
+
+    lines_in_main_before = count_lines_in_file(main_file_path)
+    decoded_apk_model.instrument(instrumenters)
+    lines_in_main_after = count_lines_in_file(main_file_path)
+
+    assert lines_in_main_after > lines_in_main_before
+
 
 def test_no_modification_recompile_successfully(decompiled_apk_copy, rebuilt_apk_directory_path, apk_model):
     # integration test
@@ -116,19 +138,20 @@ def test_inject_field_accesses_recompile_successfully(decompiled_apk_copy, rebui
     # integration test
 
     decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
-    mock_context: List[InvocationRegisterContext] = [("instr report", "access path")]
+    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
     instrumenters = [HarnessObservations(mock_context)]
     decoded_apk_model.instrument(instrumenters)
 
     # recompile the apk
     # rebuilt_apk_directory_path = "tests/data/rebuiltInstrumentableExample"
-    rebuild_apk(decoded_apk_model.apk_root_path, rebuilt_apk_directory_path, apk_model, clean=True)
+    rebuild_apk(os.path.dirname(decoded_apk_model.apk_root_path), rebuilt_apk_directory_path, apk_model, clean=True)
     
     assert os.path.exists(apk_path(rebuilt_apk_directory_path, apk_model))
 
 def test_inject_field_accesses_recompile_successfully_many_subfields():
 
     # when test fails, save off the modified smali 
+    raise NotImplementedError
     pass
 
 def test_inject_field_accesses_recompile_successfully_restricted_fields():
@@ -136,6 +159,7 @@ def test_inject_field_accesses_recompile_successfully_restricted_fields():
     # try to access a private field from a class in a different modules
 
     # when test fails, save off the modified smali 
+    raise NotImplementedError
     pass
 
     

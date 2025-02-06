@@ -26,6 +26,8 @@ def rebuild_batch(decoded_apks_directory_path: str, rebuilt_apks_directory_path:
             logger.error(f"Error rebuilding apk {apk.apk_name} with message: " + e.stderr)
 
 def rebuild_apk(decoded_apk_directory_path: str, rebuilt_apk_directory_path: str, apk: ApkModel, clean: bool):
+    # TODO: refactor to take a decoded_apk_path, instead of directory + apkModel.
+    
     # decoded_apks_directory_path = config._decoded_apks_path
     # rebuilt_apks_directory_path = config._rebuilt_apks_path
     

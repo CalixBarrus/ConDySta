@@ -299,6 +299,14 @@ def rebuild_wild_benchmarks(size: str):
 
         rebuild_apps_no_instrumentation(experiment_args["benchmark_dir_path"], experiment_name, experiment_description, ids_subset)
 
+
+def test_hybrid_analysis_returns_only():
+    pass
+
+def hybrid_analysis_with_existing_DA():
+    pass
+
+
 def icc_bench_mac():
     benchmark_folder_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/benchmarks/gpbench/apks")
     # benchmark_folder_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/gpbench")

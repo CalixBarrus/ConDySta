@@ -121,6 +121,12 @@ class DecodedApkModel:
             if instrumenter.needs_to_insert_directory():
                 self.insert_smali_directory(instrumenter.path_to_directory())
 
+
+        if observation_context != None and isinstance(instrumenter, HarnessObservations):
+            # new_insertions = instrumenter.instrument_file(smali_file, observation_context)
+            instrumenter.set_observations(observation_context)
+
+
         insertions_count = [0] * len(instrumenters)
         for smali_directory in self.smali_directories:
             for smali_file in smali_directory:
@@ -128,11 +134,6 @@ class DecodedApkModel:
                 # Apply each instrumentation strategy
                 insertions = []
                 for index, instrumenter in enumerate(instrumenters):
-
-
-                    if observation_context != None and isinstance(instrumenter, HarnessObservations):
-                        # new_insertions = instrumenter.instrument_file(smali_file, observation_context)
-                        instrumenter.set_observations(observation_context)
 
                     new_insertions = instrumenter.instrument_file(smali_file)
 
