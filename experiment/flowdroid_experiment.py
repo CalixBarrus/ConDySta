@@ -166,6 +166,8 @@ def _get_source_sink_factory(**kwargs) -> Callable[[pd.DataFrame, int], str]:
         
 
 def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFrame, flowdroid_logs_directory_name: str="flowdroid-logs", **kwargs) -> pd.DataFrame:
+    # TODO: what if the method was a part of an object, and things in kwargs were passed to the constructor? (Things that can't change between apps + defaults would be passed on constructor lvl, and then per app stuff would get passed as arg to this function)
+    # TODO: could this function be refactored to be a part of a single/batch function pair? Batch specific stuff could be shunted to a different step? 
     flowdroid_jar_path: str = kwargs["flowdroid_jar_path"]
     android_path: str = kwargs["android_path"]
 

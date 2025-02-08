@@ -4,6 +4,8 @@ import re
 import shutil
 from typing import Set, List, Optional, Dict, Tuple, Union
 
+import pandas as pd
+
 from experiment.common import modified_source_sink_path
 from hybrid import results, sensitive_information
 from hybrid.invocation_register_context import InvocationRegisterContext
@@ -525,6 +527,43 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
                 1).replace("/", ".")
     result.arg_types = arg_types
     return result
+
+def get_observations_from_logcat_batch(logcat_path: str, input_df: pd.DataFrame, output_col="") -> pd.Series:
+    assert logcat_path in input_df.columns
+
+    if output_col != "":
+        if not output_col in input_df.columns:
+            input_df[output_col] = "" # or some other null value? 
+        else:
+            result_series = pd.Series(index=input_df.index)
+
+    for i in input_df.index:
+        result = get_observations_from_logcat_single(input_df.loc[i, logcat_path])
+        if output_col != "":
+            input_df.loc[i, output_col] = result
+        else:
+            result_series.loc[i] = result
+
+    if output_col != "":
+        return None
+    else:
+        return result_series
+            
+    
+
+def get_observations_from_logcat_single(logcat_path: str) -> List[InvocationRegisterContext]:
+    log: LogcatLogFileModel = LogcatLogFileModel(logcat_path)
+
+    da_results: List[Tuple] = log.scan_log_for_instrumentation_report_tuples()
+
+    # TODO: move this function to ExecutionObservation. Change clients so they use this end point instead of replicating the functionality.
+    # TODO: will need to restrict depth & args analysis either here or in HarnessObservations.
+    observation = ExecutionObservation()
+    for da_result in da_results:
+        observation.parse_instrumentation_result(da_result)
+    
+    return observation.get_tainting_invocation_contexts()
+
 
 class ExecutionObservation:
     # Parses all the instrumentation reports hashing related results by invocation_id. 

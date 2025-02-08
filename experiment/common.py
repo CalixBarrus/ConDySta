@@ -7,6 +7,7 @@ import os
 
 from experiment import external_path
 from hybrid.flowdroid import FlowdroidArgs
+from hybrid.hybrid_config import _apk_log_file_name, apk_logcat_output_path
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
 
 import util.logger
@@ -286,6 +287,7 @@ def find_xml_paths_in_dir_recursive(dir_path: str) -> List[str]:
     return result
 
 def benchmark_df_from_benchmark_directory_path(benchmark_directory_path: str, benchmark_description_csv_path: str="", ids_subset: pd.Series=None) -> pd.DataFrame:
+    # TODO: make loader class? Will want parallel loader classes for picking up at the start of any given step? 
 
     inputs_model = input_apks_from_dir(benchmark_directory_path)
     benchmark_df = benchmark_df_base_from_batch_input_model(inputs_model, benchmark_description_csv_path=benchmark_description_csv_path)
@@ -355,6 +357,37 @@ def description_df_from_path(benchmark_description_path: str):
         description_df["AppID"] = description_df.index
 
     return description_df
+
+def load_logcat_files_batch(logcat_files_directory: str, input_identifier: str, input_df: pd.DataFrame, output_col=""):
+    assert input_identifier in input_df.columns
+
+    if output_col != "":
+        if not output_col in input_df.columns:
+            input_df[output_col] = "" # or some other null value? 
+        else:
+            result_series = pd.Series(index=input_df.index)
+
+    for i in input_df.index:
+        result = load_logcat_file_single(logcat_files_directory, input_df.loc[i, input_identifier])
+        if output_col != "":
+            input_df.loc[i, output_col] = result
+        else:
+            result_series.loc[i] = result
+
+    if output_col != "":
+        return None
+    else:
+        return result_series
+
+def load_logcat_file_single(logcat_files_directory: str, input_identifier: str) -> str:
+    # apk_logcat_output_path(logcat_files_directory, InputModel, grouped_apk_idx)
+    logcat = os.path.join(logcat_files_directory, _apk_log_file_name(input_identifier))
+    
+    # make sure it's actually there
+    assert os.path.isfile(logcat)
+
+    return logcat
+    
 
 ### End LoadBenchmarksStep
 

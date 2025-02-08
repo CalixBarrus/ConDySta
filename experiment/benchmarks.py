@@ -5,9 +5,10 @@ import numpy as np
 
 from experiment import external_path
 from experiment.LoadBenchmark import get_droidbench_files_paths3, get_fossdroid_files, get_gpbench_files, get_wild_benchmarks
-from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_flowdroid_file_paths, observation_arguments_default, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
+from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_flowdroid_file_paths, load_logcat_files_batch, observation_arguments_default, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
 from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, filtering_flowdroid_comparison, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing, parse_flowdroid_results, summary_df_for_fd_comparison
-from experiment.instrument import rebuild_apps_no_instrumentation
+from experiment.instrument import instrument_observations_batch, rebuild_apps_no_instrumentation
+from hybrid.dynamic import get_observations_from_logcat_batch
 import hybrid.hybrid_config
 from hybrid.flowdroid import FlowdroidArgs, run_flowdroid_paper_settings
 from hybrid.ic3 import run_ic3_on_apk, run_ic3_on_apk_direct
@@ -303,20 +304,31 @@ def rebuild_wild_benchmarks(size: str):
 def test_hybrid_analysis_returns_only():
     pass
 
-def hybrid_analysis_with_existing_DA():
+def analysis_with_da_observations_harnessed():
     # TODO: setup documentation and workdir(s)
+    # TODO: vary subset, base dataset, default S/S list, specific DA results, HarnessObservations settings (depth=0/n, args=y/n)
 
-    # Prepare dataframe
+    # Prepare dataframe with base apk info
+    benchmark_df_from_benchmark_directory_path()
+
+    # load DA results, 
+    load_logcat_files_batch()
 
     # analyze DA results to get observations
+    get_observations_from_logcat_batch()
 
-    # create report on DA results & observations
+        # create report on DA results & observations
 
     # create instrumented apks using observations
+        # setup required dirs
+    instrument_observations_batch()
 
-    # create report on instrumentations
+        # create report on instrumentations
 
-    # run SA on instrumented apks
+    # create tweaked S/S lists
+
+    # run SA on instrumented apks and S/S lists
+    flowdroid_on_benchmark_df()
 
     # create report on SA results
     pass

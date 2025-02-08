@@ -17,7 +17,7 @@ def _validate_path(path: str):
         return path
     
     # Maybe it's a path relative to home?
-    path_from_home = os.path.join(home_dir, path_from_home)
+    path_from_home = os.path.join(home_dir, path)
     if os.path.isdir(path_from_home) or os.path.isfile(path_from_home):
         return path_from_home
     else:
@@ -43,7 +43,7 @@ droidbench_apks_dir_path: str = _validate_path(config['benchmark']['droidbench_a
 flowdroid_jar_path: str = _validate_path(config['flowdroid']['flowdroid_jar_path'])
 
 # android_platforms_directory: str = home_dir + "/.android_sdk/platforms"
-android_platforms_directory: str = _validate_path(config['android']['android_platforms_directory'])
+android_platforms_directory: str = _validate_path(config['flowdroid']['android_platforms_directory'])
 
 
 

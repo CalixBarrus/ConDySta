@@ -13,8 +13,10 @@ from experiment.flowdroid_experiment import experiment_setup
 from experiment.paths import StepInfoInterface
 from hybrid import hybrid_config
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
+from hybrid.invocation_register_context import InvocationRegisterContext
 from intercept import decode, instrument, intercept_main, keygen, rebuild, sign
-from intercept.instrument import instrumentation_strategy_factory_wrapper
+from intercept.decoded_apk_model import DecodedApkModel
+from intercept.instrument import HarnessObservations, instrumentation_strategy_factory_wrapper
 import intercept.smali
 from util.input import ApkModel, input_apks_from_dir
 
@@ -58,6 +60,53 @@ def instrument_arguments_setup_generic(benchmark_files: Dict[str, str], experime
     experiment_arguments["always_new_experiment_directory"] = False
 
     return experiment_arguments
+
+def instrument_observations_batch(instrumenter: HarnessObservations, observations: str, apk: str, decoded_apks_directory_path: str, rebuilt_apks_directory_path: str, 
+                                  input_df: pd.DataFrame, output_col="") -> pd.Series:
+    assert observations, apk in input_df.columns
+
+    if output_col != "":
+        if not output_col in input_df.columns:
+            input_df[output_col] = "" # or some other null value? 
+        else:
+            result_series = pd.Series(index=input_df.index)
+
+    for i in input_df.index:
+        result = instrument_observations_single(instrumenter, input_df.loc[i, observations], input_df.loc[i, apk], decoded_apks_directory_path, rebuilt_apks_directory_path)
+        if output_col != "":
+            input_df.loc[i, output_col] = result
+        else:
+            result_series.loc[i] = result
+
+    if output_col != "":
+        return None
+    else:
+        return result_series
+
+def instrument_observations_single(instrumenter: HarnessObservations, observations: List[InvocationRegisterContext], apk: ApkModel, decoded_apks_directory_path: str, rebuilt_apks_directory_path: str) -> str:
+    # # inputs
+    # # experiment_dir_path = ""
+    # # instrumentation_strategy = ""
+    # instrumenter = HarnessObservations()
+    # observations = ""
+    # apk = ApkModel("") 
+    # # intermediates
+    # decoded_apks_directory_path = ""
+    # # output
+    # rebuilt_apks_directory_path = "" 
+
+    decode.decode_apk(decoded_apks_directory_path, apk, clean=True)
+    
+    decoded_apk = DecodedApkModel(hybrid_config.decoded_apk_path(decoded_apks_directory_path, apk))
+    instrumenter.set_observations(observations)
+    decoded_apk.instrument([instrumenter])
+
+    rebuild.rebuild_apk(decoded_apks_directory_path, rebuilt_apks_directory_path, apk, clean=True)
+    # TODO: do we even need to sign them for FD to analyze them? 
+    # keygen.generate_keys_batch(keys_directory_path, apks)
+    # sign.assign_key_batch(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, apks, clean=True)
+
+    return hybrid_config.apk_path(rebuilt_apks_directory_path, apk)
 
 def instrument_experiment_generic(**kwargs):
     # TODO: this needs to get moved to a different file maybe (instrument_experiment??). Is this using the same setup/tear down automation as flowdroid experiments??
