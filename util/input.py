@@ -51,6 +51,7 @@ class InputModel:
     Clients who don't care if input is group or not shouldn't have to. Model should be transparent enough for clients
     who do need to care. (This could be implemented with polymorphism, but at this time it would be overkill.)
     """
+    # TODO: what if this had an optional field "recent_grouped_apk_idx" so that detail can be passed with this object when it's needed?
 
     _apks: List["ApkModel"]
     _next_input_id: int = 0

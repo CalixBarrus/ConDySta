@@ -7,6 +7,7 @@ from typing import Dict, List
 import pandas as pd
 from experiment import external_path
 from experiment.LoadBenchmark import get_wild_benchmarks
+from experiment.batch import process_as_dataframe
 from experiment.common import instrumentation_arguments_default, subset_setup_generic
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_project_root_path, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import experiment_setup
@@ -61,27 +62,27 @@ def instrument_arguments_setup_generic(benchmark_files: Dict[str, str], experime
 
     return experiment_arguments
 
-def instrument_observations_batch(instrumenter: HarnessObservations, observations: str, apk: str, decoded_apks_directory_path: str, rebuilt_apks_directory_path: str, 
-                                  input_df: pd.DataFrame, output_col="") -> pd.Series:
-    assert observations, apk in input_df.columns
+# def instrument_observations_batch(instrumenter: HarnessObservations, observations: str, apk: str, decoded_apks_directory_path: str, rebuilt_apks_directory_path: str, 
+#                                   input_df: pd.DataFrame, output_col="") -> pd.Series:
+#     assert observations, apk in input_df.columns
 
-    if output_col != "":
-        if not output_col in input_df.columns:
-            input_df[output_col] = "" # or some other null value? 
-        else:
-            result_series = pd.Series(index=input_df.index)
+#     if output_col != "":
+#         if not output_col in input_df.columns:
+#             input_df[output_col] = "" # or some other null value? 
+#         else:
+#             result_series = pd.Series(index=input_df.index)
 
-    for i in input_df.index:
-        result = instrument_observations_single(instrumenter, input_df.loc[i, observations], input_df.loc[i, apk], decoded_apks_directory_path, rebuilt_apks_directory_path)
-        if output_col != "":
-            input_df.loc[i, output_col] = result
-        else:
-            result_series.loc[i] = result
+#     for i in input_df.index:
+#         result = instrument_observations_single(instrumenter, input_df.at[i, observations], input_df.at[i, apk], decoded_apks_directory_path, rebuilt_apks_directory_path)
+#         if output_col != "":
+#             input_df.at[i, output_col] = result
+#         else:
+#             result_series.at[i] = result
 
-    if output_col != "":
-        return None
-    else:
-        return result_series
+#     if output_col != "":
+#         return None
+#     else:
+#         return result_series
 
 def instrument_observations_single(instrumenter: HarnessObservations, observations: List[InvocationRegisterContext], apk: ApkModel, decoded_apks_directory_path: str, rebuilt_apks_directory_path: str) -> str:
     # # inputs
@@ -107,6 +108,8 @@ def instrument_observations_single(instrumenter: HarnessObservations, observatio
     # sign.assign_key_batch(signed_apks_directory_path, rebuilt_apks_directory_path, keys_directory_path, apks, clean=True)
 
     return hybrid_config.apk_path(rebuilt_apks_directory_path, apk)
+
+instrument_observations_batch = process_as_dataframe(instrument_observations_single, [False, True, True, False, False], [])
 
 def instrument_experiment_generic(**kwargs):
     # TODO: this needs to get moved to a different file maybe (instrument_experiment??). Is this using the same setup/tear down automation as flowdroid experiments??

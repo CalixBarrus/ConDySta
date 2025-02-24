@@ -3,13 +3,13 @@ from experiment import run
 from experiment.LoadBenchmark import get_droidbench_files_paths3, get_fossdroid_files, get_gpbench_files
 from experiment.benchmarks import test_full_flowdroid_comparison_wild_benchmarks, test_full_flowdroid_on_wild_benchmarks, test_full_observation_processing, icc_bench_linux, test_rebuild_fossdroid_apks_small, test_rebuild_wild_benchmarks_full, test_rebuild_wild_benchmarks_several, test_small_flowdroid_comparison_wild_benchmarks, test_small_flowdroid_on_wild_benchmarks, test_small_observation_processing, test_spot_check_flowdroid_comparison, test_spot_check_flowdroid_comparison_output_processing, test_spot_check_flowdroid_on_wild_benchmarks, test_spot_check_flowdroid_output_processing, test_spotcheck_observation_processing
 from experiment.common import benchmark_df_base_from_batch_input_model
+from experiment.experiments_2_10_25 import run_all_da_observation_reports, test_hybrid_analysis_returns_only
 from experiment.fossdroid import test_fossdroid_validation_experiment
 from experiment.gpbench import run_ic3_on_apk
 
 from experiment.instrument import instrument_test_wild_benchmarks, instrument_test_wild_benchmarks_few, instrument_test_wild_benchmarks_full, update_heap_snapshot_smali_files
 from experiment.run import install_all_apps_for_integration_testing, install_few_apps_for_integration_testing, install_original_fossdroid_apps, manual_test_all_apps_recording_output, manual_test_few_apps_recording_output, monkey_test_all_apps_recording_output, monkey_test_few_apps_recording_output, test_apps_spot_check, uninstall_all_3rd_party_apps
 from hybrid.log_process_fd import get_flowdroid_analysis_error
-from tests.src.intercept.test_intercept_harness import test_harness_with_observed_sources_smoke
 from util import logger
 from util.input import input_apks_from_dir
 logger = logger.get_logger(__name__)
@@ -92,6 +92,6 @@ if __name__ == '__main__':
 
     # record_manual_interactions("io.github.lonamiwebs.klooni_820.apk.log")
 
+    test_hybrid_analysis_returns_only()
 
-    test_harness_with_observed_sources_smoke()
-
+    # run_all_da_observation_reports()

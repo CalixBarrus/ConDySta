@@ -301,39 +301,6 @@ def rebuild_wild_benchmarks(size: str):
         rebuild_apps_no_instrumentation(experiment_args["benchmark_dir_path"], experiment_name, experiment_description, ids_subset)
 
 
-def test_hybrid_analysis_returns_only():
-    pass
-
-def analysis_with_da_observations_harnessed():
-    # TODO: setup documentation and workdir(s)
-    # TODO: vary subset, base dataset, default S/S list, specific DA results, HarnessObservations settings (depth=0/n, args=y/n)
-
-    # Prepare dataframe with base apk info
-    benchmark_df_from_benchmark_directory_path()
-
-    # load DA results, 
-    load_logcat_files_batch()
-
-    # analyze DA results to get observations
-    get_observations_from_logcat_batch()
-
-        # create report on DA results & observations
-
-    # create instrumented apks using observations
-        # setup required dirs
-    instrument_observations_batch()
-
-        # create report on instrumentations
-
-    # create tweaked S/S lists
-
-    # run SA on instrumented apks and S/S lists
-    flowdroid_on_benchmark_df()
-
-    # create report on SA results
-    pass
-
-
 def icc_bench_mac():
     benchmark_folder_path: str = os.path.join(external_path.home_directory, "Documents/programming/research-programming/benchmarks/gpbench/apks")
     # benchmark_folder_path: str = os.path.join(external_path.home_directory, "programming/benchmarks/gpbench")

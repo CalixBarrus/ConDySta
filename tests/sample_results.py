@@ -47,10 +47,10 @@ def get_mock_access_path(access_path="a") -> AccessPath:
 
     return path
 
-def get_mock_result(is_arg=False, is_return=True, arg_register_index=-1, is_before=False, access_path="a") -> InvocationRegisterContext:
+def get_mock_result(is_arg=False, is_return=True, arg_register_index=-1, is_before=False, access_path="a", tainted_string="42") -> InvocationRegisterContext:
     report = get_mock_instrumentation_report(is_arg=is_arg, is_return=is_return, arg_register_index=arg_register_index, is_before=is_before)
 
     path = get_mock_access_path(access_path)
 
 
-    return (report, path,"42")
+    return (report, path, tainted_string)

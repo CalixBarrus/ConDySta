@@ -6,6 +6,7 @@ import pandas as pd
 import os
 
 from experiment import external_path
+from experiment.batch import ExperimentStepException, process_as_dataframe
 from hybrid.flowdroid import FlowdroidArgs
 from hybrid.hybrid_config import _apk_log_file_name, apk_logcat_output_path
 from util.input import ApkModel, BatchInputModel, InputModel, input_apks_from_dir
@@ -164,6 +165,19 @@ def setup_dirs_with_dependency_info(experiment_name: str, experiment_description
     df_path = os.path.join(experiment_dir_path, experiment_id + ".csv")
     return df_path, setup_additional_directories(experiment_dir_path, dir_names)
 
+def get_experiment_name(dataset_name: str, step_name: str, version: Tuple[int,int,int], params: List=[], date_override: str="", reproduction: int=-1) -> str:
+    if date_override != "":
+        # "YYYY-MM-DD"
+        date = str(pd.to_datetime('today').date())
+    else: 
+        date = date_override
+
+    version_str = ".".join([str(num) for num in version])
+
+    reproduction_list = ([] if reproduction == -1 else [f"rep{reproduction}"])
+    return "_".join([date, step_name, dataset_name, version_str] + params + reproduction_list)
+    # return f"date_dataset_version_params"
+
 def setup_experiment_dir(experiment_name: str, experiment_description: str, dependency_dict: Dict[str,typing.Any], always_new_experiment_directory: bool=False) -> Tuple[str, str]:
     # TODO: this should be refactored into ResultPathManager
     experiment_description += ('\n')
@@ -179,8 +193,8 @@ def setup_experiment_dir(experiment_name: str, experiment_description: str, depe
             continue
         experiment_description += (f"{key}: {value}\n")
 
-    date = str(pd.to_datetime('today').date())
     # "YYYY-MM-DD"
+    date = str(pd.to_datetime('today').date())
     experiment_id = date + "-" + experiment_name
 
     if always_new_experiment_directory:
@@ -358,36 +372,52 @@ def description_df_from_path(benchmark_description_path: str):
 
     return description_df
 
-def load_logcat_files_batch(logcat_files_directory: str, input_identifier: str, input_df: pd.DataFrame, output_col=""):
-    assert input_identifier in input_df.columns
+# def load_logcat_files_batch(logcat_files_directory: str, input_identifier: str, input_df: pd.DataFrame, output_col=""):
+#     assert input_identifier in input_df.columns
 
-    if output_col != "":
-        if not output_col in input_df.columns:
-            input_df[output_col] = "" # or some other null value? 
-        else:
-            result_series = pd.Series(index=input_df.index)
+#     last_error_column = "last_error" # TODO: This should live with Batch code; ideally the "single" steps should throw a custom type of error that will get caught and handled by the batch code.
+#     if last_error_column not in input_df.columns:
+#         input_df[last_error_column] = ""
 
-    for i in input_df.index:
-        result = load_logcat_file_single(logcat_files_directory, input_df.loc[i, input_identifier])
-        if output_col != "":
-            input_df.loc[i, output_col] = result
-        else:
-            result_series.loc[i] = result
+#     if output_col != "":
+#         if not output_col in input_df.columns:
+#             input_df[output_col] = "" # or some other null value? 
+#         else:
+#             result_series = pd.Series(index=input_df.index)
 
-    if output_col != "":
-        return None
-    else:
-        return result_series
+    
+#     for i in input_df[input_df[last_error_column] == ""].index: # Filter out rows with errors.
+#         try:
+#             result = load_logcat_file_single(logcat_files_directory, input_df.at[i, input_identifier])
+#             if output_col != "":
+#                 input_df.at[i, output_col] = result
+#             else:
+#                 result_series.at[i] = result
+
+#         except Exception as e:
+#             input_df.at[i, last_error_column] = e.__str__()
+#             logger.error(e)
+
+#     if output_col != "":
+#         return None
+#     else:
+#         return result_series
+    
+
 
 def load_logcat_file_single(logcat_files_directory: str, input_identifier: str) -> str:
     # apk_logcat_output_path(logcat_files_directory, InputModel, grouped_apk_idx)
     logcat = os.path.join(logcat_files_directory, _apk_log_file_name(input_identifier))
     
     # make sure it's actually there
-    assert os.path.isfile(logcat)
+    # assert os.path.isfile(logcat)
+    if not os.path.isfile(logcat):
+        raise ExperimentStepException(f"Logcat file {logcat} not found.")
+        # raise AssertionError(f"Logcat file {logcat} not found.")
 
     return logcat
-    
+
+load_logcat_files_batch = process_as_dataframe(load_logcat_file_single, [False, True], [])
 
 ### End LoadBenchmarksStep
 

@@ -124,6 +124,7 @@ class FlowdroidArgs:
     --aliasalgo LAZY --aplength 4 --callbackanalyzer DEFAULT --codeelimination NONE --cgalgo RTA --dataflowsolver FLOWINSENSITIVE --analyzeframeworks --implicit NONE --maxcallbackspercomponent 80 --maxcallbacksdepth 0 --noexceptions --pathalgo CONTEXTSENSITIVE --onesourceatatime --pathspecificresults --singlejoinpointabstraction --staticmode CONTEXTFLOWSENSITIVE --taintwrapper DEFAULTFALLBACK
     """
     wild_value = "ANY"
+    
     best_fossdroid_settings: Dict = {'aliasalgo': 'LAZY', 'aplength': 4, 'callbackanalyzer': 'DEFAULT', 'codeelimination': 'NONE', 'cgalgo': 'RTA', 'dataflowsolver': 'FLOWINSENSITIVE', 'analyzeframeworks': None, 'implicit': 'NONE', 'maxcallbackspercomponent': 80, 'maxcallbacksdepth': 0, 'noexceptions': None, 'pathalgo': 'CONTEXTSENSITIVE', 'onesourceatatime': None, 'pathspecificresults': None, 'singlejoinpointabstraction': None, 'staticmode': 'CONTEXTFLOWSENSITIVE', 'taintwrapper': 'DEFAULTFALLBACK'}
     default_settings: Dict[str, str] = {}
     gpbench_experiment_settings_modified: Dict = {"enablereflection": None, "noiccresultspurify": None, "layoutmode": "NONE", }

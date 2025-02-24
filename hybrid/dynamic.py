@@ -6,11 +6,13 @@ from typing import Set, List, Optional, Dict, Tuple, Union
 
 import pandas as pd
 
+from experiment.batch import process_as_dataframe
 from experiment.common import modified_source_sink_path
 from hybrid import results, sensitive_information
 from hybrid.invocation_register_context import InvocationRegisterContext
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures, SourceSinkXML
 from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrument import extract_private_string
 from intercept.smali import SmaliMethodInvocation
 
 from hybrid.access_path import AccessPath
@@ -528,26 +530,35 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
     result.arg_types = arg_types
     return result
 
-def get_observations_from_logcat_batch(logcat_path: str, input_df: pd.DataFrame, output_col="") -> pd.Series:
-    assert logcat_path in input_df.columns
+# def get_observations_from_logcat_batch(logcat_path: str, input_df: pd.DataFrame, output_col="") -> pd.Series:
+#     assert logcat_path in input_df.columns
 
-    if output_col != "":
-        if not output_col in input_df.columns:
-            input_df[output_col] = "" # or some other null value? 
-        else:
-            result_series = pd.Series(index=input_df.index)
+#     last_error_column = "last_error" # TODO: This should live with Batch code; ideally the "single" steps should throw a custom type of error that will get caught and handled by the batch code.
+#     if last_error_column not in input_df.columns:
+#         input_df[last_error_column] = ""    
 
-    for i in input_df.index:
-        result = get_observations_from_logcat_single(input_df.loc[i, logcat_path])
-        if output_col != "":
-            input_df.loc[i, output_col] = result
-        else:
-            result_series.loc[i] = result
+#     if output_col != "":
+#         if not output_col in input_df.columns:
+#             input_df[output_col] = "" # or some other null value? 
+#         else:
+#             result_series = pd.Series(index=input_df.index)
 
-    if output_col != "":
-        return None
-    else:
-        return result_series
+#     for i in input_df[input_df[last_error_column] == ""].index: # Filter out rows with errors.
+#         try:
+#             result = get_observations_from_logcat_single(input_df.at[i, logcat_path])
+#             if output_col != "":
+#                 input_df.at[i, output_col] = result
+#             else:
+#                 result_series.at[i] = result
+
+#         except Exception as e:
+#             input_df.at[i, last_error_column] = e.__str__()
+#             logger.error(e)
+
+#     if output_col != "":
+#         return None
+#     else:
+#         return result_series
             
     
 
@@ -556,7 +567,7 @@ def get_observations_from_logcat_single(logcat_path: str) -> List[InvocationRegi
 
     da_results: List[Tuple] = log.scan_log_for_instrumentation_report_tuples()
 
-    # TODO: move this function to ExecutionObservation. Change clients so they use this end point instead of replicating the functionality.
+    # TODO: move this function to ExecutionObservation
     # TODO: will need to restrict depth & args analysis either here or in HarnessObservations.
     observation = ExecutionObservation()
     for da_result in da_results:
@@ -564,6 +575,7 @@ def get_observations_from_logcat_single(logcat_path: str) -> List[InvocationRegi
     
     return observation.get_tainting_invocation_contexts()
 
+get_observations_from_logcat_batch = process_as_dataframe(get_observations_from_logcat_single, [True], [])
 
 class ExecutionObservation:
     # Parses all the instrumentation reports hashing related results by invocation_id. 
@@ -577,16 +589,20 @@ class ExecutionObservation:
         self.argument_register_tainted_before: Dict[int, Dict[int, bool]] = dict()
         self.argument_register_tainted_after: Dict[int, Dict[int, bool]] = dict()
         self.argument_register_newly_tainted: Dict[int, Dict[int, bool]] = dict()
+        self.argument_register_newly_tainted_observed_strings: Dict[int, Dict[int, Set[str]]] = dict()
 
         self.return_tainted_after: Dict[int, bool] = dict()
+        self.return_tainted_after_observed_strings: Dict[int, Set[str]] = dict()
 
         self.argument_access_path_tainted_before: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
         self.argument_access_path_tainted_after: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
         self.argument_access_path_instrumentation_report: Dict[int, Dict[int, Dict[AccessPath, InstrumentationReport]]] = dict()
         self.argument_access_path_newly_tainted: Dict[int, Dict[int, Dict[AccessPath, bool]]] = dict()
+        self.argument_access_path_newly_tainted_observed_strings : Dict[int, Dict[int, Dict[AccessPath, Set[str]]]] = dict()
 
         self.return_access_path_tainted_after: Dict[int, Dict[AccessPath, bool]] = dict()
         self.return_access_path_instrumentation_report: Dict[int, Dict[AccessPath, InstrumentationReport]] = dict()
+        self.return_access_path_tainted_after_observed_strings: Dict[int, Dict[AccessPath, Set[str]]] = dict()
 
         self.invocation_java_signatures: Dict[int, str] = dict()
 
@@ -597,13 +613,14 @@ class ExecutionObservation:
         # Keeps track of information to be later queried through other functions.
 
         if not isinstance(instrumentation_result, InstrumentationReport):
-            instrumentation_report, access_path, private_string = instrumentation_result
+            instrumentation_report, access_path, flagged_string_value = instrumentation_result
+            private_string = extract_private_string(flagged_string_value)
             invocation_id = instrumentation_report.invoke_id
 
             self._try_initialize_invocation_id(invocation_id, instrumentation_report)                        
 
-            self._update_register_taints(invocation_id, instrumentation_report)
-            self._update_access_path_taints(invocation_id, instrumentation_report, access_path)
+            self._update_register_taints(invocation_id, instrumentation_report, private_string)
+            self._update_access_path_taints(invocation_id, instrumentation_report, access_path, private_string)
         else:
             instrumentation_report = instrumentation_result
             invocation_id: int = instrumentation_report.invoke_id
@@ -618,15 +635,16 @@ class ExecutionObservation:
                 self._observed_invocation_ids.add(invocation_id)
                 self.invocation_java_signatures[invocation_id] = instrumentation_report.invocation_java_signature
 
-                for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted]:
-                    if invocation_id not in dictionary.keys():
-                        dictionary[invocation_id] = dict()
-                # For the access_paths too, though they won't be used for plain InstrumentationReports.
-                for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_instrumentation_report, self.argument_access_path_newly_tainted]:
+                for dictionary in [self.argument_register_tainted_before, self.argument_register_tainted_after, self.argument_register_newly_tainted, self.argument_register_newly_tainted_observed_strings]:
                     if invocation_id not in dictionary.keys():
                         dictionary[invocation_id] = dict()
 
-    def _update_register_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport) -> None:
+                # For the access_paths too, though they won't be used for plain InstrumentationReports.
+                for dictionary in [self.argument_access_path_tainted_before, self.argument_access_path_tainted_after, self.argument_access_path_instrumentation_report, self.argument_access_path_newly_tainted, self.argument_access_path_newly_tainted_observed_strings]:
+                    if invocation_id not in dictionary.keys():
+                        dictionary[invocation_id] = dict()
+
+    def _update_register_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, observed_string: str="Not-Reported") -> None:
 
 
         # update observation data structures
@@ -646,6 +664,7 @@ class ExecutionObservation:
             # tainted after        | False          |                    | True
             # no observation after | Blank          |                    | Blank
 
+
             # We assume here that all non-blank entries in the before/after dictionary are True.
             if invocation_argument_register_index in self.argument_register_tainted_after[invocation_id].keys():
 
@@ -653,13 +672,16 @@ class ExecutionObservation:
                     self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = False
                 else:
                     self.argument_register_newly_tainted[invocation_id][invocation_argument_register_index] = True
+                    self._add_to_nested_dict(self.argument_register_newly_tainted_observed_strings, observed_string, invocation_id, invocation_argument_register_index)
 
         elif instrumentation_report.is_return_register:
             self.return_tainted_after[invocation_id] = True
+            self._add_to_nested_dict(self.return_tainted_after_observed_strings, observed_string, invocation_id)
+
         else: 
             assert False
 
-    def _update_access_path_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, access_path: AccessPath) -> None:
+    def _update_access_path_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, access_path: AccessPath, observed_string: str="Not-Reported") -> None:
         # Similar to _update_register_taints, but extra steps for extra layer of dictionaries
 
         # update observation data structures
@@ -693,6 +715,8 @@ class ExecutionObservation:
 
             self.return_access_path_tainted_after[invocation_id][access_path] = True
             self.return_access_path_instrumentation_report[invocation_id][access_path] = instrumentation_report
+            self._add_to_nested_dict(self.return_access_path_tainted_after_observed_strings, observed_string, invocation_id, access_path)
+
         else: 
             assert False
 
@@ -708,6 +732,7 @@ class ExecutionObservation:
                     self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index] = dict()
 
                 self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index][access_path] = True
+                self._add_to_nested_dict(self.argument_access_path_newly_tainted_observed_strings, observed_string, invocation_id, invocation_argument_register_index, access_path)
 
                 # if Access path also tainted before
                 if (invocation_argument_register_index in self.argument_access_path_tainted_before[invocation_id].keys()
@@ -715,32 +740,60 @@ class ExecutionObservation:
 
                     self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index][access_path] = False
 
+    def _add_to_nested_dict(self, nested_dict, value_to_add: str, *keys):
+        # Add a string to a the set at the innermost dictionary of a nested dictionary.
+        # Creates an empty set if it's the first string to be added
+        
+        inner_dict = nested_dict
+        for key in keys[:-1]:
+            if key not in inner_dict.keys():
+                inner_dict[key] = dict()
+            inner_dict = inner_dict[key]
+        
+        if keys[-1] not in inner_dict.keys():
+            inner_dict[keys[-1]] = set()
+        inner_dict[keys[-1]] = inner_dict[keys[-1]] | value_to_add
 
-    def get_tainting_invocation_ids(self) -> Set[int]:
+
+    def get_tainting_invocation_ids(self, with_observed_strings: bool=False) -> List[int]:
         # Returns ids for every invocation in which an argument became tainted, or the return was observed to be tainted.
 
-        tainting_invocation_ids = set()
+        tainting_invocation_ids = []
+        observed_strings = []
 
         for invocation_id, value in self.return_tainted_after.items():
             if value:
-                tainting_invocation_ids.add(invocation_id)
+                if not invocation_id in tainting_invocation_ids:
+                    tainting_invocation_ids.append(invocation_id)
+                    observed_strings.append(self.return_tainted_after_observed_strings[invocation_id])
         
         for invocation_id, arguments in self.argument_register_newly_tainted.items():
             for invocation_argument_register_index, value in arguments.items():
                 if value:
-                    tainting_invocation_ids.add(invocation_id)
+                    if not invocation_id in tainting_invocation_ids:
+                        tainting_invocation_ids.append(invocation_id)
+                        observed_strings.append(self.argument_register_newly_tainted_observed_strings[invocation_id][invocation_argument_register_index])
+                    else:
+                        observed_strings[tainting_invocation_ids.index(invocation_id)] = observed_strings[tainting_invocation_ids.index(invocation_id)].union(self.argument_register_newly_tainted_observed_strings[invocation_id][invocation_argument_register_index])
+
+                    # tainting_invocation_ids.add(invocation_id)
         
-        return tainting_invocation_ids
+        if with_observed_strings:
+            return tainting_invocation_ids, observed_strings
+        else:
+            return tainting_invocation_ids
     
-    def get_tainting_invocation_contexts(self) -> List[InvocationRegisterContext]:
+    def get_tainting_invocation_contexts(self, with_observed_strings: bool=False) -> List[InvocationRegisterContext]: # or Tuple[List[contexts], Set[str]]
         # Return True entries in argument_access_path_newly_tainted and return_tainted_after
         register_contexts = []
+        observed_strings = []
 
         for invocation_id, access_path_mapping in self.return_access_path_tainted_after.items():
             for access_path, value in access_path_mapping.items():
                 if value:
                     relevent_instrumentation_report = self.return_access_path_instrumentation_report[invocation_id][access_path]
                     register_contexts.append((relevent_instrumentation_report, access_path))
+                    observed_strings.append(self.return_access_path_tainted_after_observed_strings[invocation_id][access_path])
 
 
         for invocation_id, arguments in self.argument_access_path_newly_tainted.items():
@@ -749,8 +802,21 @@ class ExecutionObservation:
                     if value:
                         relevent_instrumentation_report = self.argument_access_path_instrumentation_report[invocation_id][invocation_argument_register_index][access_path]
                         register_contexts.append((relevent_instrumentation_report, access_path))
+                        observed_strings.append(self.argument_access_path_newly_tainted_observed_strings[invocation_id][invocation_argument_register_index][access_path])
 
-        return register_contexts
+        if with_observed_strings:
+            return register_contexts, observed_strings
+        else:
+            return register_contexts
+    
+    def get_tainting_invocation_contexts_as_table(self, register_contexts_col: str="register_contexts", observed_string_sets_col: str="observed_string_sets", enclosing_class_col: str="enclosing_class", enclosing_method_col: str="enclosing_method") -> pd.DataFrame:
+        register_contexts, observed_strings = self.get_tainting_invocation_contexts(with_observed_strings=True)
+
+        contexts_df = pd.DataFrame({register_contexts_col: register_contexts, observed_string_sets_col: observed_strings})
+        contexts_df[enclosing_class_col] = contexts_df[register_contexts_col].map(lambda context: context[0].enclosing_class_name)
+        contexts_df[enclosing_method_col] = contexts_df[register_contexts_col].map(lambda context: context[0].enclosing_method_name)
+
+        return contexts_df        
         
     def signature_from_invocation_id(self, invocation_id) -> str:
         return self.invocation_signatures[invocation_id]

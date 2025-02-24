@@ -781,3 +781,28 @@ def java_type_to_smali_type(java_type: str) -> str:
 
 ### End Smali/Java Type Conversion
 
+# class JavaSignature:
+#     is_static: bool
+
+#     def __init__(self, signature: str, is_static: bool):
+#         # Return Method Invocation in the style found in Flowdroid source/sink lists and Flowdroid log output
+#         # Example
+#         # <[full package name]: [return type] [method name]([arg types,])>
+
+#         # expects output from SmaliMethodInvocation.get_java_style_signature()
+
+        
+
+#         match = re.search(r"<(.+): (.+) (.+)(((.+)))>", signature)
+#         if match is None:
+#             pass
+
+#         base_class = match.group(1)
+#         return_type = match.group(2)
+#         method_name = match.group(3)
+#         args = list(map(lambda s: s.strip(), match.group(4).split(",")))
+
+
+
+
+

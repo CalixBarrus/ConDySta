@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 import re
-from typing import Callable, List, Union
+from typing import Callable, List, Set, Union
 
 
 from hybrid.invocation_register_context import InvocationRegisterContext
@@ -644,10 +644,12 @@ class HarnessSources(SmaliInstrumentationStrategy):
 class HarnessObservations(SmaliInstrumentationStrategy):
     
     observations: List[InvocationRegisterContext]
+    disable_field_sensitivity: bool # base object should be tainted; don't taint specific access path
 
-    def __init__(self, observations: List[InvocationRegisterContext]):
+    def __init__(self, observations: List[InvocationRegisterContext], disable_field_sensitivity: bool=False):
 
         self.observations = observations
+        disable_field_sensitivity = False
 
     def set_observations(self, observations: List[InvocationRegisterContext]):
         self.observations = observations
@@ -669,7 +671,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
             for invocation_observation in invocation_observations:
                 report, access_path = invocation_observation
 
-                # TODO: Check that for this field has the return name if a return register
+                # TODO: Check that this field has the return name if a return register
                 destination_register = report.invocation_argument_register_name
                 
                 # TODO: Check that dest register is still valid after the call; i.e., isn't next to a wide return register, isn't an arg register getting returned over, etc.
@@ -720,7 +722,11 @@ class HarnessObservations(SmaliInstrumentationStrategy):
         # get the target access path into a register
         if len(access_path.fields) == 1:
             # move contents of taint register into base_object_register (whose type must be compatible)
-            raise NotImplementedError()
+            # TODO: this branch doesn't use access_path_register; only 1 register is needed.
+            source_register = tainted_str_register
+            dest_register = base_object_register
+            assert access_path.fields[0].get_smali_type() == "Ljava/lang/String;"
+            code += f"""    move-object {dest_register}, {source_register}"""
         elif len(access_path.fields) == 2:
             # Field can be accessed directly
             base_object_smali_type = access_path.fields[0].get_smali_type()
@@ -902,6 +908,37 @@ def sources_to_harness(sources_list: str) -> List[MethodSignature]:
         sources_text = file.read()
     signatures = [MethodSignature.from_source_string(line.strip()) for line in sources_text.splitlines()]
     return signatures
+
+def extract_private_string(flagged_string_value: str) -> Set[str]:
+    # Given a value that was flagged as sensitive, find the specific ad hoc string led to the value being flagged. 
+    # Reference implementation in HeapSnapshot
+
+    """
+    private static final List<String> PII = Arrays.asList("8901240197155182897", "355458061189396", "ZX1H22KHQK", "b91481e8-4bfc-47ce-82b6-728c3f6bff60", "f8:cf:c5:d1:02:e8", "f8:cf:c5:d1:02:e7", "tester.sefm@gmail.com", "Class-Deliver-Put-Earn-5", 
+    // Unique-ish Strings observed from "Ljava/util/Locale; toString", "Ljava/util/Locale; toString", "Landroid/provider/Settings$Secure; getString", "Landroid/net/nsd/NsdServiceInfo; getServiceName", respectively.
+    "en_US", "3a15cc3d742be836", "Q2hhbm5lbF8wMA:OhXMPXQr6DY:");
+
+    private static final String HARNESSED_PII_PATTERN = "\\*\\*\\*\\d{12}\\*\\*\\*";
+    """
+    a_priori_strings = ["8901240197155182897", "355458061189396", "ZX1H22KHQK", "b91481e8-4bfc-47ce-82b6-728c3f6bff60", "f8:cf:c5:d1:02:e8", "f8:cf:c5:d1:02:e7", "tester.sefm@gmail.com", "Class-Deliver-Put-Earn-5", "en_US", "3a15cc3d742be836", "Q2hhbm5lbF8wMA:OhXMPXQr6DY:"]
+    pattern = r"\*\*\*\d{12}\*\*\*"
+
+    private_strings = set()
+
+    for a_priori_string in a_priori_strings:
+        if a_priori_string in flagged_string_value:
+            private_strings.add(a_priori_string)
+    
+    test = 'Error reading file: ***000000186130***'
+    matches = re.findall(pattern, flagged_string_value)
+    if len(matches) > 0:
+        private_strings = private_strings.union(set(matches))
+
+    if len(private_strings) > 0:
+        return private_strings
+    else:
+        logger.error(f"Unable to determine private string that caused flag on value: {flagged_string_value}")
+        return {"UNKNOWN"}
     
 
 if __name__ == '__main__':

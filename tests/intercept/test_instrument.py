@@ -8,7 +8,7 @@ import pytest
 
 from hybrid.hybrid_config import apk_path
 from hybrid.invocation_register_context import InvocationRegisterContext
-from intercept.instrument import HarnessObservations, HarnessSources
+from intercept.instrument import HarnessObservations, HarnessSources, extract_private_string
 from intercept.rebuild import rebuild_apk
 from intercept.decoded_apk_model import DecodedApkModel
 from tests.sample_results import get_mock_access_path, get_mock_instrumentation_report, get_mock_result
@@ -163,3 +163,7 @@ def test_inject_field_accesses_recompile_successfully_restricted_fields():
     pass
 
     
+def test_extract_private_string_regex_sanity_check():
+    test = 'Error reading file: ***000000186130***'
+
+    assert extract_private_string(test) == "***000000186130***"

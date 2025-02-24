@@ -24,4 +24,4 @@ class InstrumentationReport:
     invocation_argument_register_name: str
     invocation_argument_register_type: str
     is_static: bool
-
+    
