@@ -3,7 +3,7 @@ from typing import List, Tuple
 import pytest
 import pandas as pd
 
-from experiment.LoadBenchmark import LoadBenchmark, get_droidbench_files_paths3
+from experiment.load_benchmark import LoadBenchmark, get_droidbench_files_paths3
 from experiment.paths import ResultPathManager, StepInfoInterface
 from experiment.common import benchmark_df_from_benchmark_directory_path
 from intercept.InstrumentationReport import InstrumentationReport

@@ -3,7 +3,7 @@
 import os
 import time
 from typing import Callable, Dict, List
-from experiment.LoadBenchmark import get_fossdroid_files, get_wild_benchmarks
+from experiment.load_benchmark import get_fossdroid_files, get_wild_benchmarks
 from experiment.benchmarks import recent_instrumented_apps_for_wild_benchmark
 from experiment.common import benchmark_description_path_from_benchmark_files, benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, setup_additional_directories, setup_experiment_dir, subset_setup_generic
 from hybrid.hybrid_config import apk_logcat_output_path, apk_path

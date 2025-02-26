@@ -6,13 +6,18 @@ import pluggy
 import pytest
 
 
+from experiment.benchmark_name import BenchmarkName
+from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
+from hybrid import hybrid_config
+from hybrid.dynamic import get_observations_from_logcat_single
 from hybrid.hybrid_config import apk_path
 from hybrid.invocation_register_context import InvocationRegisterContext
+from intercept import decode
 from intercept.instrument import HarnessObservations, HarnessSources, extract_private_string
 from intercept.rebuild import rebuild_apk
 from intercept.decoded_apk_model import DecodedApkModel
 from tests.sample_results import get_mock_access_path, get_mock_instrumentation_report, get_mock_result
-from util.input import ApkModel
+from util.input import ApkModel, InputModel
 
 # import util.logger
 # logger = util.logger.get_logger(__name__)
@@ -20,10 +25,13 @@ from util.input import ApkModel
 
 @pytest.fixture
 def rebuilt_apk_directory_path():
-    # Delete APK between tests
-    yield "tests/data/rebuiltInstrumentableExample"
-    
-    # TODO: delete the rebuilt apk
+    # Delete APKs between tests
+
+    directory = "tests/data/rebuiltInstrumentableExample"
+    yield directory
+
+    shutil.rmtree(directory)
+    os.mkdir(directory)
 
 @pytest.fixture
 def apk_model():
@@ -33,25 +41,76 @@ def apk_model():
     # filename from android/decompile.py
     return ApkModel("tests/android/InstrumentableExample/app/build/outputs/apk/debug/app-debug.apk")
 
+@pytest.fixture(scope='module')
+def onxmaps_apk_model():
+    df_file_paths = get_wild_benchmarks(BenchmarkName.GPBENCH)[0]
+    df = LoadBenchmark(df_file_paths).execute()
+    onx_input_model: InputModel
+    onx_input_model = df.at[19, "Input Model"]
+
+    return onx_input_model.apk()
+
+@pytest.fixture
+def decompiled_onxmaps_apk_copy(onxmaps_apk_model):
+    # Decompile it once, since copying it is cheaper that decompiling it every time we want to modify it.
+    test_data_directory = "tests/data/"
+    onxmaps_identifier = "19.onxmaps.hunt"
+    decompiled_onxmaps_apk = os.path.join(test_data_directory, onxmaps_identifier)
+
+    if not os.path.isdir(decompiled_onxmaps_apk):
+        # load up the apk, decompile into the target directory
+        apk = onxmaps_apk_model
+        decode.decode_apk(test_data_directory, apk, clean=True)
+
+        assert decompiled_onxmaps_apk == hybrid_config.decoded_apk_path(test_data_directory, apk)
+
+
+    copy_dir = "tests/data/copied_decompiled_apks"
+    if os.path.isdir(os.path.join(copy_dir, onxmaps_identifier)):
+        shutil.rmtree(os.path.join(copy_dir, onxmaps_identifier))
+
+    shutil.copytree(decompiled_onxmaps_apk, os.path.join(copy_dir, onxmaps_identifier))
+    yield os.path.join(copy_dir, onxmaps_identifier)
+
+    # Let Client delete the copy if it's been modified
+    # delete the copy since it's probably been modified
+    # shutil.rmtree(os.path.join(copy_dir, onxmaps_identifier))
+
+
+@pytest.fixture(scope='module')
+def passportcanada_apk_model():
+    df_file_paths = get_wild_benchmarks(BenchmarkName.GPBENCH)[0]
+    df = LoadBenchmark(df_file_paths).execute()
+    onx_input_model: InputModel
+    onx_input_model = df.at[6, "Input Model"]
+
+    return onx_input_model.apk()
+
+
+@pytest.fixture
+def decompiled_passportcanada_apk_copy(passportcanada_apk_model):
+        # Decompile it once, since copying it is cheaper that decompiling it every time we want to modify it.
+    test_data_directory = "tests/data/"
+    passportcanada_identifier = "6.ca.passportparking.mobile.passportcanada"
+    decompiled_passportcanada_apk = os.path.join(test_data_directory, passportcanada_identifier)
+
+    if not os.path.isdir(decompiled_passportcanada_apk):
+        # load up the apk, decompile into the target directory
+        apk = passportcanada_apk_model
+        decode.decode_apk(test_data_directory, apk, clean=True)
+
+        assert decompiled_passportcanada_apk == hybrid_config.decoded_apk_path(test_data_directory, apk)
+
+
+    copy_dir = "tests/data/copied_decompiled_apks"
+    if os.path.isdir(os.path.join(copy_dir, passportcanada_identifier)):
+        shutil.rmtree(os.path.join(copy_dir, passportcanada_identifier))
+
+    shutil.copytree(decompiled_passportcanada_apk, os.path.join(copy_dir, passportcanada_identifier))
+    yield os.path.join(copy_dir, passportcanada_identifier)
 
 
 # DECOMPILED_APK_COPY = "tests/data/decompiledInstrumentableExample_copy"
-
-
-# @pytest.fixture
-# def setup_teardown(did_test_fail):
-#     # Code to run before each test
-#     # logger.info("Setup for test")
-
-#     # copy smali dirs
-#     decompiled_apk = "tests/data/decompiledInstrumentableExample"
-#     assert os.path.exists(decompiled_apk)
-
-#     decompiled_apk_copy = "tests/data/decompiledInstrumentableExample_copy"
-
-    
-#     shutil.copytree(decompiled_apk, DECOMPILED_APK_COPY, dirs_exist_ok=False)
-
 
 #     yield 
 
@@ -138,7 +197,7 @@ def test_inject_field_accesses_recompile_successfully(decompiled_apk_copy, rebui
     # integration test
 
     decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
-    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
+    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context() 
     instrumenters = [HarnessObservations(mock_context)]
     decoded_apk_model.instrument(instrumenters)
 
@@ -148,22 +207,93 @@ def test_inject_field_accesses_recompile_successfully(decompiled_apk_copy, rebui
     
     assert os.path.exists(apk_path(rebuilt_apk_directory_path, apk_model))
 
-def test_inject_field_accesses_recompile_successfully_many_subfields():
+def test_HarnessObservations_onxmaps_case(decompiled_onxmaps_apk_copy, onxmaps_apk_model, rebuilt_apk_directory_path):
+    decoded_apk_model = DecodedApkModel(decompiled_onxmaps_apk_copy)
 
-    # when test fails, save off the modified smali 
-    raise NotImplementedError
-    pass
+    onxmaps_da_log = "tests/data-persistent/19.19.onxmaps.hunt.apk.log"
+    tainted_contexts = get_observations_from_logcat_single(onxmaps_da_log)
 
-def test_inject_field_accesses_recompile_successfully_restricted_fields():
-    # try to access private & protected fields
-    # try to access a private field from a class in a different modules
+    instrumenters = [HarnessObservations(observations=tainted_contexts)]
 
-    # when test fails, save off the modified smali 
-    raise NotImplementedError
-    pass
+    decoded_apk_model.instrument(instrumenters)
+
+    # Experiments have revealed 18 bad reports in the test input
+    assert instrumenters[0].report_mismatch_exceptions == 15
+    # All of the mismatches are on returns, we try to repair 
+    assert instrumenters[0].report_mismatch_repair_attempted == 15
+
+    rebuild_apk(os.path.dirname(decompiled_onxmaps_apk_copy), rebuilt_apk_directory_path, onxmaps_apk_model, True)
+    
+    assert os.path.exists(apk_path(rebuilt_apk_directory_path, onxmaps_apk_model))
+
+
+    # Only delete if there weren't errors
+    shutil.rmtree(decompiled_onxmaps_apk_copy)
+
+
+def test_HarnessObservations_passportcanada_case(decompiled_passportcanada_apk_copy, passportcanada_apk_model, rebuilt_apk_directory_path):
+    decoded_apk_model = DecodedApkModel(decompiled_passportcanada_apk_copy)
+
+    passportcanada_da_log = "tests/data-persistent/6.6.ca.passportparking.mobile.passportcanada.apk.log"
+    tainted_contexts = get_observations_from_logcat_single(passportcanada_da_log)
+
+    instrumenters = [HarnessObservations(observations=tainted_contexts)]
+
+    decoded_apk_model.instrument(instrumenters)
+
+    rebuild_apk(os.path.dirname(decompiled_passportcanada_apk_copy), rebuilt_apk_directory_path, passportcanada_apk_model, True)
+    
+    assert os.path.exists(apk_path(rebuilt_apk_directory_path, passportcanada_apk_model))
+
+    print(instrumenters[0].report_mismatch_exceptions) # 44 of these, yikes
+    print(instrumenters[0].report_mismatch_repair_attempted)
+    assert instrumenters[0].report_mismatch_repair_attempted - instrumenters[0].report_mismatch_exceptions == 1 # 1 case where there wasn't a move-result when expected.
+    # Only delete if there weren't errors
+    shutil.rmtree(decompiled_passportcanada_apk_copy)
+
+# def test_inject_field_accesses_recompile_successfully_many_subfields():
+
+#     # when test fails, save off the modified smali 
+#     raise NotImplementedError
+#     pass
+
+# def test_inject_field_accesses_recompile_successfully_restricted_fields():
+#     # try to access private & protected fields
+#     # try to access a private field from a class in a different modules
+
+#     # when test fails, save off the modified smali 
+#     raise NotImplementedError
+#     pass
 
     
 def test_extract_private_string_regex_sanity_check():
     test = 'Error reading file: ***000000186130***'
 
     assert extract_private_string(test) == "***000000186130***"
+
+def test_HarnessObservations_disable_field_sensitivity_smoke():
+    decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
+    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
+    instrumenters = [HarnessObservations(mock_context)]
+    decoded_apk_model.instrument(instrumenters)
+
+    assert True
+
+
+def test_HarnessObservations_disable_field_sensitivity_fewer_lines(decompiled_apk_copy, decompiled_apk_copy2):
+    decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
+    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
+    instrumenters = [HarnessObservations(mock_context)]
+    decoded_apk_model.instrument(instrumenters)
+    
+    main_file_path = os.path.join(decompiled_apk_copy, "smali_classes3/com/example/instrumentableexample/MainActivity.smali")
+
+    lines_in_main_with_field_sensitivity = count_lines_in_file(main_file_path)
+
+    decoded_apk_model2 = DecodedApkModel(decompiled_apk_copy2)
+    instrumenters = [HarnessObservations(mock_context, disable_field_sensitivity=True)]
+    decoded_apk_model2.instrument(instrumenters)
+
+    lines_in_main_without_field_sensitivity = count_lines_in_file(os.path.join(decompiled_apk_copy2, "smali_classes3/com/example/instrumentableexample/MainActivity.smali"))
+
+    assert lines_in_main_with_field_sensitivity > lines_in_main_without_field_sensitivity

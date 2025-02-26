@@ -4,8 +4,8 @@
 import os
 import shutil
 import pytest
-from experiment.LoadBenchmark import LoadBenchmark
-from experiment.LoadBenchmark import get_wild_benchmarks
+from experiment.load_benchmark import LoadBenchmark
+from experiment.load_benchmark import get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import get_flowdroid_file_paths, subset_setup_generic
 from experiment.experiments_2_10_25 import analysis_with_da_observations_harnessed, da_observation_report

@@ -34,8 +34,8 @@ def observed_intermediate_sources_details(tainting_invocation_contexts: List[Inv
 
         intermediate_sources_df.at[i, "Enclosing Class"] = instr_report.enclosing_class_name
         intermediate_sources_df.at[i, "Enclosing Method"] = instr_report.enclosing_method_name
-        
-        # "Invocation index", invoke ID
+        intermediate_sources_df.at[i, "Invocation ID"] = instr_report.invoke_id
+
         intermediate_sources_df.at[i, "Tainting Base Arg/Return"] = _instr_report_position(instr_report)
             # TODO: pretty print as "func(this, a, *b*, c) -> d" or something
         

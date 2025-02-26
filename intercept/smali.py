@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import re
+from intercept.InstrumentationReport import InstrumentationReport
 from intercept.code_insertion_model import CodeInsertionModel
 
 
@@ -355,6 +356,28 @@ class SmaliMethodInvocation:
         result_invocation.return_type = re.search(r"\)(.*)$", line).group(1).strip()
 
         return result_invocation
+    
+    def validate_observation_report(self, report: InstrumentationReport):
+        # Check for issue where register name in report doesn't correspond to copy of current smali code
+        if report.is_return_register:
+            if self.move_result_register != report.invocation_argument_register_name:
+                raise ReportMismatchException(f"Smali return register {self.move_result_register} doesn't match report return register {report.invocation_argument_register_name}. ")
+            
+            # Check to make sure the invoke still has a 'move_result'
+        else:
+            if report.invocation_argument_register_index > len(self.argument_registers):
+                raise ReportMismatchException(f"Report references index {report.invocation_argument_register_index} but there are only {len(self.argument_registers)} registers")            
+
+            if self.argument_registers[report.invocation_argument_register_index] != report.invocation_argument_register_name:
+                raise ReportMismatchException(f"Report references index {report.invocation_argument_register_index} but there are only {len(self.argument_registers)} registers")
+            
+
+            
+
+
+class ReportMismatchException(Exception):
+    # Mismatch between instrumentation report and live smali code
+    pass
 
 
 class SmaliMethod:

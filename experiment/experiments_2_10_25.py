@@ -4,7 +4,7 @@ import os
 from typing import Dict, List
 import pandas as pd
 from experiment import report
-from experiment.LoadBenchmark import LoadBenchmark, get_wild_benchmarks
+from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_experiment_name, get_flowdroid_file_paths, load_logcat_files_batch, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, get_default_source_sink_path, source_list_of_inserted_taint_function_batch
@@ -56,7 +56,7 @@ def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_result
 
     # actually construct dependencies
     df = LoadBenchmark(df_file_paths).execute()
-    harness_observations = HarnessObservations([])
+    harness_observations = HarnessObservations()
 
     analysis_with_da_observations_harnessed(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs)
 

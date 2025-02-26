@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from experiment import external_path
-from experiment.LoadBenchmark import get_droidbench_files_paths3, get_fossdroid_files, get_gpbench_files, get_wild_benchmarks
+from experiment.load_benchmark import get_droidbench_files_paths3, get_fossdroid_files, get_gpbench_files, get_wild_benchmarks
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_flowdroid_file_paths, load_logcat_files_batch, observation_arguments_default, recent_experiment_directory_path, setup_additional_directories, setup_dirs_with_ic3, setup_experiment_dir, subset_setup_generic
 from experiment.flowdroid_experiment import experiment_setup, experiment_setup_and_save_csv_fixme, filtering_flowdroid_comparison, flowdroid_comparison_with_observation_processing_experiment, flowdroid_on_benchmark_df, observation_processing, parse_flowdroid_results, summary_df_for_fd_comparison
 from experiment.instrument import instrument_observations_batch, rebuild_apps_no_instrumentation

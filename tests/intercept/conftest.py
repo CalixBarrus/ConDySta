@@ -28,6 +28,7 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture
 def decompiled_apk_copy(request):
+    # TODO: instead of getting fancy with this, just have separate fixture where clients are responsible for deleting it (or not)
 
     # copy smali dirs
     decompiled_apk = "tests/data/decompiledInstrumentableExample/app-debug"

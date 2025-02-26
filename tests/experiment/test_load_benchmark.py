@@ -3,7 +3,7 @@
 
 
 import pytest
-from experiment.LoadBenchmark import get_wild_benchmarks
+from experiment.load_benchmark import get_wild_benchmarks
 from experiment.common import benchmark_df_from_benchmark_directory_path, subset_setup_generic
 
 

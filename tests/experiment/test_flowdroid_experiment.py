@@ -2,7 +2,7 @@
 import os
 import shutil
 import pytest
-from experiment.LoadBenchmark import get_fossdroid_files
+from experiment.load_benchmark import get_fossdroid_files
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic
 from experiment.flowdroid_experiment import experiment_setup, flowdroid_on_benchmark_df
 

@@ -6,7 +6,7 @@ import typing
 import numpy as np
 
 from experiment import external_path
-from experiment.LoadBenchmark import get_gpbench_files
+from experiment.load_benchmark import get_gpbench_files
 from experiment.benchmarks import flowdroid_experiment_many_fd_configs
 from experiment.common import benchmark_df_base_from_batch_input_model, flowdroid_setup_generic, format_num_secs, setup_additional_directories, setup_dirs_with_ic3
 from experiment.flowdroid_experiment import experiment_setup_and_save_csv_fixme, flowdroid_on_benchmark_df, groundtruth_df_from_xml, process_fd_log_stats, results_df_from_benchmark_df

@@ -6,7 +6,7 @@ from typing import Dict, List
 
 import pandas as pd
 from experiment import external_path
-from experiment.LoadBenchmark import get_wild_benchmarks
+from experiment.load_benchmark import get_wild_benchmarks
 from experiment.batch import process_as_dataframe
 from experiment.common import instrumentation_arguments_default, subset_setup_generic
 from experiment.common import benchmark_df_base_from_batch_input_model, benchmark_df_from_benchmark_directory_path, format_num_secs, get_project_root_path, results_df_from_benchmark_df, setup_additional_directories, setup_experiment_dir

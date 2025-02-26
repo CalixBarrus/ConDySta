@@ -10,7 +10,7 @@ from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.source_sink import MethodSignature
 from intercept.code_insertion_model import CodeInsertionModel
 from intercept.InstrumentationReport import InstrumentationReport
-from intercept.smali import SmaliFile, SmaliMethod, SmaliMethodInvocation
+from intercept.smali import ReportMismatchException, SmaliFile, SmaliMethod, SmaliMethodInvocation
 from util.input import ApkModel
 from util.subprocess import run_command
 
@@ -645,11 +645,16 @@ class HarnessObservations(SmaliInstrumentationStrategy):
     
     observations: List[InvocationRegisterContext]
     disable_field_sensitivity: bool # base object should be tainted; don't taint specific access path
+    report_mismatch_exceptions: int
+    report_mismatch_repair_attempted: int 
 
-    def __init__(self, observations: List[InvocationRegisterContext], disable_field_sensitivity: bool=False):
+    def __init__(self, observations: List[InvocationRegisterContext]=[], disable_field_sensitivity: bool=False):
 
         self.observations = observations
-        disable_field_sensitivity = False
+        # TODO: test that this operation works
+        self.disable_field_sensitivity = disable_field_sensitivity
+        self.report_mismatch_exceptions = 0
+        self.report_mismatch_repair_attempted = 0
 
     def set_observations(self, observations: List[InvocationRegisterContext]):
         self.observations = observations
@@ -671,7 +676,29 @@ class HarnessObservations(SmaliInstrumentationStrategy):
             for invocation_observation in invocation_observations:
                 report, access_path = invocation_observation
 
-                # TODO: Check that this field has the return name if a return register
+                try:
+                    invocation_statement.validate_observation_report(report)
+                except ReportMismatchException as e:
+                    self.report_mismatch_exceptions += 1
+                    msg = f"Report mismatch in {smali_file.file_path} invocation line {invocation_statement.invoke_line_number}" + str(e)
+                    logger.error(msg)
+                    logger.debug(f"Report mismatch in {invocation_statement} from report {report}")
+                    # don't Instrument based on this report, because the mismatch may not baksmali
+
+                    # I'm not sure if these errors occur because of APK Tool behaving differently on different environments, or if the field in the reports is just wrong (maybe it's filled out for an arbitrary argument instead of the name of the return register?)
+                    # If the report is for a return, attempt to repair by using the correct return register
+
+                    if report.is_return_register:
+                        # Check if the invoke still has a move_result
+                        if invocation_statement.move_result_line_number == -1:
+                            logger.debug(f"No move result when one was expected")
+                            continue
+
+                        report.invocation_argument_register_name = invocation_statement.move_result_register
+                        self.report_mismatch_repair_attempted += 1
+                    else:
+                        continue
+
                 destination_register = report.invocation_argument_register_name
                 
                 # TODO: Check that dest register is still valid after the call; i.e., isn't next to a wide return register, isn't an arg register getting returned over, etc.

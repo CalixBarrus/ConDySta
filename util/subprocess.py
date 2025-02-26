@@ -59,9 +59,13 @@ def run_command(args: List['str'], redirect_stdout: str = "",
     except subprocess.CalledProcessError as e:
         logger.error("Error running command: " + debug_cmd)
         if str(e.stderr) != "":
-            logger.error("STDERR First Line: " + str(e.stderr).splitlines()[0])
+            debug_stderr = str(e.stderr)
+            msg = "STDERR First Line: " + debug_stderr.splitlines()[0]
+            logger.error(msg)
         if str(e.stdout) != "":
-            logger.error("STDOUT First Line: " + str(e.stdout).splitlines()[0])
+            debug_stdout = str(e.stdout)
+            msg = "STDOUT First Line: " + debug_stdout.splitlines()[0]
+            logger.error(msg)
         raise e
 
 def run_command_direct(args: List['str']) -> None:
