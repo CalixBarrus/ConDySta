@@ -4,7 +4,7 @@ import re
 from typing import Callable, List, Set, Union
 
 
-from hybrid.invocation_register_context import InvocationRegisterContext
+from hybrid.invocation_register_context import InvocationRegisterContext, reduce_for_field_insensitivity
 from hybrid.access_path import AccessPath
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.source_sink import MethodSignature
@@ -650,29 +650,45 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
     def __init__(self, observations: List[InvocationRegisterContext]=[], disable_field_sensitivity: bool=False):
 
-        self.observations = observations
-        # TODO: test that this operation works
         self.disable_field_sensitivity = disable_field_sensitivity
         self.report_mismatch_exceptions = 0
         self.report_mismatch_repair_attempted = 0
 
+        self.set_observations(observations)
+
     def set_observations(self, observations: List[InvocationRegisterContext]):
         self.observations = observations
+        self.reduced_observations, _ = reduce_for_field_insensitivity(observations)
+
+        # TODO: need to reset counters? 
     
 
-    def instrument_file(self, smali_file: 'SmaliFile')-> List[CodeInsertionModel]:        
+    def instrument_file(self, smali_file: 'SmaliFile')-> List[CodeInsertionModel]:      
+        if not self.disable_field_sensitivity:
+            observations = self.observations        
+        else:
+            observations = self.reduced_observations  
 
-        file_observations = [observation for observation in self.observations if observation[0].enclosing_class_name == smali_file.class_name]
+        file_observations = [observation for observation in observations if observation[0].enclosing_class_name == smali_file.class_name]
 
         def _instrument_invocation_statement(method_index: int, method: SmaliMethod, method_instrumentation_registers: List[str], invocation_statement: SmaliMethodInvocation) -> List[CodeInsertionModel]:
             # Requires two method_instrumentation_registers. 
             method_observations = [observation for observation in file_observations if observation[0].enclosing_method_name == method.method_name]
+
+            # TODO: use indexing/size into "method_observations" to get id's that'll be used for the taint function, since this is the granularity level that'll be returned by fd
 
             # match observation if java method signature matches invocation signature
             # TODO: add option to match against actual call granularity (line number, etc.)
             invocation_observations = [observation for observation in method_observations if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
 
             code_insertions = []
+            if self.disable_field_sensitivity:
+                # Reduce observations
+                pass
+
+            # Produce observation - taint_n() mapping
+            # TODO: 
+
             for invocation_observation in invocation_observations:
                 report, access_path = invocation_observation
 
@@ -702,8 +718,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
                 destination_register = report.invocation_argument_register_name
                 
                 # TODO: Check that dest register is still valid after the call; i.e., isn't next to a wide return register, isn't an arg register getting returned over, etc.
-
-                code = self._invocation_observation_taint_code(destination_register, method_instrumentation_registers, access_path)
+                code = self._taint_access_path_code(destination_register, method_instrumentation_registers, access_path)
 
                 # place code after move result if there is one, otherwise place code after invoke
                 target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
@@ -733,7 +748,20 @@ class HarnessObservations(SmaliInstrumentationStrategy):
         return dest
     
     @staticmethod
-    def _invocation_observation_taint_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath) -> str:
+    def _taint_access_path_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath) -> str:
+
+        # check if end of access_path is an object; should only occur when access path has been truncated
+        if access_path.fields[-1].fieldClassName != "java.lang.String":
+            assert len(access_path.fields) == 1
+            taint_object_method_id = "1"
+            static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{taint_object_method_id}(Ljava/lang/Object;)Ljava/lang/Object;"
+            code = f"""
+    invoke-static {{{base_object_register}}}, {static_taint_method}
+    move-result-object {base_object_register}
+"""
+            return code
+
+
         # static_taint_method = "Lcom/example/instrumentableexample/MainActivity;->taint()Ljava/lang/String;"
         static_taint_method = "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
 
@@ -741,6 +769,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
         tainted_str_register, access_path_register = instrumentation_registers[0], instrumentation_registers[1]
         # call taint() to get the tainted string
         # TODO: change HarnessObservations so this taint function gets added from assets.
+
 
         code = f"""
     invoke-static {{}}, {static_taint_method}
@@ -767,15 +796,16 @@ class HarnessObservations(SmaliInstrumentationStrategy):
             pass
         elif len(access_path.fields) > 2:
             # Only this case requires the access path register
-
             code += instance_child_access_code(base_object_register, access_path_register, access_path)
-            code += f"""    iput-object {access_path_register}, {tainted_str_register}, {base_object_smali_type}->{string_field_name}:{string_type}
+            second_to_last_field_type = access_path.fields[-2].get_smali_type()
+            string_field_name = access_path.fields[-2].fieldName
+            string_type = access_path.fields[-1].get_smali_type()
+            code += f"""    iput-object {access_path_register}, {tainted_str_register}, {second_to_last_field_type}->{string_field_name}:{string_type}
 """
-
-        # code += f"""iput-object v2, v1, Lcom/example/instrumentableexample/Child$SubSubChild;->str:Ljava/lang/String;
-        # """
+        # Example of field access in smali
+        # iput-object v2, v1, Lcom/example/instrumentableexample/Child$SubSubChild;->str:Ljava/lang/String;
+        
         return code
-
 
 
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,

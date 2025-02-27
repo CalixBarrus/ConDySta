@@ -16,7 +16,7 @@ from intercept import decode
 from intercept.instrument import HarnessObservations, HarnessSources, extract_private_string
 from intercept.rebuild import rebuild_apk
 from intercept.decoded_apk_model import DecodedApkModel
-from tests.sample_results import get_mock_access_path, get_mock_instrumentation_report, get_mock_result
+from tests.sample_results import get_mock_access_path, get_mock_instrumentation_report, get_mock_invocation_register_context, get_mock_result
 from util.input import ApkModel, InputModel
 
 # import util.logger
@@ -110,31 +110,12 @@ def decompiled_passportcanada_apk_copy(passportcanada_apk_model):
     yield os.path.join(copy_dir, passportcanada_identifier)
 
 
-# DECOMPILED_APK_COPY = "tests/data/decompiledInstrumentableExample_copy"
+@pytest.fixture
+def example_apk_model():
+    # depends on script tests/android/decompile.py
+    instrumentable_example_apk_path = "tests/android/InstrumentableExample/app/build/outputs/apk/debug/app-debug.apk"
 
-#     yield 
-
-
-
-#     logger.info("Teardown for test")
-#     shutil.rmtree(DECOMPILED_APK_COPY)
-#     print("checking result")
-#     print(did_test_fail)
-#     if did_test_fail: 
-        
-#         print("failed!")
-
-        
-
-# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
-# def pytest_runtest_makereport(item: pytest.Function, call: pytest.CallInfo):
-#     outcome: pluggy.Result = yield
-#     rep: pytest.TestReport = outcome.get_result()
-#     setattr(item, "rep_" + rep.when, rep)
-#     return rep
-
-def test_passing(decompiled_apk_copy):
-    assert True
+    return ApkModel(instrumentable_example_apk_path)
 
 
 def test_decompiled_apk_copy_smoke(decompiled_apk_copy):
@@ -145,6 +126,7 @@ def test_decompiled_apk_copy_smoke(decompiled_apk_copy):
 def mock_invocation_register_context() -> List[InvocationRegisterContext]:
     instr_report = get_mock_instrumentation_report(is_arg=True, is_return=False, arg_register_index=0, content="blackbox-call")
     access_path = get_mock_access_path("parent-string")
+    
 
     return [(instr_report, access_path)]
 
@@ -271,18 +253,22 @@ def test_extract_private_string_regex_sanity_check():
 
     assert extract_private_string(test) == "***000000186130***"
 
-def test_HarnessObservations_disable_field_sensitivity_smoke():
+def test_HarnessObservations_disable_field_sensitivity_rebuilds(decompiled_apk_copy, rebuilt_apk_directory_path, example_apk_model):
     decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
-    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
-    instrumenters = [HarnessObservations(mock_context)]
+
+    
+    mock_context: List[InvocationRegisterContext] = [get_mock_invocation_register_context(is_arg=False, is_return=True, content="blackbox-call", access_path="parent-child-string")]
+    instrumenters = [HarnessObservations(mock_context, disable_field_sensitivity=True)]
     decoded_apk_model.instrument(instrumenters)
+
+    rebuild_apk(os.path.dirname(decompiled_apk_copy), rebuilt_apk_directory_path, example_apk_model, True)
 
     assert True
 
 
 def test_HarnessObservations_disable_field_sensitivity_fewer_lines(decompiled_apk_copy, decompiled_apk_copy2):
     decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
-    mock_context: List[InvocationRegisterContext] = mock_invocation_register_context()
+    mock_context: List[InvocationRegisterContext] = [get_mock_invocation_register_context(is_arg=False, is_return=True, content="blackbox-call", access_path="parent-child-string")]
     instrumenters = [HarnessObservations(mock_context)]
     decoded_apk_model.instrument(instrumenters)
     
@@ -297,3 +283,23 @@ def test_HarnessObservations_disable_field_sensitivity_fewer_lines(decompiled_ap
     lines_in_main_without_field_sensitivity = count_lines_in_file(os.path.join(decompiled_apk_copy2, "smali_classes3/com/example/instrumentableexample/MainActivity.smali"))
 
     assert lines_in_main_with_field_sensitivity > lines_in_main_without_field_sensitivity
+
+def test_HarnessObservations_disable_field_sensitivity_observations_get_combined(decompiled_apk_copy, decompiled_apk_copy2):
+    decoded_apk_model = DecodedApkModel(decompiled_apk_copy)
+    mock_context: List[InvocationRegisterContext] = [get_mock_invocation_register_context(is_arg=False, is_return=True, content="blackbox-call", access_path="parent-child-string")]
+    instrumenters = [HarnessObservations(mock_context, disable_field_sensitivity=True)]
+    decoded_apk_model.instrument(instrumenters)
+    
+    main_file_path = os.path.join(decompiled_apk_copy, "smali_classes3/com/example/instrumentableexample/MainActivity.smali")
+
+    lines_in_main_single_observation = count_lines_in_file(main_file_path)
+
+    decoded_apk_model2 = DecodedApkModel(decompiled_apk_copy2)
+    mock_context2 = [get_mock_invocation_register_context(is_arg=False, is_return=True, content="blackbox-call", access_path="parent-child-string"),
+                    get_mock_invocation_register_context(is_arg=False, is_return=True, content="blackbox-call", access_path="parent-string"),]
+    instrumenters = [HarnessObservations(mock_context2, disable_field_sensitivity=True)]
+    decoded_apk_model2.instrument(instrumenters)
+
+    lines_in_main_2_observations = count_lines_in_file(os.path.join(decompiled_apk_copy2, "smali_classes3/com/example/instrumentableexample/MainActivity.smali"))
+
+    assert lines_in_main_single_observation == lines_in_main_2_observations

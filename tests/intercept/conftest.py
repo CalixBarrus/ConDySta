@@ -48,20 +48,37 @@ def decompiled_apk_copy(request):
     # Check if test failed. If so, save off the decompiled apk copy for inspection.
     # print("checking result")
     # print("Stash object contents2: " + str(request.node.stash))
-    report = request.node.stash[phase_report_key]
-    # print(report)
-    # for item in report:
-    #     print(item)
-    assert "call" in report
-    did_test_fail = report["call"].outcome == 'failed'
+    # report = request.node.stash[phase_report_key]
+    # # print(report)
+    # # for item in report:
+    # #     print(item)
+    # assert "call" in report
+    # did_test_fail = report["call"].outcome == 'failed'
 
-    if did_test_fail: 
-        # TODO: Save off the decompiled apk copy for inspection.
-        print("failed!")
+    # if did_test_fail: 
+    #     # TODO: Save off the decompiled apk copy for inspection.
+    #     print("failed!")
         
     
     # Clean up the copied directory
     shutil.rmtree(DECOMPILED_APK_COPY)
+
+@pytest.fixture
+def decompiled_apk_copy2():
+    # copy smali dirs
+    decompiled_apk = "tests/data/decompiledInstrumentableExample/app-debug"
+    assert os.path.exists(decompiled_apk)
+
+    copy2 = os.path.join("tests/data/decompiledInstrumentableExample_copy2", "app-debug")
+    
+    if os.path.exists(copy2):
+        shutil.rmtree(copy2)
+    shutil.copytree(decompiled_apk, copy2, dirs_exist_ok=False)
+
+    yield copy2
+    
+    # Clean up the copied directory
+    shutil.rmtree(copy2)
 
 @pytest.fixture
 def decompiled_apk_copy_persistent(request):

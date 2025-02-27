@@ -12,7 +12,7 @@ def main():
     decompiled_directory_path = os.path.join(project_root, "android/decompiledTaintInsertion/app-debug")
 
     apk = ApkModel(debug_apk_path)
-    decode_apk(decompiled_directory_path, apk, clean=True) 
+    decode_apk(os.path.dirname(decompiled_directory_path), apk, clean=True) 
 
     # Pull desired smali files into data directory
     smali_files_directory = os.path.join(project_root, "data/intercept/smali-files/taint-insertion")

@@ -16,7 +16,7 @@ def get_mock_instrumentation_report(is_arg=False, is_return=True, arg_register_i
                 invocation_argument_register_index=arg_register_index,
                 is_before_invoke=is_before,
                 invocation_argument_register_name="_",
-                invocation_argument_register_type="_",
+                invocation_argument_register_type="Ljava/Object;",
                 is_static=False
             )
     elif content == "blackbox-call":
@@ -47,10 +47,17 @@ def get_mock_access_path(access_path="a") -> AccessPath:
 
     return path
 
-def get_mock_result(is_arg=False, is_return=True, arg_register_index=-1, is_before=False, access_path="a", tainted_string="42") -> InvocationRegisterContext:
-    report = get_mock_instrumentation_report(is_arg=is_arg, is_return=is_return, arg_register_index=arg_register_index, is_before=is_before)
+def get_mock_result(is_arg=False, is_return=True, arg_register_index=-1, is_before=False, access_path="a", tainted_string="42", content="placeholder") -> InvocationRegisterContext:
+    report = get_mock_instrumentation_report(is_arg=is_arg, is_return=is_return, arg_register_index=arg_register_index, is_before=is_before, content=content)
 
     path = get_mock_access_path(access_path)
 
 
     return (report, path, tainted_string)
+
+def get_mock_invocation_register_context(is_arg=False, is_return=True, arg_register_index=-1, is_before=False, access_path="a", content="placeholder") -> InvocationRegisterContext:
+    report = get_mock_instrumentation_report(is_arg=is_arg, is_return=is_return, arg_register_index=arg_register_index, is_before=is_before, content=content)
+
+    path = get_mock_access_path(access_path)
+
+    return (report, path)
