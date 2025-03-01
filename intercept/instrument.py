@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 import os
 import re
-from typing import Callable, List, Set, Union
+from typing import Callable, List, Set, Tuple, Union
+
+import pandas as pd
 
 
 from hybrid.invocation_register_context import InvocationRegisterContext, reduce_for_field_insensitivity
@@ -645,51 +647,96 @@ class HarnessObservations(SmaliInstrumentationStrategy):
     
     observations: List[InvocationRegisterContext]
     disable_field_sensitivity: bool # base object should be tainted; don't taint specific access path
+    
     report_mismatch_exceptions: int
     report_mismatch_repair_attempted: int 
 
-    def __init__(self, observations: List[InvocationRegisterContext]=[], disable_field_sensitivity: bool=False):
+    record_taint_function_mapping: bool
+    df_instrumentation_reporting: pd.DataFrame
+    mapping_key_cols: Tuple[str, str, str] # Expected cols from FD output
+    mapping_observation_lookup_cols: Tuple[str, str, str] # Which should correspond to an observation(s) from DA output
+    mapping_str_observation_lookup_cols: Tuple[str]
+    result_cols: List[str]
+
+    observed_strings: List[Set[str]]
+    reduced_observed_strings: List[Set[str]]
+
+    def __init__(self, observations: List[InvocationRegisterContext]=[], 
+                 disable_field_sensitivity: bool=False, 
+                 record_taint_function_mapping: bool=False):
 
         self.disable_field_sensitivity = disable_field_sensitivity
+        self.record_taint_function_mapping = record_taint_function_mapping
         self.report_mismatch_exceptions = 0
         self.report_mismatch_repair_attempted = 0
 
         self.set_observations(observations)
 
+        if self.record_taint_function_mapping:
+            self.mapping_key_cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method"]
+            self.mapping_observation_lookup_cols = ["Invocation Java Signature", "Argument Register Index", "Access Path"]
+            self.mapping_str_observation_lookup_cols = ["Observed Strings"]
+            # TODO: df_cols won't get updated correctly if someone changes any col names
+            self.cols_of_df_instrumentation_reporting = self.mapping_key_cols + self.mapping_observation_lookup_cols + self.mapping_str_observation_lookup_cols
+            # self.result_cols = ["Enclosing Class", "Enclosing Method", "Invocation ID", "Argument Register Index", "Access Path"]
+
+            self.df_instrumentation_reporting = self._initialize_df()
+
+        self.observed_strings = []
+
+
     def set_observations(self, observations: List[InvocationRegisterContext]):
         self.observations = observations
-        self.reduced_observations, _ = reduce_for_field_insensitivity(observations)
+
+        if self.disable_field_sensitivity:
+            self.reduced_observations, _ = reduce_for_field_insensitivity(observations)
 
         # TODO: need to reset counters? 
     
+    def set_observed_strings(self, observed_strings: List[Set[str]]):
+        self.observed_strings = observed_strings
+
+        if self.disable_field_sensitivity:
+            # assume set_observations is always called first
+            _, self.reduced_observed_strings = reduce_for_field_insensitivity(self.observations, observed_strings)
+
 
     def instrument_file(self, smali_file: 'SmaliFile')-> List[CodeInsertionModel]:      
         if not self.disable_field_sensitivity:
             observations = self.observations        
+            if self.observed_strings != []:
+                observed_strings = self.observed_strings
         else:
             observations = self.reduced_observations  
+            if self.observed_strings != []:
+                observed_strings = self.observed_strings
 
         file_observations = [observation for observation in observations if observation[0].enclosing_class_name == smali_file.class_name]
+
+        if self.observed_strings != []:
+            file_observed_strings = [observed_set for observed_set, observation in zip(observed_strings, observations) if observation[0].enclosing_class_name == smali_file.class_name]
 
         def _instrument_invocation_statement(method_index: int, method: SmaliMethod, method_instrumentation_registers: List[str], invocation_statement: SmaliMethodInvocation) -> List[CodeInsertionModel]:
             # Requires two method_instrumentation_registers. 
             method_observations = [observation for observation in file_observations if observation[0].enclosing_method_name == method.method_name]
+            if self.observed_strings != []:
+                method_observed_strings = [observed_set for observed_set, observation in zip(file_observed_strings, file_observations) if observation[0].enclosing_method_name == method.method_name]
 
-            # TODO: use indexing/size into "method_observations" to get id's that'll be used for the taint function, since this is the granularity level that'll be returned by fd
+            # Enclosing class/method is the granularity level that'll be returned by fd
+            method_taint_function_ids = range(len(method_observations))
+            HIGHEST_TAINT_ID = 10  # suffixes are from 0-10 inclusive
+            method_taint_function_ids = [id % (HIGHEST_TAINT_ID+1) for id in method_taint_function_ids]
 
             # match observation if java method signature matches invocation signature
             # TODO: add option to match against actual call granularity (line number, etc.)
             invocation_observations = [observation for observation in method_observations if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
+            invocation_taint_function_ids = [i for i, observation in zip(method_taint_function_ids, method_observations) if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
+            if self.observed_strings != []:
+                invocation_observed_strings = [observed_set for observed_set, observation in zip(method_observed_strings, method_observations) if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
 
             code_insertions = []
-            if self.disable_field_sensitivity:
-                # Reduce observations
-                pass
 
-            # Produce observation - taint_n() mapping
-            # TODO: 
-
-            for invocation_observation in invocation_observations:
+            for invocation_observation, invocation_taint_function_id, i in zip(invocation_observations, invocation_taint_function_ids, range(len(invocation_observations))):
                 report, access_path = invocation_observation
 
                 try:
@@ -718,12 +765,24 @@ class HarnessObservations(SmaliInstrumentationStrategy):
                 destination_register = report.invocation_argument_register_name
                 
                 # TODO: Check that dest register is still valid after the call; i.e., isn't next to a wide return register, isn't an arg register getting returned over, etc.
-                code = self._taint_access_path_code(destination_register, method_instrumentation_registers, access_path)
+                code = self._taint_access_path_code(destination_register, method_instrumentation_registers, access_path, invocation_taint_function_id)
 
                 # place code after move result if there is one, otherwise place code after invoke
                 target_line_number = invocation_statement.invoke_line_number + 1 if invocation_statement.move_result_line_number == -1 else invocation_statement.move_result_line_number + 1
 
                 code_insertions.append(CodeInsertionModel(code, method_index, target_line_number, method_instrumentation_registers))
+
+                if self.record_taint_function_mapping:
+                    taint_method = self._lookup_static_taint_method(invocation_taint_function_id, access_path)
+
+                    if self.observed_strings != []:
+                        observed_string_set = invocation_observed_strings[i]
+                    else:
+                        observed_string_set = set()
+                    
+                    self._record_observation_harness(taint_method, method.enclosing_class_name, method.method_name, invocation_statement.get_java_style_signature(), report.invocation_argument_register_index, access_path, observed_string_set)
+
+
 
             return code_insertions
 
@@ -748,13 +807,26 @@ class HarnessObservations(SmaliInstrumentationStrategy):
         return dest
     
     @staticmethod
-    def _taint_access_path_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath) -> str:
+    def _lookup_static_taint_method(invocation_taint_function_id: int, access_path: AccessPath):
+        # Behavior of _taint_access_path_code is very closely tied to which of these objects gets returned
+
+        if access_path.fields[-1].fieldClassName != "java.lang.String":
+            static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{invocation_taint_function_id}(Ljava/lang/Object;)Ljava/lang/Object;"
+        else: 
+            static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintStr{invocation_taint_function_id}()Ljava/lang/String;"
+
+        return static_taint_method
+    
+    @staticmethod
+    def _taint_access_path_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath, invocation_taint_function_id: int) -> str:
+
+        static_taint_method = HarnessObservations._lookup_static_taint_method(invocation_taint_function_id, access_path)
 
         # check if end of access_path is an object; should only occur when access path has been truncated
         if access_path.fields[-1].fieldClassName != "java.lang.String":
             assert len(access_path.fields) == 1
-            taint_object_method_id = "1"
-            static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{taint_object_method_id}(Ljava/lang/Object;)Ljava/lang/Object;"
+            # taint_object_method_id = "1"
+            # static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{taint_object_method_id}(Ljava/lang/Object;)Ljava/lang/Object;"
             code = f"""
     invoke-static {{{base_object_register}}}, {static_taint_method}
     move-result-object {base_object_register}
@@ -763,7 +835,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
 
         # static_taint_method = "Lcom/example/instrumentableexample/MainActivity;->taint()Ljava/lang/String;"
-        static_taint_method = "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
+        # static_taint_method = "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
 
         # assert len(instrumentation_registers) == 2
         tainted_str_register, access_path_register = instrumentation_registers[0], instrumentation_registers[1]
@@ -804,8 +876,31 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 """
         # Example of field access in smali
         # iput-object v2, v1, Lcom/example/instrumentableexample/Child$SubSubChild;->str:Ljava/lang/String;
-        
+
         return code
+
+    def _initialize_df(self) -> pd.DataFrame:
+        # Index doesn't really matter
+        # There'll effectively be a non-unique multi index accross the first three cols
+        # key_cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method"]
+        # to_lookup_cols = ["Invocation ID", "Argument Register Index", "Access Path"]
+        # result_cols = ["Enclosing Class", "Enclosing Method", "Invocation ID", "Argument Register Index", "Access Path"]
+
+        df = pd.DataFrame(columns=self.cols_of_df_instrumentation_reporting)
+
+        return df
+    
+    def _record_observation_harness(self, taint_function: str, enclosing_class: str, enclosing_method: str, invoke_id: int, argument_register_index: int, access_path: AccessPath, observed_string_set: Set[str]):
+        # key_cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method"]
+        # to_lookup_cols = ["Invocation ID", "Argument Register Index", "Access Path"]
+        # result_cols = ["Enclosing Class", "Enclosing Method", "Invocation ID", "Argument Register Index", "Access Path"]
+        # df_cols = self.mapping_key_cols + self.mapping_observation_lookup_cols
+        df_cols = self.cols_of_df_instrumentation_reporting
+
+        new_row = pd.DataFrame({col:[item] for col, item in zip(df_cols, [taint_function, enclosing_class, enclosing_method, invoke_id, argument_register_index, access_path, observed_string_set])})
+        self.df_instrumentation_reporting = pd.concat((self.df_instrumentation_reporting, new_row), ignore_index=True)
+        # self.df_instrumentation_reporting = self.df_instrumentation_reporting.reindex(index=range(len(self.df_instrumentation_reporting)))
+
 
 
 def log_string_value_with_stacktrace(string_value_register: str, empty_register_1: str,

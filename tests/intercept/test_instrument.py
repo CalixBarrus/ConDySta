@@ -251,7 +251,7 @@ def test_HarnessObservations_passportcanada_case(decompiled_passportcanada_apk_c
 def test_extract_private_string_regex_sanity_check():
     test = 'Error reading file: ***000000186130***'
 
-    assert extract_private_string(test) == "***000000186130***"
+    assert extract_private_string(test) == set(["***000000186130***"])
 
 def test_HarnessObservations_disable_field_sensitivity_rebuilds(decompiled_apk_copy, rebuilt_apk_directory_path, example_apk_model):
     decoded_apk_model = DecodedApkModel(decompiled_apk_copy)

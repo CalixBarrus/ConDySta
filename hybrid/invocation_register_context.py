@@ -16,18 +16,6 @@ def reduce_for_field_insensitivity(contexts: List[InvocationRegisterContext], st
 
     if string_sets == []:
         string_sets = [set()] * len(contexts)
-
-    report, path = contexts[0]
-
-    # rely on the fact that is_return_register == true iff invocation_argument_register == -1
-    report.enclosing_class_name, report.enclosing_method_name, report.invoke_id, report.invocation_argument_register_index
-
-    def report_equals(report1: InstrumentationReport, report2: InstrumentationReport):
-        for field in ["enclosing_class_name", "enclosing_method_name", "invoke_id", "invocation_argument_register_index"]:
-            if not report1[field] == report2[field]:
-                return False
-            
-        return True
     
     def new_access_path(smali_type):
         # return AccessPath(f"[<{SmaliMethodInvocation.smali_type_to_java_type(report.invocation_argument_register_type)} .>]")

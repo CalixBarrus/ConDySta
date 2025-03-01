@@ -4,14 +4,18 @@ import os
 from typing import Dict, List
 import pandas as pd
 from experiment import report
+from experiment.flow_mapping import get_observed_source_to_original_source_map, get_observation_harness_to_observed_source_map
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_experiment_name, get_flowdroid_file_paths, load_logcat_files_batch, setup_additional_directories, setup_experiment_dir
-from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, get_default_source_sink_path, source_list_of_inserted_taint_function_batch
+from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, get_default_source_sink_path, groundtruth_df_from_xml, parse_flowdroid_results, source_list_of_inserted_taint_function_batch
 from experiment.instrument import instrument_observations_batch
 from hybrid.dynamic import ExecutionObservation, LogcatLogFileModel, get_observations_from_logcat_batch
+from hybrid.flow import compare_flows
 from hybrid.flowdroid import FlowdroidArgs
 from hybrid.hybrid_config import text_file_path
+from hybrid.log_process_fd import get_flowdroid_flows
+from intercept.decoded_apk_model import DecodedApkModel
 from intercept.instrument import HarnessObservations
 from util.input import InputModel
 
@@ -95,37 +99,73 @@ def analysis_with_da_observations_harnessed(workdir: str, df: pd.DataFrame, da_r
     pass
 
 
-
-def hybrid_analysis_results():
+def report_hybrid_flow_postprocessing():
     # load hybrid fd result flows
-    fd_results = ""
+    # as batch
+    reported_fd_flows = get_flowdroid_flows(flowdroid_log_path, apk_path) # TODO: add deduplicate=True as kwarg to this? 
+    observation_harness_to_sink_flows = reported_fd_flows
 
-    
     # load ground truth flows
+    ground_truth_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
 
-    # load taint-function to string mapping
-    # load string to implicit source mapping
+    # load taint-function + enclosing method/class to strings mapping -> will require context of specific DA results
+        # DF with cols "taint_function" "enclosing method", "enclosing class", "string sets"
+    observation_harness_to_observed_source_map = get_observation_harness_to_observed_source_map(harnesser, DecodedApkModel(decoded_apk_path), observations)  # recovers context for SA results
+        # this will result in either a series of df's or i'll need to stack the df's, with an extra benchmark_id columns
+    
+    observed_source_to_original_source_map = get_observed_source_to_original_source_map() # will need to be done in two steps
+        # observed_source_to_observed_str_map = intermediate_ref_to_str_set_map()
+        # observed_str_to_original_source_map = str_to_original_source_map()
     # load DA analysis results to get source observation contexts
 
-    # generate string to explicit source w/ or w/out context mapping, compare context of SA results to observation data used to instrument
-    # recover context of SA results
-        # how many different observations get instrumented in the same enclosing method/class?
+    # compare context of SA results to observation data used to instrument
 
-    # apply implicit original source to intermediate source flows
-    # apply explicit original source to intermediate source flows
+    # apply implicit/explicit original source to intermediate source flows
+    observed_source_to_sink_flows = apply_flow_mapping(observation_harness_to_sink_flows, get_observation_harness_to_observed_source_map, cols_or_smthng)
+    original_source_to_sink_flows = apply_flow_mapping(observed_source_to_sink_flows, observed_source_to_original_source_map, cols_or_smthng)
+        # Build flows original source --explicit/implicit--> intermediate source -> harness source -> sink
+        # Reduce to [original source --hybrid--> sink]
 
-    # Summary table by app, # of is -> si flows, # so -> si flows after mapping, # is with context, # so with context, # si with context
-        # report how many of these have context (enclosing class & method) – expected to be 0 for shallow, 95% for intercept
-        # detail tables by is -> si flow and so -> si flow
+    # Summary tables for flows, mappings, and flow transformations; row per app, 
+            # of harness source -> sink flows, # of intermediate source -> sink flows, # orig. source -> sink flows after mapping, 
+                # this is mostly to observe how intense the multiplication of flows is
+            # count of harness source with context, intermediate source with context, # orig source with context, # sink with context
+                # This is more for debugging, also being aware of if implicit/explicit expectations are being met
+                # e.g., for the original sources, the # of expected contexts to be 0 for shallow, 95% for intercept
+        # detail tables for each app (different for each of these)
+        #   harness_ref to intermediate_source map
+        #   intermediate_ref_to str set map
+        #   str to original source map
+        #   harness source -> sink flows (flow count, then pretty print each flow)
+        #   intermediate source -> sink flows (flow count, then pretty print each flow)
+        #   original source -> sink flows (flow count, then pretty print each flow)
 
+def report_hybrid_against_groundtruth():
+
+    compare_flows()
     # generously compare so -> si flow to ground truth so -> si flows; give detected TP, FP and Unclassified
         # use union of observed so contexts when possible context available in ground truth
         # don't use contexts if context not available in ground truth
         # need another column for context sensitivity of comparison??
+    pass
+    
+def report_groundtruth():
+    # Summary table: Row per app
+        # Count True Positive, Count False Positive, Count Source contexts, Count Sink contexts, Source func names, Sink func names
+    # Detail table per app
+        # Count True flows and False flows
+        # Pretty print true flows, then false flows
+    pass
 
-    # load plain FD results
-
+def report_hybrid_vs_static_against_groundtruth():
+    # load up results of regular fd
     # Make table with calculated Miss-to-find, miss-to-miss, find-to-find, find-to-miss for TP or TP/FP
+    report_miss_to_find_etc(hybrid_flows, static_flows, ground_truth_df, apk_name)
+    tp_flows, fp_flows, tn_flows, fn_flows, inconclusive_flows = compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str)
+
+        # tp_flows, fp_flows, tn_flows, fn_flows, inconclusive_flows = compare_flows(plain_fd_detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str)
+    # hybrid/regular_fd_vs_groundtruth_summary(reglar flows, hybrid flows, ground truth_df) -> table with the 4 or 8 miss-to-find, etc. flows
+
     # supporting details table with a row per G.T. flow (found by fd original?, found by hybrid?)
 
     # Detail table on unclassified flows, both is -> si and so -> si

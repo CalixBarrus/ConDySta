@@ -1,4 +1,7 @@
+import itertools
+from hybrid.invocation_register_context import InvocationRegisterContext
 from intercept.InstrumentationReport import InstrumentationReport
+from intercept.code_insertion_model import CodeInsertionModel
 from intercept.instrument import HarnessObservations, SmaliInstrumentationStrategy
 from intercept.smali import SmaliFile
 
@@ -120,34 +123,61 @@ class DecodedApkModel:
         for instrumenter in instrumenters:
             if instrumenter.needs_to_insert_directory():
                 self.insert_smali_directory(instrumenter.path_to_directory())
+        
+        insertions_by_file = self.get_code_insertions_for_files(instrumenters, observation_context)
+        for smali_file, insertions in zip(itertools.chain(*self.smali_directories), insertions_by_file):
+            smali_file.insert_code(insertions)
+        # for instrumenter in instrumenters:
+        #     if instrumenter.needs_to_insert_directory():
+        #         self.insert_smali_directory(instrumenter.path_to_directory())
 
 
-        if observation_context != None and isinstance(instrumenter, HarnessObservations):
-            # new_insertions = instrumenter.instrument_file(smali_file, observation_context)
-            instrumenter.set_observations(observation_context)
+        # if observation_context != None and isinstance(instrumenter, HarnessObservations):
+        #     # new_insertions = instrumenter.instrument_file(smali_file, observation_context)
+        #     instrumenter.set_observations(observation_context)
 
+
+        # insertions_count = [0] * len(instrumenters)
+        # for smali_directory in self.smali_directories:
+        #     for smali_file in smali_directory:
+
+        #         # Apply each instrumentation strategy
+        #         insertions = []
+        #         for index, instrumenter in enumerate(instrumenters):
+
+        #             new_insertions = instrumenter.instrument_file(smali_file)
+
+        #             insertions_count[index] += len(new_insertions)
+        #             insertions += new_insertions
+
+
+        #         smali_file.insert_code(insertions)
+
+        # self.is_instrumented = True
+
+    def get_code_insertions_for_files(self, instrumenters: List[SmaliInstrumentationStrategy], observations: List[InvocationRegisterContext]=None) -> List[List[CodeInsertionModel]]:
+        for instrumenter in instrumenters:
+            if observations != None and isinstance(instrumenter, HarnessObservations):
+                # new_insertions = instrumenter.instrument_file(smali_file, observation_context)
+                instrumenter.set_observations(observations)
 
         insertions_count = [0] * len(instrumenters)
-        for smali_directory in self.smali_directories:
-            for smali_file in smali_directory:
+        insertions_for_smali_files = []
+        for smali_file in itertools.chain(*self.smali_directories):
+            # Apply each instrumentation strategy
+            insertions = []
+            for index, instrumenter in enumerate(instrumenters):
 
-                # Apply each instrumentation strategy
-                insertions = []
-                for index, instrumenter in enumerate(instrumenters):
+                new_insertions = instrumenter.instrument_file(smali_file)
 
-                    new_insertions = instrumenter.instrument_file(smali_file)
+                insertions_count[index] += len(new_insertions)
+                insertions += new_insertions
 
-                    insertions_count[index] += len(new_insertions)
-                    insertions += new_insertions
+            insertions_for_smali_files.append(insertions)
+            # smali_file.insert_code(insertions)
 
+        return insertions_for_smali_files
 
-                smali_file.insert_code(insertions)
-
-        # start debug
-        # logger.debug(f"Instrumenters performed {",".join([str(count) for count in insertions_count])} code insertions, respectively on apk {os.path.basename(self.apk_root_path)}")
-        # end debug
-
-        self.is_instrumented = True
 
     def insert_smali_directory(self, smali_source_directory_path: str):
         # TODO this could get called twice for two different instrumentation strategies

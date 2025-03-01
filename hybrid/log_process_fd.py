@@ -32,6 +32,11 @@ def get_flowdroid_reported_leaks_count(flowdroid_log_path: str) -> int:
     return None
 
 def get_flowdroid_flows(flowdroid_log_path: str, apk_path: str) -> List[Flow]:
+    # flowdroid_log_path: Path to flowdroid log file
+    # apk_path: Used so a reference (part of a flow) can indicate what APK it's from. For now, only the basename of the path is used.
+    # 
+    # Throws FlowdroidLogException if file doesn't exist, or if for whatever reason flowdroid didn't exit normally. 
+
 
     """
     Expecting log to contain section like 

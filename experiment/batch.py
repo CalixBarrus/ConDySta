@@ -20,6 +20,8 @@ def process_as_dataframe(on_single: Callable, args_as_columns_mask: List[bool], 
     # Row will be skipped if LAST_ERROR_COLUMN is not empty.
     # ExperementStepException will be caught with errors stored in LAST_ERROR_COLUMN.
 
+    # TODO: setup so output_col can take list, in order to sort multiple outputs into multiple columns :3
+
     # Get the signature of the on_single function
     on_single_signature = inspect.signature(on_single)
 

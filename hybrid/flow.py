@@ -1,7 +1,7 @@
 # Copyright 2020 Austin Mordahl
 # Forked in 2024
 
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import logging
 #logging.basicConfig(level=logging.DEBUG)
 import os
@@ -17,9 +17,21 @@ logger = util.logger.get_logger(__name__)
 class Flow:
     """
     Class that represents a flow returned by AQL.
+    For reference, see https://github.com/FoelliX/AQL-System/wiki/Answers
+        A flow is an XML element. It consists of 0 or more references followed by 0 or 1 attributes. 
+            The flows we use should always (?) consist of exactly two references
+        A reference is a sequence of 0/1 statement, 0/1 method, 0/1 classname, 1 app. 
+            In flows in ground truth docs, a flow will usually be a pair of references with attribute type="to"/"from"
+        An attributes is a sequence of <attribute/> (a pair of <name/> <value/> elements)
+        A <statement/> is a sequence of statementfull, statementgeneric, 0 or 1 linenumber, 0 or 1 parameters
+        A <parameters> is a sequence of 0 or more parameter (pair of <type/> <value/>. In ground truth examples, the <value/> is null or a jimple register name)
+        An <app/> is a pair of <file/> and <hashes/> (a sequence of 0 or more <hash>)
+
+        Leaf elements usually have their contents between <tag><tag/>. 
     """
 
     register_regex = re.compile(r"\$[a-z]\d+")
+    element: ET.Element
 
     def __init__(self, element):
         self.element = element
@@ -247,7 +259,14 @@ the source {self.get_source_statementgeneric()} in method {self.get_source_metho
         return self == other or self > other
     
 
-def compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str) -> List[int]:
+def compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str) -> Tuple[int, int, int, int, int]:
+    # detected_flows - Flows corresponding to the apk indicated by apk_name
+    # ground_truth_flows_df - Columns: "APK Name", "Flow", "Ground Truth Value"
+    # apk_name - Used as key into ground_truth_flows_df["APK Name"]
+    # return - int tuple with the respective counts of tp_flows, fp_flows, tn_flows, fn_flows, inconclusive_flows
+
+    # Relies on equality logic (==) implemented in Flow class
+
     apk_name_mask = ground_truth_flows_df['APK Name'] == apk_name
     
     # Keep track of specific flows since I'll probably need to look at them specifically later.

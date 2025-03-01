@@ -331,6 +331,7 @@ def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFra
 
 def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_directory_path, errors: pd.Series=None, **kwargs) -> pd.DataFrame:
     # TODO: this should/could get called parallel with flowdroid_on_benchmark_df, not by it. 
+    # benchmark_df - Requires columns "Input Model", 
 
     results_df = results_df_from_benchmark_df(benchmark_df)
 
@@ -355,13 +356,13 @@ def parse_flowdroid_results(experiment_dir_path, benchmark_df, flowdroid_logs_di
         output_time_path = time_path(flowdroid_logs_directory_path, input_model)
         time_elapsed_seconds = time_seconds_from_file(output_time_path)
 
-        process_fd_log_stats(results_df, i, time_elapsed_seconds, output_log_path)
-        process_fd_log_reported_flows(results_df, i, output_log_path)
+        process_fd_log_stats_single(results_df, i, time_elapsed_seconds, output_log_path)
+        process_fd_log_reported_flows_single(results_df, i, output_log_path)
 
         if "ground_truth_xml_path" in kwargs.keys():
             # ground_truth_xml_path = kwargs["ground_truth_xml_path"]
             # ground_truth_flows_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
-            process_fd_log_ground_truth_comparison(results_df, i, output_log_path, input_model.apk().apk_path, ground_truth_flows_df)
+            process_fd_log_ground_truth_comparison_single(results_df, i, output_log_path, input_model.apk().apk_path, ground_truth_flows_df)
 
             if "Observed Sources Path" in benchmark_df.columns:
                 # TODO: this should get put into it's own function
@@ -596,7 +597,8 @@ def identify_source_method_context(observed_sources: SourceSinkSignatures, instr
     return source_contexts
 
 
-def process_fd_log_stats(results_df: pd.DataFrame, i: int, time_elapsed_seconds: int, log_path: str):
+def process_fd_log_stats_single(results_df: pd.DataFrame, i: int, time_elapsed_seconds: int, log_path: str):
+    # results_df: Required Columns "Error Message"; columns written to "Time Elapsed", "Max Reported Memory Usage", "Error Message"
 
     if "Time Elapsed" not in results_df.columns:
         results_df["Time Elapsed"] = ""
@@ -611,10 +613,13 @@ def process_fd_log_stats(results_df: pd.DataFrame, i: int, time_elapsed_seconds:
         results_df.loc[i, "Error Message"] += analysis_error # type: ignore
         logger.error(analysis_error)
 
-def process_fd_log_reported_flows(results_df: pd.DataFrame, i: int, log_path: str):
+def process_fd_log_reported_flows_single(results_df: pd.DataFrame, i: int, log_path: str) -> None:
+    # Parses the number leaks from the provided flowdroid log into the provided dataframe
+    # results_df - Required Columns "Error Message"; columns written to "Reported Flowdroid Flows", "Error Message"
 
     if "Reported Flowdroid Flows" not in results_df.columns:
         results_df["Reported Flowdroid Flows"] = ""
+
     try:
         reported_num_leaks = get_flowdroid_reported_leaks_count(log_path)
     except FlowdroidLogException as e:
@@ -630,7 +635,9 @@ def process_fd_log_reported_flows(results_df: pd.DataFrame, i: int, log_path: st
 
     results_df.loc[i, "Reported Flowdroid Flows"] = reported_num_leaks
 
-def process_fd_log_ground_truth_comparison(results_df: pd.DataFrame, i: int, log_path: str, apk_path: str, ground_truth_flows_df: pd.DataFrame):
+def process_fd_log_ground_truth_comparison_single(results_df: pd.DataFrame, i: int, log_path: str, apk_path: str, ground_truth_flows_df: pd.DataFrame):
+    # results_df: Expected columns "Error Message"; columns written to "Error Message", "TP", "FP", "TN", "FN", "Flows Not Evaluated"
+
     for col in ["TP", "FP", "TN", "FN", "Flows Not Evaluated"]:
         if col not in results_df.columns:
             results_df[col] = ""
@@ -642,12 +649,11 @@ def process_fd_log_ground_truth_comparison(results_df: pd.DataFrame, i: int, log
         results_df.loc[i, "Error Message"] += e.msg # type: ignore
         return
 
-
     # deduplicate FD flows
     original_length = len(detected_flows)
     detected_flows = list(set(detected_flows))
     if len(detected_flows) != original_length:
-        logger.warn(f"Flowdroid reported {original_length - len(detected_flows)} duplicate flows for app {results_df.loc[i, 'APK Name']}")
+        logger.warning(f"Flowdroid reported {original_length - len(detected_flows)} duplicate flows for app {results_df.loc[i, 'APK Name']}")
 
     tp, fp, tn, fn, inconclusive = compare_flows(detected_flows, ground_truth_flows_df, results_df.loc[i, 'APK Name'])
 
@@ -730,7 +736,11 @@ def summary_df_for_fd_comparison(unmodified_results_df: pd.DataFrame, augmented_
     return summary_df[summary_columns]
 
 
-def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path):
+def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path: str) -> pd.Dataframe:
+    # benchmark_df: Required columns: "Benchmark ID", "Input Model"
+    # result: Includes columns: "Flow", "APK Name", "Benchmark ID", "Source Signature", "Sink Signature", "Ground Truth Value"
+    #   Note: result is NOT indexed by Benchmark ID (as is the case for the input), it instead has a row per flow. 
+
     tree = ET.parse(ground_truth_xml_path)
     ground_truth_root = tree.getroot()
 
@@ -765,6 +775,7 @@ def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path):
             groundtruth_df.loc[i, "Ground Truth Value"] = flow.get_ground_truth_attribute()
         else:
             groundtruth_df.loc[i, "Benchmark ID"] = -1
+            
     # Strip out ground truth flows not relevant to the apps in the benchmark_df
     groundtruth_df = groundtruth_df[groundtruth_df["Benchmark ID"] != -1]
 

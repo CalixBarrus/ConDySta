@@ -435,6 +435,9 @@ def modified_source_sink_path(modified_source_sink_directory_path: str, input_mo
 def results_df_from_benchmark_df(benchmark_df: pd.DataFrame, benchmark_description_path: str="") -> pd.DataFrame:
     # Sets up new dataframe with index/Benchmark ID column, and APK Name column that match up with the benchmark_df.
     # Results data frames start with an empty Error Message column
+    # benchmark_df - requires column "Input Model", optionally a custom "APK Name" field that will not be overwritten
+    # benchmark_description_path - used to load ground truth info into the df
+    # result - Columns "APK Name", "Error Message", and additional columns based on specific g.t. file if included.
 
     # Optionally copy over selected columns from the indicated csv file
 
