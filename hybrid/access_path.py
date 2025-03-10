@@ -41,7 +41,7 @@ class AccessPath:
         self.fields = self._parse_access_path(access_path)
 
     def __str__(self):
-        return f"[{", ".join(str(field) for field in self.fields)}]"
+        return f"[{', '.join(str(field) for field in self.fields)}]"
     
     def __eq__(self, other):
         if isinstance(other, AccessPath):

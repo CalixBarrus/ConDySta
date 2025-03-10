@@ -799,7 +799,30 @@ def java_type_to_smali_type(java_type: str) -> str:
     else:
         return "L" + java_type.replace(".", "/") + ";"
     
-
+def smali_type_to_java_type(smali_type: str) -> str:
+    
+    if smali_type == "V":
+        return "void"
+    elif smali_type == "Z":
+        return "boolean"
+    elif smali_type == "B":
+        return "byte"
+    elif smali_type == "S":
+        return "short"
+    elif smali_type == "C":
+        return "char"
+    elif smali_type == "I":
+        return "int"
+    elif smali_type == "J":
+        return "long"
+    elif smali_type == "F":
+        return "float"
+    elif smali_type == "D":
+        return "double"
+    else:
+        assert smali_type[0] == "L"
+        assert smali_type[-1] == ";"
+        return smali_type.replace("/", ".")[1:-1]
     
 
 ### End Smali/Java Type Conversion

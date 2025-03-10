@@ -12,6 +12,8 @@ from experiment.experiments_2_10_25 import analysis_with_da_observations_harness
 import pandas as pd
 
 from hybrid.flowdroid import FlowdroidArgs
+from hybrid.hybrid_config import flowdroid_logs_path
+from hybrid.log_process_fd import get_count_found_sources
 from intercept.instrument import HarnessObservations
 
 @pytest.fixture
@@ -44,6 +46,20 @@ def temp_workdir():
     # os.removedirs(relative_path)
 
 @pytest.fixture
+def temp_workdir_delete_by_client():
+    relative_path = "tests/data/temp_test_output_delete_me"
+
+    if not os.path.isdir(relative_path):
+        os.makedirs(relative_path)
+    else: 
+        shutil.rmtree(relative_path)
+        os.makedirs(relative_path)
+
+    yield relative_path
+
+    # shutil.rmtree(relative_path)
+
+@pytest.fixture
 def da_observation_report_inspection_directory(benchmark_name: BenchmarkName):
 
     relative_path = "tests/data/da_observation_report_inspection_test_" + benchmark_name.value
@@ -65,9 +81,9 @@ def da_observation_report_inspection_directory(benchmark_name: BenchmarkName):
 def da_results_directory(benchmark_name):
     match benchmark_name:
         case BenchmarkName.FOSSDROID:
-            return "tests/data/mock_da_results/fossdroid"
+            return "tests/data-persistent/mock_da_results/fossdroid"
         case BenchmarkName.GPBENCH:
-            return "tests/data/mock_da_results/gpbench"
+            return "tests/data-persistent/mock_da_results/gpbench"
         case _:
             assert False, "Invalid benchmark name"
         
@@ -130,3 +146,20 @@ def test_da_observation_report_smoke(benchmark_name, test_data_df, da_results_di
 def test_da_observation_report_manual_inspection(benchmark_name, test_data_df, da_results_directory, da_observation_report_inspection_directory):
 
     da_observation_report(da_results_directory, test_data_df, da_observation_report_inspection_directory)
+
+
+@pytest.mark.parametrize("benchmark_name",
+    [
+        (BenchmarkName.FOSSDROID),
+        # (BenchmarkName.GPBENCH),
+    ],)
+def test_analysis_with_da_observations_harnessed_fd_recognizes_inserted_sources(temp_workdir_delete_by_client, test_data_df, da_results_directory, default_ss_list, harness_observations, mock_flowdroid_kwargs):
+    mock_flowdroid_kwargs["timeout"] = 60
+    analysis_with_da_observations_harnessed(temp_workdir_delete_by_client, test_data_df, da_results_directory, default_ss_list, harness_observations, mock_flowdroid_kwargs)
+
+    output_log_path = flowdroid_logs_path(os.path.join(temp_workdir_delete_by_client, "flowdroid-logs"), test_data_df.at[0, "Input Model"])
+    count_found_sources, _ = get_count_found_sources(output_log_path)
+
+    assert count_found_sources > 0
+
+    shutil.rmtree(temp_workdir_delete_by_client)

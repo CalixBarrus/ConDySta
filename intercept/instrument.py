@@ -526,12 +526,12 @@ class HarnessSources(SmaliInstrumentationStrategy):
     sources_to_instrument: List[MethodSignature]
     invocation_id: int
 
-    def __init__(self, sources: List[MethodSignature]):
+    def __init__(self, sources: List[MethodSignature], overwrite_return: bool=True):
         self.sources_to_instrument = sources
         self.invocation_id = -1
 
-        # TODO This setting needs to be moved out to be visible for experiments
-        self.overwrite_return = True
+        # TODO Existing experiments weren't controlling this value
+        self.overwrite_return = overwrite_return
 
 
 
@@ -550,7 +550,7 @@ class HarnessSources(SmaliInstrumentationStrategy):
 
         # start debug
         if len(code_insertions) > 0:
-            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {",".join([str(insertion.line_number) for insertion in code_insertions])}")
+            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {','.join([str(insertion.line_number) for insertion in code_insertions])}")
         # end debug
 
         return code_insertions
@@ -586,9 +586,9 @@ class HarnessSources(SmaliInstrumentationStrategy):
 
             harness_id = invocation_id
             harness_value = f"***{harness_id:012d}***"
-            report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Return is being replaced with {harness_value}. Previous value was:"
+            report = f"Source Method {invocation_statement.class_name + ' ' + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + ' ' + method.method_name}>. Return is being replaced with {harness_value}. Previous value was:"
         else:
-            report = f"Source Method {invocation_statement.class_name + " " + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + " " + method.method_name}>. Return value was:"
+            report = f"Source Method {invocation_statement.class_name + ' ' + invocation_statement.method_name} called in class and method <{method.enclosing_class_name + ' ' + method.method_name}>. Return value was:"
         # Java code will append ";" + contents of return register 
         return_register = invocation_statement.move_result_register
         empty_register = method_instrumentation_registers[0]
@@ -643,6 +643,44 @@ class HarnessSources(SmaliInstrumentationStrategy):
         # This strategy DOES rely on decompiled code, but right now it's paired with StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy, and that strategy should get all the relevant code inserted. 
         return False
     
+    @staticmethod
+    def parse_harness_output(message: str):
+        # Example of retrieved output
+        # 10-21 11:40:27.756  8455  8455 D HarnessedSource: Source Method Landroid/widget/EditText; getText called in class and method <Lalc; onClick>. Return value was:;
+        # 
+        if "Return is being replaced with" in message:
+            pattern = r"Source Method (.+) called in class and method <(.+) (.+)>\. Return is being replaced with (.+). Previous value was:(.+)"
+
+            match = re.findall(pattern, message)
+
+            assert match is not None
+            assert len(match) == 1
+
+            smali_source_method = match[0][0] #smali_class method_name
+            enclosing_smali_class = match[0][1]
+            enclosing_method_name = match[0][2]
+            observed_value = ""
+            substituting_value = match[0][3]
+            original_value = match[0][4]
+
+        else:
+            pattern = r"Source Method (.+) called in class and method <(.+) (.+)>\. Return value was:(.+)"
+
+            match = re.findall(pattern, message)
+
+            assert match is not None
+            assert len(match) == 1
+
+            smali_source_method = match[0][0] #smali_class method_name
+            enclosing_smali_class = match[0][1]
+            enclosing_method_name = match[0][2]
+            observed_value = match[0][3]
+            substituting_value = ""
+            original_value = ""
+
+
+        return smali_source_method, enclosing_smali_class, enclosing_method_name, observed_value, substituting_value, original_value
+    
 class HarnessObservations(SmaliInstrumentationStrategy):
     
     observations: List[InvocationRegisterContext]
@@ -660,6 +698,8 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
     observed_strings: List[Set[str]]
     reduced_observed_strings: List[Set[str]]
+
+    HIGHEST_TAINT_ID = 10  # suffixes are from 0-10 inclusive
 
     def __init__(self, observations: List[InvocationRegisterContext]=[], 
                  disable_field_sensitivity: bool=False, 
@@ -724,8 +764,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
             # Enclosing class/method is the granularity level that'll be returned by fd
             method_taint_function_ids = range(len(method_observations))
-            HIGHEST_TAINT_ID = 10  # suffixes are from 0-10 inclusive
-            method_taint_function_ids = [id % (HIGHEST_TAINT_ID+1) for id in method_taint_function_ids]
+            method_taint_function_ids = [id % (self.HIGHEST_TAINT_ID+1) for id in method_taint_function_ids]
 
             # match observation if java method signature matches invocation signature
             # TODO: add option to match against actual call granularity (line number, etc.)
@@ -793,7 +832,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
         # start debug
         if len(code_insertions) > 0:
-            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {",".join([str(insertion.line_number) for insertion in code_insertions])}")
+            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {','.join([str(insertion.line_number) for insertion in code_insertions])}")
         # end debug
 
         return code_insertions
@@ -807,15 +846,34 @@ class HarnessObservations(SmaliInstrumentationStrategy):
         return dest
     
     @staticmethod
-    def _lookup_static_taint_method(invocation_taint_function_id: int, access_path: AccessPath):
+    def _lookup_static_taint_method(invocation_taint_function_id: int, access_path: AccessPath) -> str:
         # Behavior of _taint_access_path_code is very closely tied to which of these objects gets returned
 
         if access_path.fields[-1].fieldClassName != "java.lang.String":
-            static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{invocation_taint_function_id}(Ljava/lang/Object;)Ljava/lang/Object;"
+            # static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{invocation_taint_function_id}(Ljava/lang/Object;)Ljava/lang/Object;"
+            static_taint_method = HarnessObservations.get_static_taint_method(invocation_taint_function_id, "object")
         else: 
-            static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintStr{invocation_taint_function_id}()Ljava/lang/String;"
+            # static_taint_method = f"Lcom/example/taintinsertion/TaintInsertion;->taintStr{invocation_taint_function_id}()Ljava/lang/String;"
+            static_taint_method = HarnessObservations.get_static_taint_method(invocation_taint_function_id, "str")
 
         return static_taint_method
+
+    @staticmethod
+    def get_static_taint_method(id: int, type: str) -> str:
+        match type:
+            case "str":
+                return f"Lcom/example/taintinsertion/TaintInsertion;->taintStr{id}()Ljava/lang/String;"
+            case "object":
+                return f"Lcom/example/taintinsertion/TaintInsertion;->taintObject{id}(Ljava/lang/Object;)Ljava/lang/Object;"
+        raise ValueError("Expects 'str' or 'object'")
+    
+    def get_all_static_taint_methods(self) -> List[str]:
+        methods = []
+        for i in range(self.HIGHEST_TAINT_ID):
+            methods.append(HarnessObservations.get_static_taint_method(i, "str"))
+            methods.append(HarnessObservations.get_static_taint_method(i, "object"))
+
+        return methods
     
     @staticmethod
     def _taint_access_path_code(base_object_register: str, instrumentation_registers: List[str], access_path: AccessPath, invocation_taint_function_id: int) -> str:

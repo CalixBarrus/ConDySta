@@ -90,6 +90,14 @@ class Flow:
         result["sink_classname"] = sink.find("classname").text
         return result
     
+    def get_source_classname_text(self): 
+        source = self._get_source_reference()
+        return source.find("classname").text
+    
+    def get_sink_classname_text(self): 
+        sink = self._get_sink_reference()
+        return sink.find("classname").text
+    
     def get_source_method_text(self) -> str:
         source = self._get_source_reference()
         method_element = source.find("method")
@@ -456,3 +464,26 @@ def write_element(element: ET.Element, output_path: str):
     tree = ET.ElementTree(element)
     ET.indent(tree) # Pretty print the result, requires python 3.9
     tree.write(output_path)
+
+def get_reported_fd_flows_as_df(reported_fd_flows: List[Flow], col_names: List[str]=[]) -> pd.DataFrame:
+    columns = ["source_method", "source_enclosing_method", "source_enclosing_class", "sink_method", "sink_enclosing_method", "sink_enclosing_class"]
+
+    if col_names != []:
+        assert len(col_names) == 6
+        for i, col_name in enumerate(col_names):
+            if col_name != "":
+                columns[i] = col_name
+
+    data = []
+    for flow in reported_fd_flows:
+        source_method = flow.get_source_statementgeneric() # TODO: extract signature
+        source_enclosing_method = flow.get_source_method_text()
+        source_enclosing_class = flow.get_source_classname_text()
+
+        sink_method = flow.get_sink_statementgeneric() # TODO: extract signature
+        sink_enclosing_method = flow.get_sink_method_text()
+        sink_enclosing_class = flow.get_sink_classname_text()
+
+        data.append([source_method, source_enclosing_method, source_enclosing_class, sink_method, sink_enclosing_method, sink_enclosing_class])
+
+    return pd.DataFrame(data, columns=columns)

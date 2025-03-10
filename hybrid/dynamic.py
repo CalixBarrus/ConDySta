@@ -23,6 +23,7 @@ from util.input import InputModel
 import util.logger
 logger = util.logger.get_logger(__name__)
 
+contexts_or_contexts_and_string_sets = Union[List[InvocationRegisterContext], Tuple[List[InvocationRegisterContext], List[Set[str]]]]
 
 class LogcatToSourcesStrategy(ABC):
     """
@@ -357,7 +358,7 @@ class LogcatLogFileModel:
         log_tag = " I art     : "
         error_preamble = "Caused by: java.lang.ClassNotFoundException: Didn't find class "
         errors: List[Tuple[int, str]] = self._get_log_messages(self.lines, log_tag, error_preamble)
-        return [f"Class Not Found Exceptions {len(errors)} times on lines [{",".join([str(i) for i, line in errors])}] of log."]
+        return [f"Class Not Found Exceptions {len(errors)} times on lines [{','.join([str(i) for i, line in errors])}] of log."]
     
     def get_lang_verify_errors(self) -> List[str]:
         # 10-15 12:58:58.195 10477 10477 E ACRA    : Caused by: java.lang.VerifyError: Verifier rejected class android.support.v7.widget.RecyclerView$4: void android.support.v7.widget.RecyclerView$4.processPersistent(android.support.v7.widget.RecyclerView$ViewHolder, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo) failed to verify: void android.support.v7.widget.RecyclerView$4.processPersistent(android.support.v7.widget.RecyclerView$ViewHolder, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo, android.support.v7.widget.RecyclerView$ItemAnimator$ItemHolderInfo): [0x4B] register v3 has type Boolean but expected Reference: java.lang.Object (declaration of 'android.support.v7.widget.RecyclerView$4' appears in /data/app/eu.kanade.tachiyomi-1/base.apk)
@@ -562,7 +563,7 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
             
     
 
-def get_observations_from_logcat_single(logcat_path: str) -> List[InvocationRegisterContext]:
+def get_observations_from_logcat_single(logcat_path: str, with_observed_strings: bool) -> contexts_or_contexts_and_string_sets:
     log: LogcatLogFileModel = LogcatLogFileModel(logcat_path)
 
     da_results: List[Tuple] = log.scan_log_for_instrumentation_report_tuples()
@@ -573,9 +574,10 @@ def get_observations_from_logcat_single(logcat_path: str) -> List[InvocationRegi
     for da_result in da_results:
         observation.parse_instrumentation_result(da_result)
     
-    return observation.get_tainting_invocation_contexts()
 
-get_observations_from_logcat_batch = process_as_dataframe(get_observations_from_logcat_single, [True], [])
+    return observation.get_tainting_invocation_contexts(with_observed_strings=with_observed_strings)
+
+get_observations_from_logcat_batch = process_as_dataframe(get_observations_from_logcat_single, [True], [False])
 
 class ExecutionObservation:
     # Parses all the instrumentation reports hashing related results by invocation_id. 
@@ -783,7 +785,8 @@ class ExecutionObservation:
         else:
             return tainting_invocation_ids
     
-    def get_tainting_invocation_contexts(self, with_observed_strings: bool=False) -> List[InvocationRegisterContext]: # or Tuple[List[contexts], Set[str]]
+    
+    def get_tainting_invocation_contexts(self, with_observed_strings: bool=False) -> contexts_or_contexts_and_string_sets:
         # Return True entries in argument_access_path_newly_tainted and return_tainted_after
         register_contexts = []
         observed_strings = []

@@ -1,0 +1,10 @@
+value;expected-source-method;scenario;scenario-category
+8901240197155182897;;simcard-id;Privacy 
+355458061189396;;imei;Privacy
+ZX1H22KHQK;;serial-number;Privacy
+b91481e8-4bfc-47ce-82b6-728c3f6bff60;;advertising-id;Privacy
+f8:cf:c5:d1:02:e8;;wifi-mac-address;Privacy
+f8:cf:c5:d1:02:e7;;blutetooth-mac-address;Privacy
+en_US;;locale-country;Privacy
+3a15cc3d742be836;<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>;settings-secure-value;Identifier
+Q2hhbm5lbF8wMA:OhXMPXQr6DY:;<android.net.nsd.NsdServiceInfo: java.lang.String getServiceName()>;nsd-service-info-value;Identifier

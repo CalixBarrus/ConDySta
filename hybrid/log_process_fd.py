@@ -1,6 +1,6 @@
 import os
 import re
-from typing import List
+from typing import List, Tuple
 import xml.etree.ElementTree as ET
 
 from hybrid.flow import Flow, create_flows_elements
@@ -123,7 +123,7 @@ def get_flowdroid_memory(flowdroid_log_path: str) -> str:
     """
     Lines look like:
     memory consumption: 216 MB
-    These show up multiple times. Find them all, and return the max. (usually reported right before a cleanup). Note there 
+    These show up multiple times. Find them all, and return the max. (usually reported right before a cleanup).
 
     Returns highest reported memory consumption as a string
     """
@@ -142,7 +142,53 @@ def get_flowdroid_memory(flowdroid_log_path: str) -> str:
             return f"{max(reported_mem)} MB"
 
                 
+def get_count_found_sources(flowdroid_log_path: str) -> List[int]:
+    """
+    Were the source/sinks loaded from the source/sink list correctly?
 
+    Were source/sinks found in the code? 
+    """
+
+    """ Example:
+[main] INFO soot.jimple.infoflow.android.source.AccessPathBasedSourceSinkManager - Created a SourceSinkManager with 1 sources, 11 sinks, and 302 callback methods.
+
+[main] INFO soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - Looking for sources and sinks...
+[main] ERROR soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - No sources found, aborting analysis
+or 
+[main] INFO soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - Source lookup done, found 98 sources and 2 sinks.
+    """
+    with open(flowdroid_log_path, 'r') as file:
+        lines = file.readlines()
+
+        # messages = _get_log_messages(lines, "", "Created a SourceSinkManager with ")
+        # if len(messages) > 0:
+        #     count_loaded_sources = ""
+        #     count_loaded_sinks = ""
+        #     pass
+
+        messages = _get_log_messages(lines, "ERROR soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - ", "No sources found, aborting analysis")
+        if len(messages) > 0:
+            count_found_sources = 0
+            count_found_sinks = 0
+
+        messages = _get_log_messages(lines, "INFO soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - ", "Source lookup done, found ")
+        if len(messages) > 0:
+            matches = re.findall(r"Source lookup done, found (\d+) sources and (\d+) sinks.", messages[0][1])
+            count_found_sources, count_found_sinks = matches[0]
+
+
+    # return count_loaded_sources, count_loaded_sinks, count_found_sources, count_found_sinks
+    return int(count_found_sources), int(count_found_sinks)
+
+
+
+def _get_log_messages(lines: str, log_tag: str, message_preamble: str) -> List[Tuple[int, str]]:
+    messages = []
+    for i, line in enumerate(lines):
+        if log_tag + message_preamble in line:
+            messages.append((i, line.split(log_tag)[1]))
+
+    return messages
 
 
 class FlowdroidLogException(Exception):

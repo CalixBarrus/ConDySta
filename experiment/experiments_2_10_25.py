@@ -4,14 +4,14 @@ import os
 from typing import Dict, List
 import pandas as pd
 from experiment import report
-from experiment.flow_mapping import get_observed_source_to_original_source_map, get_observation_harness_to_observed_source_map
+from experiment.flow_mapping import get_observation_harness_to_string_set_map, get_observed_source_to_original_source_map, get_observation_harness_to_observed_source_map, get_observed_string_to_original_source_map, get_observed_string_to_original_source_map_batch_df_output
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_experiment_name, get_flowdroid_file_paths, load_logcat_files_batch, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, get_default_source_sink_path, groundtruth_df_from_xml, parse_flowdroid_results, source_list_of_inserted_taint_function_batch
 from experiment.instrument import instrument_observations_batch
-from hybrid.dynamic import ExecutionObservation, LogcatLogFileModel, get_observations_from_logcat_batch
-from hybrid.flow import compare_flows
+from hybrid.dynamic import ExecutionObservation, LogcatLogFileModel, get_observations_from_logcat_batch, get_observations_from_logcat_single
+from hybrid.flow import compare_flows, get_reported_fd_flows_as_df
 from hybrid.flowdroid import FlowdroidArgs
 from hybrid.hybrid_config import text_file_path
 from hybrid.log_process_fd import get_flowdroid_flows
@@ -65,24 +65,35 @@ def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_result
     analysis_with_da_observations_harnessed(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs)
 
 def analysis_with_da_observations_harnessed(workdir: str, df: pd.DataFrame, da_results_directory: str, default_ss_list: str, harness_observations: HarnessObservations, flowdroid_kwargs: Dict):
-    # # Prepare dataframe with base apk info
-    # benchmark_df_from_benchmark_directory_path()
+    """
+    df: Expected to have cols "Input Model"
+    """
+    observation_harnessed_apks_column = "observation_harnessed_apks"
+    # TODO: only harness if not already done, otherwise lookup apks
+    harness_based_on_observations(workdir, df, da_results_directory, harness_observations, observation_harnessed_apks_column)
 
+    run_fd_on_apks(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs, observation_harnessed_apks_column)
+
+
+def harness_based_on_observations(workdir: str, df: pd.DataFrame, da_results_directory: str, harness_observations: HarnessObservations, output_apks_column: str):
     # load DA results, 
     df["Input Model Identifier"] = df["Input Model"].apply(lambda model: model.input_identifier())
     load_logcat_files_batch(da_results_directory, "Input Model Identifier", df, output_col="logcat_file")
 
     # analyze DA results to get observations
-    get_observations_from_logcat_batch("logcat_file", df, output_col="da_observations")
+    get_observations_from_logcat_batch("logcat_file", False, df, output_col="da_observations")
 
         # create report on DA results & observations
 
     instrument_intermediate_directories = setup_additional_directories(workdir, ["decoded_apks", "rebuilt_apks"])
     df["APK Model"] = df["Input Model"].apply(lambda model: model.apk())
+    
     instrument_observations_batch(harness_observations, "da_observations", "APK Model", instrument_intermediate_directories[0], instrument_intermediate_directories[1], 
-                                  df, output_col="observation_harnessed_apks")
+                                  df, output_col=output_apks_column)
 
         # create report on instrumentations
+
+def run_fd_on_apks(workdir: str, df: pd.DataFrame, da_results_directory: str, default_ss_list: str, harness_observations: HarnessObservations, flowdroid_kwargs: Dict, apks_column: str):
 
     # create tweaked S/S lists
     modified_ss_list_directory = setup_additional_directories(workdir, ["modified_sources_and_sinks"])[0]
@@ -93,39 +104,57 @@ def analysis_with_da_observations_harnessed(workdir: str, df: pd.DataFrame, da_r
     # run SA on instrumented apks and S/S lists
     # flowdroid_kwargs = get_flowdroid_file_paths()
     # flowdroid_kwargs["timeout"] = 15 * 60 # seconds
-    flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", **flowdroid_kwargs)
+    flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", apk_path_column=apks_columns, **flowdroid_kwargs)
 
     # create report on SA results
     pass
 
 
-def report_hybrid_flow_postprocessing():
+def hybrid_flow_postprocessing_single(flowdroid_log_path: str, apk_path: str, harnesser: HarnessObservations, decoded_apk_path: str, benchmark_name: BenchmarkName, logcat_file: str) -> pd.DataFrame:
+    """
+    flowdroid_log_path 
+    apk_path 
+    harnesser: should have the same settings as when app was fed to SA was instrumented; expects record_taint_mapping to be true; expects a fresh copy of the harnesser
+    decoded_apk_path 
+    benchmark_name 
+    logcat_file 
+    result: TODO make a test in order to figure out column filtering
+    """
+
     # load hybrid fd result flows
-    # as batch
-    reported_fd_flows = get_flowdroid_flows(flowdroid_log_path, apk_path) # TODO: add deduplicate=True as kwarg to this? 
-    observation_harness_to_sink_flows = reported_fd_flows
+    reported_fd_flows = get_flowdroid_flows(flowdroid_log_path, apk_path) # TODO: add deduplicate_on="signature_in_enclosing_method" as kwarg to this? 
 
-    # load ground truth flows
-    ground_truth_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
+    observations, observed_strings = get_observations_from_logcat_single(logcat_file, with_observed_strings=True)
+    decoded_apk_model = DecodedApkModel(decoded_apk_path)
 
-    # load taint-function + enclosing method/class to strings mapping -> will require context of specific DA results
-        # DF with cols "taint_function" "enclosing method", "enclosing class", "string sets"
-    observation_harness_to_observed_source_map = get_observation_harness_to_observed_source_map(harnesser, DecodedApkModel(decoded_apk_path), observations)  # recovers context for SA results
-        # this will result in either a series of df's or i'll need to stack the df's, with an extra benchmark_id columns
-    
-    observed_source_to_original_source_map = get_observed_source_to_original_source_map() # will need to be done in two steps
-        # observed_source_to_observed_str_map = intermediate_ref_to_str_set_map()
-        # observed_str_to_original_source_map = str_to_original_source_map()
-    # load DA analysis results to get source observation contexts
 
-    # compare context of SA results to observation data used to instrument
+    cols = ["source_function", "source_enclosing_method", "source_enclosing_class", "", "", ""]
+    df_sa_observation: pd.DataFrame = get_reported_fd_flows_as_df(reported_fd_flows, col_names=cols)
 
-    # apply implicit/explicit original source to intermediate source flows
-    observed_source_to_sink_flows = apply_flow_mapping(observation_harness_to_sink_flows, get_observation_harness_to_observed_source_map, cols_or_smthng)
-    original_source_to_sink_flows = apply_flow_mapping(observed_source_to_sink_flows, observed_source_to_original_source_map, cols_or_smthng)
-        # Build flows original source --explicit/implicit--> intermediate source -> harness source -> sink
-        # Reduce to [original source --hybrid--> sink]
+    # cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method", "Observed Strings"] # cols are determined by harnesser, filtered by get_observation_harness_to_string_set_map
+    sa_observation_to_observed_string_set_map: pd.DataFrame = get_observation_harness_to_string_set_map(harnesser, decoded_apk_model, observations, observed_strings)
+    # Explode string sets so there is a row per string
+    sa_observation_to_observed_string_map = sa_observation_to_observed_string_set_map.explode(harnesser.mapping_str_observation_lookup_cols[0], ignore_index=True)
 
+    cols = ["observed_string", "original_source_method", "scenario", "original_source_enclosing_method", "original_source_enclosing_class"]
+    observed_string_to_original_source_map: pd.DataFrame = get_observed_string_to_original_source_map(benchmark_name, logcat_file, columns=cols)
+
+
+    df_mapped_flows = df_sa_observation.merge(
+            sa_observation_to_observed_string_map, how="left", 
+            left_on=["source_function", "source_enclosing_method", "source_enclosing_class"], 
+            right_on=["taint_function", "source_enclosing_method", "source_enclosing_class"]
+        ).merge(
+            observed_string_to_original_source_map, how="left", 
+            left_on="observed_string", 
+            right_on="observed_string")
+    # Intermediately, the reported static flows themselves that don't map succesfully; they should theoretically all be mapped to some string and scenario
+
+    # TODO: No doubt need to filter down columns and possibly deduplicate; will need to test this probably
+
+    return df_mapped_flows
+
+def report_hybrid_flow_postprocessing():
     # Summary tables for flows, mappings, and flow transformations; row per app, 
             # of harness source -> sink flows, # of intermediate source -> sink flows, # orig. source -> sink flows after mapping, 
                 # this is mostly to observe how intense the multiplication of flows is
@@ -139,8 +168,11 @@ def report_hybrid_flow_postprocessing():
         #   harness source -> sink flows (flow count, then pretty print each flow)
         #   intermediate source -> sink flows (flow count, then pretty print each flow)
         #   original source -> sink flows (flow count, then pretty print each flow)
+        pass
 
 def report_hybrid_against_groundtruth():
+    # load ground truth flows
+    ground_truth_df = groundtruth_df_from_xml(benchmark_df, ground_truth_xml_path)
 
     compare_flows()
     # generously compare so -> si flow to ground truth so -> si flows; give detected TP, FP and Unclassified
@@ -160,8 +192,9 @@ def report_groundtruth():
 def report_hybrid_vs_static_against_groundtruth():
     # load up results of regular fd
     # Make table with calculated Miss-to-find, miss-to-miss, find-to-find, find-to-miss for TP or TP/FP
-    report_miss_to_find_etc(hybrid_flows, static_flows, ground_truth_df, apk_name)
-    tp_flows, fp_flows, tn_flows, fn_flows, inconclusive_flows = compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str)
+
+    # report_miss_to_find_etc(hybrid_flows, static_flows, ground_truth_df, apk_name)
+    # tp_flows, fp_flows, tn_flows, fn_flows, inconclusive_flows = compare_flows(detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str)
 
         # tp_flows, fp_flows, tn_flows, fn_flows, inconclusive_flows = compare_flows(plain_fd_detected_flows: List[Flow], ground_truth_flows_df: pd.DataFrame, apk_name: str)
     # hybrid/regular_fd_vs_groundtruth_summary(reglar flows, hybrid flows, ground truth_df) -> table with the 4 or 8 miss-to-find, etc. flows
@@ -263,6 +296,32 @@ def da_observation_report(da_results_directory: str, df: pd.DataFrame, workdir: 
 
     summary_path = os.path.join(workdir, "summary.txt")
     report.save_to_file(summary_path, summary_table.to_string())
+
+def save_all_observed_string_to_source_maps():
+    for benchmark, da_results_specifier in [
+        (BenchmarkName.GPBENCH, ""),
+        (BenchmarkName.FOSSDROID, "shallow"),
+        (BenchmarkName.FOSSDROID, "intercept"),
+        ]:
+        path = os.path.join("data/experiments", "2025-03-02-expected-string-mappings", f"mapping_{benchmark.value}_{da_results_specifier}.csv")
+        if not os.path.isdir(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+
+        df_mapping = get_each_observed_string_to_source_maps(benchmark, da_results_specifier)
+        report.save_to_file(path, df_mapping.to_string())
+
+def get_each_observed_string_to_source_maps(benchmark_name: BenchmarkName, specifier: str) -> pd.DataFrame:
+    da_results_directory = get_da_results_directory(benchmark_name, specifier)
+
+
+    df_file_paths = get_wild_benchmarks(benchmark_name)[0]
+    df = LoadBenchmark(df_file_paths).execute()
+
+    df["Input Model Identifier"] = df["Input Model"].apply(lambda model: model.input_identifier())
+    load_logcat_files_batch(da_results_directory, "Input Model Identifier", df, output_col="logcat_file")
+    df_mapping = get_observed_string_to_original_source_map_batch_df_output(benchmark_name, "logcat_file", df, "Benchmark ID")
+
+    return df_mapping
 
 def instrumentation_report():
     # # LOC bloat

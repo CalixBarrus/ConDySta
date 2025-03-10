@@ -21,6 +21,7 @@ from hybrid.log_process_fd import FlowdroidLogException, get_flowdroid_analysis_
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures
 from hybrid.access_path import AccessPath
 from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrument import HarnessObservations
 from intercept.smali import SmaliMethodInvocation
 from util.input import InputModel, input_apks_from_dir
 import util.logger
@@ -233,9 +234,12 @@ def source_list_of_inserted_taint_function_single(default_ss_list: str, modified
     # add desired function
     # from instrument.py _invocation_observation_taint_code
     "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
-    # new_taint_functions: Set[MethodSignature] = set()
-    new_taint_function = MethodSignature.from_java_style_signature("<com.example.taintinsertion.TaintInsertion: java.lang.String taint()>")
-    source_sink.source_signatures.add(new_taint_function)
+    "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
+    "Lcom/example/taintinsertion/TaintInsertion;->taint()Ljava/lang/String;"
+
+    harness_observations = HarnessObservations()
+    taint_functions = [MethodSignature.from_smali_style_signature(smali_method) for smali_method in harness_observations.get_all_static_taint_methods()]
+    list(map(source_sink.source_signatures.add, taint_functions))
 
     # save new copy
     modified_ss_list_path = source_sink_file_path(modified_ss_list_directory, input_model)
@@ -267,7 +271,7 @@ source_list_of_inserted_taint_function_batch = process_as_dataframe(source_list_
 #     else:
 #         return result_series
 
-def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFrame, flowdroid_logs_directory_name: str="flowdroid-logs", **kwargs) -> pd.DataFrame:
+def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFrame, flowdroid_logs_directory_name: str="flowdroid-logs", apk_path_column="", **kwargs) -> pd.DataFrame:
     # TODO: what if the method was a part of an object, and things in kwargs were passed to the constructor? (Things that can't change between apps + defaults would be passed on constructor lvl, and then per app stuff would get passed as arg to this function)
     # TODO: could this function be refactored to be a part of a single/batch function pair? Batch specific stuff could be shunted to a different step? 
     flowdroid_jar_path: str = kwargs["flowdroid_jar_path"]
@@ -275,7 +279,6 @@ def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFra
 
     flowdroid_timeout_seconds = kwargs["timeout"] 
     flowdroid_args: FlowdroidArgs = kwargs["flowdroid_args"] 
-
 
 
     # TODO: should probably go back and actually add support for this
@@ -310,9 +313,14 @@ def flowdroid_on_benchmark_df(experiment_dir_path: str, benchmark_df: pd.DataFra
 
         source_sink_list_path = get_source_sink(benchmark_df, i)
 
+        if apk_path_column != "":
+            apk_path = benchmark_df.at[i, apk_path_column]
+        else:
+            apk_path = input_model.apk().apk_path
+
         try:
             t0 = time.time()
-            run_flowdroid_with_fdconfig(flowdroid_jar_path, input_model.apk().apk_path, android_path, source_sink_list_path, flowdroid_args, output_log_path, flowdroid_timeout_seconds)
+            run_flowdroid_with_fdconfig(flowdroid_jar_path, apk_path, android_path, source_sink_list_path, flowdroid_args, output_log_path, flowdroid_timeout_seconds)
             time_elapsed_seconds = int(time.time() - t0)
         except TimeoutExpired as e:
             msg = f"Flowdroid timed out after {format_num_secs(flowdroid_timeout_seconds)} on apk {input_model.apk().apk_name}; details in " + output_log_path
@@ -736,7 +744,7 @@ def summary_df_for_fd_comparison(unmodified_results_df: pd.DataFrame, augmented_
     return summary_df[summary_columns]
 
 
-def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path: str) -> pd.Dataframe:
+def groundtruth_df_from_xml(benchmark_df: pd.DataFrame, ground_truth_xml_path: str) -> pd.DataFrame:
     # benchmark_df: Required columns: "Benchmark ID", "Input Model"
     # result: Includes columns: "Flow", "APK Name", "Benchmark ID", "Source Signature", "Sink Signature", "Ground Truth Value"
     #   Note: result is NOT indexed by Benchmark ID (as is the case for the input), it instead has a row per flow. 

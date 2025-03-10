@@ -3,9 +3,12 @@
 from typing import List, Set
 import pandas as pd
 
+from experiment.a_priori import a_priori_string_info
+from experiment.benchmark_name import BenchmarkName
+from hybrid.dynamic import LogcatLogFileModel
 from hybrid.invocation_register_context import InvocationRegisterContext, reduce_for_field_insensitivity
 from intercept.decoded_apk_model import DecodedApkModel
-from intercept.instrument import HarnessObservations
+from intercept.instrument import HarnessObservations, HarnessSources
 
 
 def get_observation_harness_to_observed_source_map(harnesser: HarnessObservations, decoded_apk_model: DecodedApkModel, observations: List[InvocationRegisterContext]) -> pd.DataFrame:
@@ -59,8 +62,13 @@ def get_observed_source_to_string_set_map():
         _, reduced_observed_strings = reduce_for_field_insensitivity(harnesser.observations)
         
 def get_observation_harness_to_string_set_map(harnesser: HarnessObservations, decoded_apk_model: DecodedApkModel, observations: List[InvocationRegisterContext], observed_strings: List[Set[str]]) -> pd.DataFrame:
-    # join get_observation_harness_to_observed_source_map() and get_observed_source_to_string_set_map()
-    # which is basically already done by HarnessObservations
+    """
+    harnesser: expected to have record_taint_function_mapping True, and to not have been run on the decoded_apk_model
+    decoded_apk_model:
+    observations: 
+    observed_strings: Length expected to match observations
+    result: df columns determined by harnesser fields. See HarnessObservations for defaults. result has columns filtered to mapping_key_cols and mapping_str_observation_lookup_cols
+    """
 
     assert harnesser.record_taint_function_mapping
     harnesser.set_observed_strings(observed_strings)
@@ -73,10 +81,116 @@ def get_observation_harness_to_string_set_map(harnesser: HarnessObservations, de
     # TODO: would this need to agg on the mapping_key_cols while unioning the str col?
 
     return df_mapping
+
+def get_observed_string_to_original_source_map(benchmark_name: BenchmarkName, logcat_file: str="", columns: List[str]=[]) -> pd.DataFrame:
+    # logcat_file: Expects to have been produced by apks instrumented by HarnessSource instrumenter
+    #       Optional; this allows strings substituted by HarnessSources to be included in the mapping
+    # columns: List of length 0 or 5. If length 5, non-empty strings will replace respective columns names 
+
+    default_mapping_columns = ["string_value", "scenario", "source-method-signature", "enclosing_class", "enclosing_method"]
+    mapping_columns = default_mapping_columns
+    if columns != []:
+        assert len(columns) == 5
+        mapping_columns = [default_name if client_name == "" else client_name for default_name, client_name in zip(default_mapping_columns, columns) ]
+
+    df_mapping = pd.DataFrame(columns=mapping_columns)
+
+    if logcat_file != "":
+        # load up harnessed sources information if it's available
+
+        def harness_source_calls_as_df(logcat_file: str, cut_implicit_rows: bool=True) -> pd.DataFrame:
+            logcat_model = LogcatLogFileModel(logcat_file)
+            logged_source_calls = logcat_model.scan_log_for_harnessed_source_calls()
+            logged_source_calls = [msg for line_number, msg in logged_source_calls]
+
+            source_calls_columns = ["smali_source_method", "enclosing_smali_class", "enclosing_method_name", "observed_value", "substituting_value", "original_value"]
+            source_observations = [HarnessSources.parse_harness_output(line) for line in logged_source_calls] # This will make a df per app, or a df with an extra app identifier col
+            df = pd.DataFrame(data=source_observations, columns=source_calls_columns)
+
+            if cut_implicit_rows:
+                # original_value won't be "" if the value was intercepted
+                return df[df[source_calls_columns[4]] != ""]
+            else:
+                return df
+            
+        df_source_calls = harness_source_calls_as_df(logcat_file)
+
+
+        # manipulate df_source_calls into the desired schema
+
+        # mapping_columns = ["string_value", "scenario", "source-method-signature", "enclosing_class", "enclosing_method"]
+        df_mapping = pd.concat((df_mapping, pd.DataFrame({mapping_columns[0]: df_source_calls.iloc[:, 4],
+                mapping_columns[1]: "harnessed-source", # or "source-list"
+                mapping_columns[2]: df_source_calls.iloc[:, 0], # this one might need formatting
+                mapping_columns[3]: df_source_calls.iloc[:, 1],
+                mapping_columns[4]: df_source_calls.iloc[:, 2],
+                })), ignore_index=True)
+
+        # TODO: maybe later, try to match against implicit mappings; check if either cleaned original_value matches a string or if smali_source_method matches an expected-source-method; make a row in either case, raise an error log message if they need to be two separate rows
+
+        # TODO: Consider a catch-all row whose "scenario" is "origin of substituted string not found"
+
+    # string_info_columns = ["value", "expected-source-method", "scenario", "scenario-category"]
+    df_string_info = a_priori_string_info(benchmark_name)
+
+    # When comparing implicit flows (no context source) with ground truth flows, the ground truth flows have to have their context (if present) reduced out.
+    # implicit flows might need to be reduced as well if the intermediate steps aren't being considered
+        # we'd be able to do a tighter comparison with the ground truth flows if we were comparing g.t. flow traces against our implicit/static flow traces.
+
+    mapping_columns = ["string_value", "scenario", "source-method-signature", "enclosing_class", "enclosing_method"]
+    # manipulate string_info_df into the desired schema
+    df_mapping = pd.concat((df_mapping, pd.DataFrame({mapping_columns[0]: df_string_info.iloc[:, 0],
+                               mapping_columns[1]: df_string_info.iloc[:, 2],
+                               mapping_columns[2]: df_string_info.iloc[:, 1],
+                               mapping_columns[3]: [""]*len(df_string_info),
+                               mapping_columns[4]: [""]*len(df_string_info),
+                               })), ignore_index=True)
     
+    return df_mapping
 
-def get_observed_string_to_original_source_map() -> pd.DataFrame:
+    
+def get_observed_string_to_original_source_map_batch_df_output(benchmark_name: BenchmarkName, logcat_file: str, df_by_app: pd.DataFrame, inner_index_col_name: str) -> pd.DataFrame:
+    # df_by_app: expected columns: "Benchmark ID"
 
-    # load up harnessed sources information if it's available
+    # output: dataframe with outputs of function stacked vertically. Additional column "Benchmark ID" 
 
-    pass
+    # logcat_file: column name
+    function = get_observed_string_to_original_source_map
+
+    df_outputs = []
+    for i in df_by_app.index:
+        single_output = function(benchmark_name, df_by_app.at[i, logcat_file])
+        single_output[inner_index_col_name] = i
+        df_outputs.append(single_output)
+
+    output = pd.concat(df_outputs, ignore_index=True)
+    return output
+
+def join_observed_source_to_observation_harness_to_observed_string(observed_source_to_observation_harness: pd.DataFrame, observation_harness_to_observed_string: pd.DataFrame):
+
+    # If taint function & context is repeated in observation_harness_to_observed_string, entries in observered_source_to_observation_harness will be mapped multiple times (normal join behavior)
+    # If an observed_source cannot be mapped, we need to know about it (it's observed string would be null), 
+        # outer join or left join
+    # If an observation_harness_to_observed_string is not used, we don't care
+        # So, a left join it is
+
+    # Matching col names will get a _x or _y suffix
+    
+    left_key_cols = ["taint_function_name", "context_method", "context_class"]
+    right_key_cols = ["taint_function_name", "context_method", "context_class"]
+
+    return observed_source_to_observation_harness.merge(observation_harness_to_observed_string, how='left', left_on=left_key_cols, right_on=right_key_cols)
+
+    
+def apply_flow_mapping(mapping1: pd.DataFrame, mapping2: pd.DataFrame, key_cols1: List[str], key_cols2: List[str]) -> pd.DataFrame:
+    # Join each mapping using the cols from the corresponding mappings as keys
+    # Partial flows that fail to map will still need to be reported
+
+    # Use merge instead of join since it's on columns
+    result_mapping = mapping1.merge(mapping2, how="left", left_on=key_cols1, right_on=key_cols2)
+
+    # result_mapping = result_mapping[result_cols]
+    # TODO: need to deduplicate columns?
+
+    return result_mapping
+

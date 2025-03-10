@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 
 from numpy import sign
 
+from intercept.smali import smali_type_to_java_type
 import util.logger
 logger = util.logger.get_logger(__name__)
 
@@ -377,7 +378,7 @@ class MethodSignature:
                      arg_types_hash_sum))
     
     def __str__(self) -> str:
-        return f"<{self.base_type}: {self.return_type} {self.method_name}({",".join(self.arg_types)})>"
+        return f"<{self.base_type}: {self.return_type} {self.method_name}({','.join(self.arg_types)})>"
 
     # def get_source_string(self):
     #     # Assumes string should be of the form
@@ -404,6 +405,7 @@ class MethodSignature:
         assert line_chunks[1] == "_SOURCE_"
 
         signature = line_chunks[0]
+
         # a small handful of lines break the above pattern. Example:
         # <android.telephony.TelephonyManager: java.lang.String getDeviceId()> android.permission.READ_PHONE_STATE -> _SOURCE_
         if signature.strip().endswith(
@@ -414,42 +416,6 @@ class MethodSignature:
                 "android.permission.READ_PHONE_STATE")].strip()
 
         return MethodSignature.from_java_style_signature(signature)
-        # signature = line_chunks[0]
-        #
-        # # a small handful of lines break the above pattern. Example:
-        # # <android.telephony.TelephonyManager: java.lang.String getDeviceId()> android.permission.READ_PHONE_STATE -> _SOURCE_
-        # if signature.strip().endswith(
-        #         "android.permission.READ_PHONE_STATE"):
-        #     # TODO: need to look into flowdroid to see why this case comes up/if it
-        #     #  has important semantics.
-        #     signature = signature.strip()[:-len(
-        #         "android.permission.READ_PHONE_STATE")].strip()
-        # signature = signature[
-        #                   1:-1]  # take off the enclosing '<' and '>'
-        # base_type, return_type, signature = signature.split()
-        # base_type = base_type[
-        #                     :-1]  # take off the ':' at the end
-        # method_name = signature.split(')')[0]
-        # # get the string after the '(' and take off the ')' at the end
-        # if '(' in signature:
-        #     signature_args = signature.split('(')[1]
-        #     if signature_args.endswith(')'):
-        #         signature_args = signature_args[:-1]
-        #     signature_args = signature_args.split(',')
-        # else:
-        #     # Case where function name just has ')' after, but no '()'
-        #     # this may be a bug from flowdroid? If there are semantics associated
-        #     # with this case, they are not capture here.
-        #     signature_args = []
-        #
-        # # put results in model object
-        # result = FlowdroidSourceModel()
-        # result.base_type = base_type
-        # result.return_type = return_type
-        # result.method_name = method_name
-        # result.arg_types = signature_args
-        #
-        # return result
 
     @staticmethod
     def from_java_style_signature(signature: str) -> 'MethodSignature':
@@ -487,6 +453,29 @@ class MethodSignature:
         result.arg_types = arg_types
 
         return result
+    
+    @staticmethod
+    def from_smali_style_signature(signature: str) -> 'MethodSignature':
+        # Example:
+        # Lcom/example/taintinsertion/TaintInsertion;->taintObject0(Ljava/lang/Object;)Ljava/lang/Object;
+
+        match = re.match(r"(.+)->(.+)\((.*)\)(.+)", signature.strip())
+
+        base_type = smali_type_to_java_type(match[1])
+        method_name = match[2]
+        arg_types = [smali_type_to_java_type(smali_arg.strip()) for smali_arg in match[3].split(",")] if match[3] != "" else []
+        return_type = smali_type_to_java_type(match[4])
+
+        result = MethodSignature()
+        result.base_type = base_type.strip()
+        result.return_type = return_type.strip()
+        result.method_name = method_name.strip()
+        result.arg_types = arg_types
+
+        result.signature = str(result)
+
+        return result
+
     
     def relaxed_equals(self, other: 'MethodSignature') -> bool:
         # Allow signatures to continue to match even if the base name doesn't match.
