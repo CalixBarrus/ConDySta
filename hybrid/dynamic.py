@@ -577,7 +577,7 @@ def get_observations_from_logcat_single(logcat_path: str, with_observed_strings:
 
     return observation.get_tainting_invocation_contexts(with_observed_strings=with_observed_strings)
 
-get_observations_from_logcat_batch = process_as_dataframe(get_observations_from_logcat_single, [True], [False])
+get_observations_from_logcat_batch = process_as_dataframe(get_observations_from_logcat_single, [True, False], [])
 
 class ExecutionObservation:
     # Parses all the instrumentation reports hashing related results by invocation_id. 

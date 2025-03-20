@@ -407,6 +407,9 @@ def description_df_from_path(benchmark_description_path: str):
 
 def load_logcat_file_single(logcat_files_directory: str, input_identifier: str) -> str:
     # apk_logcat_output_path(logcat_files_directory, InputModel, grouped_apk_idx)
+    if isinstance(input_identifier, InputModel):
+        input_identifier = input_identifier.input_identifier()
+
     logcat = os.path.join(logcat_files_directory, _apk_log_file_name(input_identifier))
     
     # make sure it's actually there

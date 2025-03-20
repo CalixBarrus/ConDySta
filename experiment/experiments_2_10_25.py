@@ -1,23 +1,29 @@
 
 from functools import reduce
 import os
-from typing import Dict, List
+from typing import Dict, List, Tuple
+import numpy as np
 import pandas as pd
 from experiment import report
+from experiment.batch import process_as_dataframe
 from experiment.flow_mapping import get_observation_harness_to_string_set_map, get_observed_source_to_original_source_map, get_observation_harness_to_observed_source_map, get_observed_string_to_original_source_map, get_observed_string_to_original_source_map_batch_df_output
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_experiment_name, get_flowdroid_file_paths, load_logcat_files_batch, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, get_default_source_sink_path, groundtruth_df_from_xml, parse_flowdroid_results, source_list_of_inserted_taint_function_batch
 from experiment.instrument import instrument_observations_batch
+from hybrid import hybrid_config
 from hybrid.dynamic import ExecutionObservation, LogcatLogFileModel, get_observations_from_logcat_batch, get_observations_from_logcat_single
 from hybrid.flow import compare_flows, get_reported_fd_flows_as_df
 from hybrid.flowdroid import FlowdroidArgs
 from hybrid.hybrid_config import text_file_path
-from hybrid.log_process_fd import get_flowdroid_flows
+from hybrid.log_process_fd import flowdroid_time_path_from_log_path, get_count_found_sources, get_flowdroid_analysis_error, get_flowdroid_flows, get_flowdroid_memory, get_flowdroid_reported_leaks_count, get_flowdroid_time
 from intercept.decoded_apk_model import DecodedApkModel
 from intercept.instrument import HarnessObservations
 from util.input import InputModel
+
+import util.logger
+logger = util.logger.get_logger(__name__)
 
 def get_da_results_directory(benchmark_name: BenchmarkName, specifier: str=""):
     match benchmark_name:
@@ -39,8 +45,10 @@ def test_hybrid_analysis_returns_only():
 def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_results_specifier: str=""):
     
     params_in_name = [da_results_specifier] if da_results_specifier != "" else []
-    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,0), params_in_name)
-    experiment_description = "Static analysis with observations harnessed"
+    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,1), params_in_name)
+    experiment_description = """Static analysis with observations harnessed
+    Doesn't reinstrument apks if already done in the experiment directory.
+    """
 
     # pull out all the relvant keyword args    
     da_results_directory = get_da_results_directory(benchmark, da_results_specifier)
@@ -62,18 +70,23 @@ def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_result
     df = LoadBenchmark(df_file_paths).execute()
     harness_observations = HarnessObservations()
 
-    analysis_with_da_observations_harnessed(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs)
-
-def analysis_with_da_observations_harnessed(workdir: str, df: pd.DataFrame, da_results_directory: str, default_ss_list: str, harness_observations: HarnessObservations, flowdroid_kwargs: Dict):
-    """
-    df: Expected to have cols "Input Model"
-    """
     observation_harnessed_apks_column = "observation_harnessed_apks"
-    # TODO: only harness if not already done, otherwise lookup apks
-    harness_based_on_observations(workdir, df, da_results_directory, harness_observations, observation_harnessed_apks_column)
+
+    dont_reinstrument_apks = True
+    if dont_reinstrument_apks:
+        df[observation_harnessed_apks_column] = df["Input Model"].apply(lambda model: hybrid_config.apk_path(os.path.join(workdir, "rebuilt_apks"), model.apk()))
+        mask = ~df[observation_harnessed_apks_column].apply(os.path.exists)
+        logger.debug(f"Skipping {sum(~mask)} apks that are already instrumented")
+    else: 
+        mask = [True] * len(df)
+
+    harness_based_on_observations(workdir, df[mask], da_results_directory, harness_observations, observation_harnessed_apks_column)
 
     run_fd_on_apks(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs, observation_harnessed_apks_column)
 
+def lookup_harnessed_apks(workdir, input_model) -> Tuple[str, bool]:
+    path = hybrid_config.apk_path(os.path.join(workdir, "rebuilt_apks"), input_model.apk())
+    return path, os.path.exists(path)
 
 def harness_based_on_observations(workdir: str, df: pd.DataFrame, da_results_directory: str, harness_observations: HarnessObservations, output_apks_column: str):
     # load DA results, 
@@ -104,10 +117,11 @@ def run_fd_on_apks(workdir: str, df: pd.DataFrame, da_results_directory: str, de
     # run SA on instrumented apks and S/S lists
     # flowdroid_kwargs = get_flowdroid_file_paths()
     # flowdroid_kwargs["timeout"] = 15 * 60 # seconds
-    flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", apk_path_column=apks_columns, **flowdroid_kwargs)
+    flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", apk_path_column=apks_column, **flowdroid_kwargs)
 
     # create report on SA results
     pass
+
 
 
 def hybrid_flow_postprocessing_single(flowdroid_log_path: str, apk_path: str, harnesser: HarnessObservations, decoded_apk_path: str, benchmark_name: BenchmarkName, logcat_file: str) -> pd.DataFrame:
@@ -168,7 +182,29 @@ def report_hybrid_flow_postprocessing():
         #   harness source -> sink flows (flow count, then pretty print each flow)
         #   intermediate source -> sink flows (flow count, then pretty print each flow)
         #   original source -> sink flows (flow count, then pretty print each flow)
-        pass
+
+    reported_fd_flows = get_flowdroid_flows(flowdroid_log_path, apk_path)
+    cols = ["source_function", "source_enclosing_method", "source_enclosing_class", "", "", ""]
+    df_sa_observation: pd.DataFrame = get_reported_fd_flows_as_df(reported_fd_flows, col_names=cols)
+
+    df_mapped_flows = hybrid_flow_postprocessing_single(flowdroid_log_path, apk_path, harnesser, decoded_apk_path, benchmark_name, logcat_file)
+
+    cols = ["App Name",
+            "Count FD Flows", # (harness source -> sink) 
+            "Count Mapped Flows", 
+            "Count Unmapped Flows", ]
+    cols_flow_mapping_stepwise = ["Count Intermediate Source to Sink Flows", 
+                                  "Count Distinct Detected String to Sink Flows",
+                                  "Count Original Source to Sink Flows"]
+    cols_flows_context_summary = ["FD Flows with sink context", 
+            "FD Flows with source context", 
+            "Count Original Source to Sink Flows", 
+            "Count mapped original source flows with enclosing class/method context", 
+            "Count mapped original source flows with function"
+            ]
+
+
+    df_summary_of_flows = ""
 
 def report_hybrid_against_groundtruth():
     # load ground truth flows

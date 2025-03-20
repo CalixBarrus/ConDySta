@@ -193,7 +193,7 @@ def test_HarnessObservations_onxmaps_case(decompiled_onxmaps_apk_copy, onxmaps_a
     decoded_apk_model = DecodedApkModel(decompiled_onxmaps_apk_copy)
 
     onxmaps_da_log = "tests/data-persistent/19.19.onxmaps.hunt.apk.log"
-    tainted_contexts = get_observations_from_logcat_single(onxmaps_da_log)
+    tainted_contexts = get_observations_from_logcat_single(onxmaps_da_log, False)
 
     instrumenters = [HarnessObservations(observations=tainted_contexts)]
 
@@ -217,7 +217,7 @@ def test_HarnessObservations_passportcanada_case(decompiled_passportcanada_apk_c
     decoded_apk_model = DecodedApkModel(decompiled_passportcanada_apk_copy)
 
     passportcanada_da_log = "tests/data-persistent/6.6.ca.passportparking.mobile.passportcanada.apk.log"
-    tainted_contexts = get_observations_from_logcat_single(passportcanada_da_log)
+    tainted_contexts = get_observations_from_logcat_single(passportcanada_da_log, False)
 
     instrumenters = [HarnessObservations(observations=tainted_contexts)]
 
@@ -227,26 +227,15 @@ def test_HarnessObservations_passportcanada_case(decompiled_passportcanada_apk_c
     
     assert os.path.exists(apk_path(rebuilt_apk_directory_path, passportcanada_apk_model))
 
+
     print(instrumenters[0].report_mismatch_exceptions) # 44 of these, yikes
     print(instrumenters[0].report_mismatch_repair_attempted)
-    assert instrumenters[0].report_mismatch_repair_attempted - instrumenters[0].report_mismatch_exceptions == 1 # 1 case where there wasn't a move-result when expected.
+
+    # We experimentally found 1 case where there wasn't a move-result when expected.
+    assert instrumenters[0].report_mismatch_exceptions - instrumenters[0].report_mismatch_repair_attempted == 1 
+
     # Only delete if there weren't errors
     shutil.rmtree(decompiled_passportcanada_apk_copy)
-
-# def test_inject_field_accesses_recompile_successfully_many_subfields():
-
-#     # when test fails, save off the modified smali 
-#     raise NotImplementedError
-#     pass
-
-# def test_inject_field_accesses_recompile_successfully_restricted_fields():
-#     # try to access private & protected fields
-#     # try to access a private field from a class in a different modules
-
-#     # when test fails, save off the modified smali 
-#     raise NotImplementedError
-#     pass
-
     
 def test_extract_private_string_regex_sanity_check():
     test = 'Error reading file: ***000000186130***'

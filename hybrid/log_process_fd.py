@@ -3,6 +3,7 @@ import re
 from typing import List, Tuple
 import xml.etree.ElementTree as ET
 
+from experiment.common import format_num_secs
 from hybrid.flow import Flow, create_flows_elements
 from util import logger
 import util.logger
@@ -166,6 +167,9 @@ or
         #     count_loaded_sinks = ""
         #     pass
 
+        count_found_sources = 0
+        count_found_sinks = 0
+
         messages = _get_log_messages(lines, "ERROR soot.jimple.infoflow.android.SetupApplication$InPlaceInfoflow - ", "No sources found, aborting analysis")
         if len(messages) > 0:
             count_found_sources = 0
@@ -190,6 +194,12 @@ def _get_log_messages(lines: str, log_tag: str, message_preamble: str) -> List[T
 
     return messages
 
+def flowdroid_time_path_from_log_path(flowdroid_log_path: str) -> str:
+    return flowdroid_log_path.replace(".log", ".time")
+
+def get_flowdroid_time(flowdroid_time_path: str) -> str:
+    with open(flowdroid_time_path, 'r') as file:
+        return format_num_secs(int(file.read().strip()))
 
 class FlowdroidLogException(Exception):
     msg: str

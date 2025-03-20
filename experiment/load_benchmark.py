@@ -117,6 +117,7 @@ class LoadBenchmark(StepInfoInterface):
     def execute(self) -> pd.DataFrame:
         # Input: nothing
         # Output: df with columns "Benchmark ID", "Input Model"
+        
         benchmark_files = self.benchmark_files
         benchmark_directory_path: str = benchmark_files["benchmark_dir_path"]
         benchmark_description_path = (benchmark_files["benchmark_description_path"] if "benchmark_description_path" in benchmark_files.keys() else "")
