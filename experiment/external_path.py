@@ -4,6 +4,8 @@ import configparser
 import util.logger
 logger = util.logger.get_logger(__name__)
 
+# External Paths are defined in external_path.ini in project root. See external_path_template.ini for an example.
+
 project_root = os.path.dirname(os.path.dirname(__file__))
 
 config = configparser.ConfigParser()

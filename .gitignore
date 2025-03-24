@@ -16,6 +16,7 @@ data/results
 data/signed-apks/
 data/sources-and-sinks/modified/*
 data/experiments
+data/experiments_2024
 data/ic3_output
 data/temp
 data/logger/condysta.log
