@@ -127,5 +127,13 @@ class LoadBenchmark(StepInfoInterface):
 
 
 
+class LoadDefaultSourceSink():
+    pass
 
+    # TODO: should suck out the functionality of _get_source_sink_factory
+    # for now just match up the column name
+
+    def get_ss_list():
+        # GPBench gt based list, Fossdroid gt based list, fd default ss list, super custom column prepped by ???
+        pass
 

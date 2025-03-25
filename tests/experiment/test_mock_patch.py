@@ -20,21 +20,6 @@ def test_area_of_circle_with_mock(mocker):
     assert area_of_circle(5) == 75.0
 
 
-def test_mock_second_function(mocker):
-    mocker.patch("tests.experiment.mock_example.intermediate_result", return_value="???")
-    mocker.patch("tests.experiment.mock_example.process_file_path", return_value="??????")
-    mocker.patch("tests.experiment.test_mock_patch.process_file_path", return_value="???????")
-    mocker.patch("tests.experiment.test_mock_patch.mock_example.process_file_path", return_value="?????????")
-    # mocker.patch("process_file_path", return_value="????????????")
-    # mocker.patch("tests.experiment.test_mock_patch.tests.experiment.mock_example.process_file_path", return_value="???")
-    result = mock_example.process_file_path("calls function interior???")
-    assert result == "?????????"
-
-    result = process_file_path("calls function interior???")
-    assert result == "???????"
-
-
-
 
 def test_sleep_for_a_bit_with_mock(mocker):
     """

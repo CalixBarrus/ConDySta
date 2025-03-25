@@ -10,8 +10,9 @@ from experiment.flow_mapping import get_observation_harness_to_string_set_map, g
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_experiment_name, get_flowdroid_file_paths, load_logcat_files_batch, setup_additional_directories, setup_experiment_dir
-from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, get_default_source_sink_path, groundtruth_df_from_xml, parse_flowdroid_results, source_list_of_inserted_taint_function_batch
+from experiment.flowdroid_experiment import flowdroid_on_benchmark_df, groundtruth_df_from_xml, parse_flowdroid_results
 from experiment.instrument import instrument_observations_batch
+from experiment.load_source_sink import get_default_source_sink_path, source_list_of_inserted_taint_function_batch
 from hybrid import hybrid_config
 from hybrid.dynamic import ExecutionObservation, LogcatLogFileModel, get_observations_from_logcat_batch, get_observations_from_logcat_single
 from hybrid.flow import compare_flows, get_reported_fd_flows_as_df
@@ -42,7 +43,7 @@ def test_hybrid_analysis_returns_only():
     setup_and_run_analysis_by_benchmark_name(BenchmarkName.FOSSDROID, "shallow")
     setup_and_run_analysis_by_benchmark_name(BenchmarkName.FOSSDROID, "intercept")
 
-def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_results_specifier: str=""):
+def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_results_specifier: str="", da_filter_specifier: str=""):
     
     params_in_name = [da_results_specifier] if da_results_specifier != "" else []
     experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,1), params_in_name)
@@ -50,11 +51,11 @@ def setup_and_run_analysis_by_benchmark_name(benchmark: BenchmarkName, da_result
     Doesn't reinstrument apks if already done in the experiment directory.
     """
 
-    # pull out all the relvant keyword args    
+    # pull out all the relevant keyword args    
     da_results_directory = get_da_results_directory(benchmark, da_results_specifier)
     default_ss_list = get_default_source_sink_path(benchmark)
 
-    flowdroid_kwargs = get_flowdroid_file_paths()
+    flowdroid_kwargs = get_flowdroid_file_paths() 
     flowdroid_kwargs["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.gpbench_experiment_settings_modified)
     flowdroid_kwargs["timeout"] = 3 * 60 # seconds
 
