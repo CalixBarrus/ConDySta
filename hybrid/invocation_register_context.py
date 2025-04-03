@@ -2,7 +2,7 @@ from functools import reduce
 from textwrap import indent
 import pandas as pd
 from hybrid.access_path import AccessPath
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 
 
 from typing import List, Set, Tuple

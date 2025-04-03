@@ -1,7 +1,7 @@
 import pytest
 from hybrid.invocation_register_context import InvocationRegisterContext
 from hybrid.access_path import AccessPath
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 from util.input import ApkModel
 
 def get_mock_instrumentation_report(is_arg=False, is_return=True, arg_register_index=-1, is_before=False, content="placeholder") -> InstrumentationReport:

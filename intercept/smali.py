@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import re
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 from intercept.code_insertion_model import CodeInsertionModel
 
 

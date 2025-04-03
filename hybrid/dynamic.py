@@ -11,7 +11,7 @@ from experiment.common import modified_source_sink_path
 from hybrid import results, sensitive_information
 from hybrid.invocation_register_context import InvocationRegisterContext
 from hybrid.source_sink import MethodSignature, SourceSink, SourceSinkSignatures, SourceSinkXML
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 from intercept.instrument import extract_private_string
 from intercept.smali import SmaliMethodInvocation
 
@@ -568,8 +568,6 @@ def get_observations_from_logcat_single(logcat_path: str, with_observed_strings:
 
     da_results: List[Tuple] = log.scan_log_for_instrumentation_report_tuples()
 
-    # TODO: move this function to ExecutionObservation
-    # TODO: will need to restrict depth & args analysis either here or in HarnessObservations.
     observation = ExecutionObservation()
     for da_result in da_results:
         observation.parse_instrumentation_result(da_result)

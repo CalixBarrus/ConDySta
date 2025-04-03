@@ -6,7 +6,7 @@ import pandas as pd
 from experiment.load_benchmark import LoadBenchmark, get_droidbench_files_paths3
 from experiment.paths import ResultPathManager, StepInfoInterface
 from experiment.common import benchmark_df_from_benchmark_directory_path
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 from intercept.decode import DecodeApk
 from intercept.harness import harness_with_observed_sources
 from intercept.instrument_smali import InstrumentSmali

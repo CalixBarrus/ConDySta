@@ -4,7 +4,7 @@ from typing import List, Set, Tuple
 import pandas as pd
 
 from hybrid.invocation_register_context import InvocationRegisterContext
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 
 
 def save_to_file(file, contents):

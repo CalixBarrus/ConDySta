@@ -1,6 +1,6 @@
 import itertools
 from hybrid.invocation_register_context import InvocationRegisterContext
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 from intercept.code_insertion_model import CodeInsertionModel
 from intercept.instrument import HarnessObservations, SmaliInstrumentationStrategy
 from intercept.smali import SmaliFile

@@ -11,7 +11,7 @@ from hybrid.access_path import AccessPath
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.source_sink import MethodSignature
 from intercept.code_insertion_model import CodeInsertionModel
-from intercept.InstrumentationReport import InstrumentationReport
+from intercept.instrumentation_report import InstrumentationReport
 from intercept.smali import ReportMismatchException, SmaliFile, SmaliMethod, SmaliMethodInvocation
 from util.input import ApkModel
 from util.subprocess import run_command
