@@ -23,7 +23,7 @@ from util.input import InputModel
 import util.logger
 logger = util.logger.get_logger(__name__)
 
-contexts_or_contexts_and_string_sets = Union[List[InvocationRegisterContext], Tuple[List[InvocationRegisterContext], List[Set[str]]]]
+
 
 class LogcatToSourcesStrategy(ABC):
     """
@@ -562,6 +562,7 @@ def from_exception_containing_invocation(exception: "ExceptionModel") -> "Method
 #         return result_series
             
     
+contexts_or_contexts_and_string_sets = Union[List[InvocationRegisterContext], Tuple[List[InvocationRegisterContext], List[Set[str]]]]
 
 def get_observations_from_logcat_single(logcat_path: str, with_observed_strings: bool) -> contexts_or_contexts_and_string_sets:
     log: LogcatLogFileModel = LogcatLogFileModel(logcat_path)

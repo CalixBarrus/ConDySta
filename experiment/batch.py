@@ -13,18 +13,22 @@ class ExperimentStepException(Exception):
 LAST_ERROR_COLUMN = "last_error"
 
 def process_as_dataframe(on_single: Callable, args_as_columns_mask: List[bool], kwargs_as_columns_mask: List[bool]) -> Callable:
+    # Returns a modified version of input function "on_single" with two additional kwargs, "input_df" and "output_col".
+    # The resulting function calls "on_single" on each row of input_df, where arguments to the batch function are either 
+    # passed to on_single or reference columns whose entries will be passed to on_single. 
+    # The results of "on_single" will be stored in the column indicated by "output_col"; if output_col is not specified, the output will be returned as a series.
+
     # args_as_columns_mask: Dimension should match the dimension of the args passed to on_single.
     # If true, that arg is the name of a column in the dataframe. If false, that arg is a constant across rows.
     # kwargs_as_columns_mask: works the same
 
     # Row will be skipped if LAST_ERROR_COLUMN is not empty.
-    # ExperementStepException will be caught with errors stored in LAST_ERROR_COLUMN.
+    # ExperimentStepException will be caught with errors stored in LAST_ERROR_COLUMN.
 
     # TODO: setup so output_col can take list, in order to sort multiple outputs into multiple columns :3
 
-    # Get the signature of the on_single function
-    on_single_signature = inspect.signature(on_single)
 
+    on_single_signature = inspect.signature(on_single)
     assert len(args_as_columns_mask) + len(kwargs_as_columns_mask) == len(on_single_signature.parameters), f"args_as_columns_mask {args_as_columns_mask} does not match the number of parameters in on_single {on_single_signature.parameters}"
 
     # Define the new keyword arguments
@@ -58,15 +62,24 @@ def process_as_dataframe(on_single: Callable, args_as_columns_mask: List[bool], 
         # args_as_columns = [arg in input_df.columns for arg, is_column in zip(bound_args.args, args_as_columns_mask) if is_column]
         # same for kwargs
 
-        # TODO: ideally the "single" steps should throw a custom type of error that will get caught and handled by the batch code.
+        is_tuple_output = isinstance(output_col, list)
+
+
+        if output_col != "":
+            # add output columns if necessary
+            if is_tuple_output:
+                for col in output_col:
+                    if not col in input_df.columns:
+                        input_df[col] = "" 
+            elif not output_col in input_df.columns:
+                input_df[output_col] = "" # or some other null value? 
+        else:
+            result_series = pd.Series(index=input_df.index)
+
+        # ExperimentStepExceptions require use of LAST_ERROR_COLUMN
         if LAST_ERROR_COLUMN not in input_df.columns:
             input_df[LAST_ERROR_COLUMN] = ""    
 
-        if output_col != "":
-            if not output_col in input_df.columns:
-                input_df[output_col] = "" # or some other null value? 
-            else:
-                result_series = pd.Series(index=input_df.index)
 
         for i in input_df[input_df[LAST_ERROR_COLUMN] == ""].index: # Filter out rows with errors.
             try:
@@ -75,10 +88,17 @@ def process_as_dataframe(on_single: Callable, args_as_columns_mask: List[bool], 
                 row_kwargs = {kwarg_key: input_df.at[i, kwarg_value] if is_col_name else kwarg_value for kwarg_key, kwarg_value, is_col_name in zip(bound_args.arguments.keys(), bound_args.arguments.values(), args_as_columns_mask + kwargs_as_columns_mask)}
                 # result = on_single(*row_args, **row_kwargs)
                 result = on_single(**row_kwargs)
-                if output_col != "":
-                    input_df.at[i, output_col] = result
-                else:
-                    result_series.at[i] = result
+                if not is_tuple_output:
+                    if output_col != "":
+                        input_df.at[i, output_col] = result
+                    else:
+                        result_series.at[i] = result
+                else: 
+                    # TODO check that result is tuple of scalars; if there is a list in there, loc might break
+                    if output_col != "":
+                        input_df.loc[i, output_col] = result
+                    else:
+                        result_series.loc[i] = result
 
             except ExperimentStepException as e:
                 input_df.at[i, LAST_ERROR_COLUMN] = e.__str__()

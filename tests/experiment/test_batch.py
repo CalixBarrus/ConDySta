@@ -38,3 +38,17 @@ def test_process_as_dataframe_with_kwarg(test_data_df):
     batch_function2("A", 4, c = "C", input_df = test_data_df, output_col = "output2")
 
     assert test_data_df["output2"].tolist() == [8, 10, 12, 11]
+
+
+def test_output_multiple_columns(test_data_df: pd.DataFrame):
+    def test_function(a, b, c):
+        return a + b + c, 2*(a+b+c)
+
+    batch_function = process_as_dataframe(test_function, [True, False, True], [])
+
+    batch_function("A", 2, "C", input_df=test_data_df, output_col=["output", "2x Output"])
+
+    # print(test_data_df.to_string())
+
+    assert test_data_df["output"].tolist() == [6, 8, 10, 9]
+    assert test_data_df["2x Output"].tolist() == [12, 16, 20, 18]
