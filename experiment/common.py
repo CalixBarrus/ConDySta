@@ -166,7 +166,7 @@ def setup_dirs_with_dependency_info(experiment_name: str, experiment_description
     return df_path, setup_additional_directories(experiment_dir_path, dir_names)
 
 def get_experiment_name(dataset_name: str, step_name: str, version: Tuple[int,int,int], params: List=[], date_override: str="", reproduction: int=-1) -> str:
-    if date_override != "":
+    if date_override == "":
         # "YYYY-MM-DD"
         date = str(pd.to_datetime('today').date())
     else: 
@@ -190,12 +190,14 @@ def setup_experiment_dir(experiment_name: str, experiment_description: str, depe
             continue
         if key == "flowdroid_args":
             experiment_description += (f"{key}: {str(value.args)}\n")
+            experiment_description += (f"flowdroid ram gigabytes: {str(value.java_ram_gigabytes)}\n")
             continue
         experiment_description += (f"{key}: {value}\n")
 
     # "YYYY-MM-DD"
-    date = str(pd.to_datetime('today').date())
-    experiment_id = date + "-" + experiment_name
+    # date = str(pd.to_datetime('today').date())
+    # experiment_id = date + "-" + experiment_name
+    experiment_id = experiment_name
 
     if always_new_experiment_directory:
         # Check experiment directory for items of form expriment_id[n], and find the next n for which there is no directory

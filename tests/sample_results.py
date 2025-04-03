@@ -40,6 +40,8 @@ def get_mock_access_path(access_path="a") -> AccessPath:
         path = AccessPath("[<org.Container .>, <java.lang.String secret>]")
     elif access_path == "b":
         path = AccessPath("[<org.Container .>, <java.lang.String public>]")
+    elif access_path == "length1":
+        path = AccessPath("[<java.lang.String .>]")
     elif access_path == "parent-string":
         path = AccessPath("[<com.example.instrumentableexample.Parent .>, <java.lang.String string>]")
     elif access_path == "parent-child-string":

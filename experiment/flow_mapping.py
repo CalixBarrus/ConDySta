@@ -59,7 +59,7 @@ def get_observed_source_to_string_set_map():
 
     if harnesser.disable_field_sensitivity:
         # need to reduce observations/string sets in parallel 
-        _, reduced_observed_strings = reduce_for_field_insensitivity(harnesser.observations)
+        _, reduced_observed_strings = reduce_for_field_insensitivity(harnesser.unprocessed_observations)
         
 def get_observation_harness_to_string_set_map(harnesser: HarnessObservations, decoded_apk_model: DecodedApkModel, observations: List[InvocationRegisterContext], observed_strings: List[Set[str]]) -> pd.DataFrame:
     """

@@ -7,6 +7,7 @@ import pandas as pd
 from experiment import report
 from experiment.batch import process_as_dataframe
 from experiment.flow_mapping import get_observation_harness_to_string_set_map, get_observed_source_to_original_source_map, get_observation_harness_to_observed_source_map, get_observed_string_to_original_source_map, get_observed_string_to_original_source_map_batch_df_output
+from experiment import flow_mapping
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.benchmark_name import BenchmarkName
 from experiment.common import benchmark_df_from_benchmark_directory_path, flowdroid_setup_generic, get_experiment_name, get_flowdroid_file_paths, load_logcat_files_batch, setup_additional_directories, setup_experiment_dir
@@ -125,10 +126,10 @@ def run_fd_on_apks(workdir: str, df: pd.DataFrame, da_results_directory: str, de
 
 
 
-def hybrid_flow_postprocessing_single(flowdroid_log_path: str, apk_path: str, harnesser: HarnessObservations, decoded_apk_path: str, benchmark_name: BenchmarkName, logcat_file: str) -> pd.DataFrame:
+def hybrid_flow_postprocessing_single(flowdroid_log_path: str, original_apk_path: str, harnesser: HarnessObservations, decoded_apk_path: str, benchmark_name: BenchmarkName, logcat_file: str) -> pd.DataFrame:
     """
     flowdroid_log_path 
-    apk_path 
+    original_apk_path: kinda optional; used for metadata in Flow objects
     harnesser: should have the same settings as when app was fed to SA was instrumented; expects record_taint_mapping to be true; expects a fresh copy of the harnesser
     decoded_apk_path 
     benchmark_name 
@@ -136,8 +137,9 @@ def hybrid_flow_postprocessing_single(flowdroid_log_path: str, apk_path: str, ha
     result: TODO make a test in order to figure out column filtering
     """
 
+    
     # load hybrid fd result flows
-    reported_fd_flows = get_flowdroid_flows(flowdroid_log_path, apk_path) # TODO: add deduplicate_on="signature_in_enclosing_method" as kwarg to this? 
+    reported_fd_flows = get_flowdroid_flows(flowdroid_log_path, original_apk_path) # TODO: add deduplicate_on="signature_in_enclosing_method" as kwarg to this? 
 
     observations, observed_strings = get_observations_from_logcat_single(logcat_file, with_observed_strings=True)
     decoded_apk_model = DecodedApkModel(decoded_apk_path)
@@ -147,7 +149,7 @@ def hybrid_flow_postprocessing_single(flowdroid_log_path: str, apk_path: str, ha
     df_sa_observation: pd.DataFrame = get_reported_fd_flows_as_df(reported_fd_flows, col_names=cols)
 
     # cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method", "Observed Strings"] # cols are determined by harnesser, filtered by get_observation_harness_to_string_set_map
-    sa_observation_to_observed_string_set_map: pd.DataFrame = get_observation_harness_to_string_set_map(harnesser, decoded_apk_model, observations, observed_strings)
+    sa_observation_to_observed_string_set_map: pd.DataFrame = flow_mapping.get_observation_harness_to_string_set_map(harnesser, decoded_apk_model, observations, observed_strings)
     # Explode string sets so there is a row per string
     sa_observation_to_observed_string_map = sa_observation_to_observed_string_set_map.explode(harnesser.mapping_str_observation_lookup_cols[0], ignore_index=True)
 
@@ -158,10 +160,10 @@ def hybrid_flow_postprocessing_single(flowdroid_log_path: str, apk_path: str, ha
     df_mapped_flows = df_sa_observation.merge(
             sa_observation_to_observed_string_map, how="left", 
             left_on=["source_function", "source_enclosing_method", "source_enclosing_class"], 
-            right_on=["taint_function", "source_enclosing_method", "source_enclosing_class"]
+            right_on=["Taint Function Name", "Enclosing Method", "Enclosing Class"]
         ).merge(
             observed_string_to_original_source_map, how="left", 
-            left_on="observed_string", 
+            left_on="Observed Strings", 
             right_on="observed_string")
     # Intermediately, the reported static flows themselves that don't map succesfully; they should theoretically all be mapped to some string and scenario
 

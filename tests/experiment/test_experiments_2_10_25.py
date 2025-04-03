@@ -223,13 +223,15 @@ def test_hybrid_flow_postprocessing_single_smoke_and_observe_columns(mocker):
     # hybrid.flow.get_reported_fd_flows_as_df = Mock(return_value=mock_df_reported_flows)
     
     # get_observation_harness_to_string_set_map(harnesser, decoded_apk_model, observations, observed_strings)
-    experiment.flow_mapping.get_observation_harness_to_string_set_map = Mock(return_value=mock_df_observation_harness_to_string_set_map)
-    
+    # experiment.flow_mapping.get_observation_harness_to_string_set_map = Mock(return_value=mock_df_observation_harness_to_string_set_map)
+    mocker.patch("experiment.experiments_2_10_25.flow_mapping.get_observation_harness_to_string_set_map", return_value=mock_df_observation_harness_to_string_set_map)
+
     # get_observed_string_to_original_source_map(benchmark_name, logcat_file, columns=cols)
-    experiment.flow_mapping.get_observed_string_to_original_source_map = Mock(return_value=mock_df_observed_string_to_original_source_map)
+    # experiment.flow_mapping.get_observed_string_to_original_source_map = Mock(return_value=mock_df_observed_string_to_original_source_map)
+    mocker.patch("experiment.experiments_2_10_25.get_observed_string_to_original_source_map", return_value=mock_df_observed_string_to_original_source_map)
 
     # none of the args should be getting passed to functions that aren't mocked
-    df = hybrid_flow_postprocessing_single(None, None, None, None, None, None)
+    df = hybrid_flow_postprocessing_single(None, None, HarnessObservations(record_taint_function_mapping=True), None, None, None)
 
     print(df.columns)
 

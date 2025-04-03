@@ -115,7 +115,9 @@ def run_flowdroid_help(flowdroid_jar_path: str):
 
 
 def run_flowdroid_with_fdconfig(flowdroid_jar_path: str, apk_path: str, android_platform_path: str, source_sink_path: str, flowdroid_args: "FlowdroidArgs", output_log_path: str = "", timeout: int=None):
-    cmd = ["java", "-Xmx64G", "-jar" , flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
+    java_ram_gigabytes = str(flowdroid_args.java_ram_gigabytes)
+
+    cmd = ["java", f"-Xmx{java_ram_gigabytes}G", "-jar" , flowdroid_jar_path, '-a', apk_path, '-p', android_platform_path, '-s', source_sink_path] + flowdroid_args.additional_args_list()
 
     run_command(cmd, redirect_stdout=output_log_path, redirect_stderr_to_stdout=True, timeout=timeout, verbose=True)
 
@@ -136,11 +138,16 @@ class FlowdroidArgs:
     
     args: Dict[str, str]
 
+    java_ram_gigabytes: int
+
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             self.check_arg(key, value)
             
         self.args = kwargs
+
+        default_java_ram_gigabytes = 64
+        self.java_ram_gigabytes = default_java_ram_gigabytes
 
     def check_arg(self, key, value):
         if key not in FlowdroidArgs.available_options.keys():

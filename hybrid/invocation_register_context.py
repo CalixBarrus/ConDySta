@@ -1,4 +1,5 @@
 from functools import reduce
+from textwrap import indent
 import pandas as pd
 from hybrid.access_path import AccessPath
 from intercept.InstrumentationReport import InstrumentationReport
@@ -42,3 +43,17 @@ def reduce_for_field_insensitivity(contexts: List[InvocationRegisterContext], st
     return reduced_contexts, reduced_string_sets
 
     
+def filter_access_paths_with_length_1(contexts: List[InvocationRegisterContext], string_sets: List[Set[str]] = []) -> Tuple[List[InvocationRegisterContext], List[Set[str]]]:
+    # Cut out any observations with access path lengths greater than 1
+    # This is meant to simulate a dynamic analysis that would only check base objects, instead of checking sub fields too
+
+    # context: InvocationRegisterContext
+    # len(context[1].fields)
+
+    f = lambda i: len(contexts[i][1].fields) == 1
+    filtered_indices = filter(f, range(len(contexts)))
+
+    # TODO: deduplicate contexts/merge string_sets
+
+    return [contexts[i] for i in filtered_indices], [string_sets[i] for i in filtered_indices]
+

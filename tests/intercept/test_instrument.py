@@ -16,6 +16,7 @@ from intercept import decode
 from intercept.instrument import HarnessObservations, HarnessSources, extract_private_string
 from intercept.rebuild import rebuild_apk
 from intercept.decoded_apk_model import DecodedApkModel
+from tests.experiment.test_experiments_2_10_25 import harness_observations
 from tests.sample_results import get_mock_access_path, get_mock_instrumentation_report, get_mock_invocation_register_context, get_mock_result
 from util.input import ApkModel, InputModel
 
@@ -292,3 +293,25 @@ def test_HarnessObservations_disable_field_sensitivity_observations_get_combined
     lines_in_main_2_observations = count_lines_in_file(os.path.join(decompiled_apk_copy2, "smali_classes3/com/example/instrumentableexample/MainActivity.smali"))
 
     assert lines_in_main_single_observation == lines_in_main_2_observations
+
+def test_HarnessObservations_settings_reduce_count_leaks():
+
+    observations = [
+        get_mock_invocation_register_context(is_arg=True, is_return=False, arg_register_index=0, is_before=False, access_path="length1", content="placeholder"), # lvl 0 a.p.
+        get_mock_invocation_register_context(access_path="a"), # lvl 1 a.p. but different base than previous
+        get_mock_invocation_register_context(access_path="b"), # lvl 1 a.p. which would get combined with the previous when field sensitivity is disabled
+    ]
+
+    harness_observations = HarnessObservations(filter_to_length1_access_paths=True)
+    harness_observations.set_observations(observations)
+    assert len(harness_observations.processed_observations) == 1
+
+    harness_observations = HarnessObservations(disable_field_sensitivity=True)
+    harness_observations.set_observations(observations)
+    assert len(harness_observations.processed_observations) == 2
+
+    harness_observations = HarnessObservations()
+    harness_observations.set_observations(observations)
+    assert len(harness_observations.processed_observations) == 3
+
+

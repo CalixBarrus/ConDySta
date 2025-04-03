@@ -6,7 +6,7 @@ from typing import Callable, List, Set, Tuple, Union
 import pandas as pd
 
 
-from hybrid.invocation_register_context import InvocationRegisterContext, reduce_for_field_insensitivity
+from hybrid.invocation_register_context import InvocationRegisterContext, filter_access_paths_with_length_1, reduce_for_field_insensitivity
 from hybrid.access_path import AccessPath
 from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.source_sink import MethodSignature
@@ -683,30 +683,33 @@ class HarnessSources(SmaliInstrumentationStrategy):
     
 class HarnessObservations(SmaliInstrumentationStrategy):
     
-    observations: List[InvocationRegisterContext]
+    unprocessed_observations: List[InvocationRegisterContext]
     disable_field_sensitivity: bool # base object should be tainted; don't taint specific access path
     
     report_mismatch_exceptions: int
     report_mismatch_repair_attempted: int 
 
     record_taint_function_mapping: bool
+    filter_to_length1_access_paths: bool
     df_instrumentation_reporting: pd.DataFrame
     mapping_key_cols: Tuple[str, str, str] # Expected cols from FD output
     mapping_observation_lookup_cols: Tuple[str, str, str] # Which should correspond to an observation(s) from DA output
     mapping_str_observation_lookup_cols: Tuple[str]
     result_cols: List[str]
 
-    observed_strings: List[Set[str]]
-    reduced_observed_strings: List[Set[str]]
+    unprocessed_observed_strings: List[Set[str]]
+    processed_observed_strings: List[Set[str]]
 
     HIGHEST_TAINT_ID = 10  # suffixes are from 0-10 inclusive
 
     def __init__(self, observations: List[InvocationRegisterContext]=[], 
                  disable_field_sensitivity: bool=False, 
-                 record_taint_function_mapping: bool=False):
+                 record_taint_function_mapping: bool=False, 
+                 filter_to_length1_access_paths: bool=False):
 
         self.disable_field_sensitivity = disable_field_sensitivity
         self.record_taint_function_mapping = record_taint_function_mapping
+        self.filter_to_length1_access_paths = filter_to_length1_access_paths
         self.report_mismatch_exceptions = 0
         self.report_mismatch_repair_attempted = 0
 
@@ -722,44 +725,56 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
             self.df_instrumentation_reporting = self._initialize_df()
 
-        self.observed_strings = []
+        self.unprocessed_observed_strings = []
 
 
     def set_observations(self, observations: List[InvocationRegisterContext]):
-        self.observations = observations
+        self.unprocessed_observations = observations
 
-        if self.disable_field_sensitivity:
-            self.reduced_observations, _ = reduce_for_field_insensitivity(observations)
+        if self.filter_to_length1_access_paths:
+            # if there is ever a non-string level 0 access path, this logic needs to be rethought out
+            self.processed_observations, _ = filter_access_paths_with_length_1(observations)
+        elif self.disable_field_sensitivity:
+            self.processed_observations, _ = reduce_for_field_insensitivity(observations)
+        else: 
+            self.processed_observations = observations
 
         # TODO: need to reset counters? 
     
     def set_observed_strings(self, observed_strings: List[Set[str]]):
-        self.observed_strings = observed_strings
+        self.unprocessed_observed_strings = observed_strings
 
-        if self.disable_field_sensitivity:
+        if self.filter_to_length1_access_paths:
+            # if there is ever a non-string level 0 access path, this logic needs to be rethought out
+            _, self.processed_observed_strings = filter_access_paths_with_length_1(self.unprocessed_observations, observed_strings)
+
+        elif self.disable_field_sensitivity:
             # assume set_observations is always called first
-            _, self.reduced_observed_strings = reduce_for_field_insensitivity(self.observations, observed_strings)
+            _, self.processed_observed_strings = reduce_for_field_insensitivity(self.unprocessed_observations, observed_strings)
+
+        else: 
+            self.processed_observed_strings = observed_strings
 
 
     def instrument_file(self, smali_file: 'SmaliFile')-> List[CodeInsertionModel]:      
-        if not self.disable_field_sensitivity:
-            observations = self.observations        
-            if self.observed_strings != []:
-                observed_strings = self.observed_strings
+        if not self.disable_field_sensitivity and not self.filter_to_length1_access_paths:
+            observations = self.unprocessed_observations        
+            if self.unprocessed_observed_strings != []:
+                observed_strings = self.unprocessed_observed_strings
         else:
-            observations = self.reduced_observations  
-            if self.observed_strings != []:
-                observed_strings = self.observed_strings
+            observations = self.processed_observations  
+            if self.unprocessed_observed_strings != []:
+                observed_strings = self.processed_observed_strings
 
         file_observations = [observation for observation in observations if observation[0].enclosing_class_name == smali_file.class_name]
 
-        if self.observed_strings != []:
+        if self.unprocessed_observed_strings != []:
             file_observed_strings = [observed_set for observed_set, observation in zip(observed_strings, observations) if observation[0].enclosing_class_name == smali_file.class_name]
 
         def _instrument_invocation_statement(method_index: int, method: SmaliMethod, method_instrumentation_registers: List[str], invocation_statement: SmaliMethodInvocation) -> List[CodeInsertionModel]:
             # Requires two method_instrumentation_registers. 
             method_observations = [observation for observation in file_observations if observation[0].enclosing_method_name == method.method_name]
-            if self.observed_strings != []:
+            if self.unprocessed_observed_strings != []:
                 method_observed_strings = [observed_set for observed_set, observation in zip(file_observed_strings, file_observations) if observation[0].enclosing_method_name == method.method_name]
 
             # Enclosing class/method is the granularity level that'll be returned by fd
@@ -770,7 +785,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
             # TODO: add option to match against actual call granularity (line number, etc.)
             invocation_observations = [observation for observation in method_observations if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
             invocation_taint_function_ids = [i for i, observation in zip(method_taint_function_ids, method_observations) if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
-            if self.observed_strings != []:
+            if self.unprocessed_observed_strings != []:
                 invocation_observed_strings = [observed_set for observed_set, observation in zip(method_observed_strings, method_observations) if observation[0].invocation_java_signature == invocation_statement.get_java_style_signature()]
 
             code_insertions = []
@@ -814,7 +829,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
                 if self.record_taint_function_mapping:
                     taint_method = self._lookup_static_taint_method(invocation_taint_function_id, access_path)
 
-                    if self.observed_strings != []:
+                    if self.unprocessed_observed_strings != []:
                         observed_string_set = invocation_observed_strings[i]
                     else:
                         observed_string_set = set()
