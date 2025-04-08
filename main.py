@@ -18,7 +18,9 @@ logger = logger.get_logger(__name__)
 
 
 if __name__ == '__main__':
-    report_observations_profile_feb_experiments_all()
+    # report_observations_profile_feb_experiments_all()
     # run_HA_experiments_depth0_access_paths()
+    # fd_report_basic_experiments_folder()
+    rerun_fd_baseline()
 
     

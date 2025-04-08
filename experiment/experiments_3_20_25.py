@@ -22,113 +22,23 @@ from util.input import InputModel
 import util.logger
 logger = util.logger.get_logger(__name__)
 
+class FDSettingsParam(Enum):
+    DEFAULT = "GP_D"
+    FOSSDROID_MODIFIED = "GP_F"
 
-def fd_report_basic_baseline():
-    reports_dir = "data/experiments/fd_report_basic"
-    if not os.path.exists(reports_dir):
-        os.makedirs(reports_dir)
 
-    for benchmark, sa_results in [
-        (BenchmarkName.GPBENCH, "data/experiments/2025-03-25-_flowdroid-baseline_gpbench_0.1.1_30min-timeout_ss-per-scenario"),
-        (BenchmarkName.FOSSDROID, "data/experiments/2025-03-26-_flowdroid-baseline_fossdroid_0.1.1_30min-timeout_ss-full-fd-default"),
-        (BenchmarkName.FOSSDROID, "data/experiments/2025-03-26-_flowdroid-baseline_fossdroid_0.1.1_30min-timeout_ss-per-scenario"),
-        (BenchmarkName.GPBENCH, "data/experiments/2025-03-26-_flowdroid-baseline_gpbench_0.1.1_30min-timeout_ss-full-fd-default")]:
-
-        fd_report_basic_runner(benchmark, sa_results, reports_dir)
-
-def fd_report_basic_experiments_folder():
-    reports_dir = "data/experiments/fd_report_basic"
-    if not os.path.exists(reports_dir):
-        os.makedirs(reports_dir)
-
-    experiments_directory = os.path.join("data", "experiments")
-
-    items = os.listdir(experiments_directory)
-
-    for item in items:
-        sa_results = os.path.join(experiments_directory, item)
-
-        if "gpbench" in sa_results:
-            benchmark = BenchmarkName.GPBENCH
-        elif "fossdroid" in sa_results:
-            benchmark = BenchmarkName.FOSSDROID
-        elif "fd_report_basic" in sa_results:
-            continue
-        elif "sep24-da-observations-reports" in sa_results:
-            continue
-
-        fd_report_basic_runner(benchmark, sa_results, reports_dir)
-
-def fd_report_basic_runner(benchmark: BenchmarkName, sa_results: str, results_dir: str):
-    report_name = "fd_report_basic-" + os.path.basename(sa_results)
-    logger.debug(report_name)
-
-    df_file_paths = get_wild_benchmarks(benchmark)[0]
-    
-    # Setup up workdir and documentation
-    # experiment_id, experiment_directory_path = setup_experiment_dir(experiment_name, experiment_description, dependency_dict=
-    #                                                                 {"sa_results": sa_results, 
-    #                                                                  } | df_file_paths)
-    # workdir = experiment_directory_path
-
-    # actually construct dependencies
-    df = LoadBenchmark(df_file_paths).execute()
-
-    df = load_flowdroid_logs(sa_results, df, "fd_log_path")
-
-    fd_report_basic_batch("fd_log_path", "Input Model", df, "Benchmark ID", ["App Name", "Sources", "Leaks", "Error", "Time", "Memory"]
-                          ).to_csv(os.path.join(results_dir, f"{report_name}.csv"))
-    logger.debug(os.path.join(results_dir, f"{report_name}.csv"))
-
-def fd_report_basic_batch(fd_log_path: str, input_model: str, input_df: pd.DataFrame, key_col: str, output_cols: List[str]) -> pd.DataFrame:
-    rows = []
-    for i in input_df.index:
-        rows.append(fd_report_basic_single(input_df.at[i, fd_log_path],  input_df.at[i, input_model]))
-
-        # assert len(outout_cols) == len(rows[0])
-
-    result = pd.DataFrame(rows, columns=output_cols)
-    return result
-        
-
-def fd_report_basic_single(fd_log_path: str, input_model: InputModel) -> Tuple:
-
-    app_name = input_model.input_identifier()
-    
-    if not os.path.exists(fd_log_path):
-        return (app_name, "", "", "No log", "", "")
-
-    count_reported_leaks = get_flowdroid_reported_leaks_count(fd_log_path)
-    if count_reported_leaks is None:
-        count_reported_leaks
-    flowdroid_error = get_flowdroid_analysis_error(fd_log_path)
-
-    flowdroid_memory = get_flowdroid_memory(fd_log_path)
-    flowdroid_time = get_flowdroid_time(flowdroid_time_path_from_log_path(fd_log_path))
-    count_found_sources, _ = get_count_found_sources(fd_log_path)
-    
-    return app_name, str(count_found_sources), str(count_reported_leaks), flowdroid_error, flowdroid_time, flowdroid_memory
-
-def load_flowdroid_logs(fd_experiment_directory: str, df: pd.DataFrame, output_column: str="") -> pd.DataFrame:
-
-    if output_column == "":
-        output_column = "fd_log_path"
-
-    target_dir_base_name = "flowdroid-logs"
-    if not os.path.basename(fd_experiment_directory) == target_dir_base_name:
-        fd_experiment_directory = os.path.join(fd_experiment_directory, target_dir_base_name)
-
-    assert os.path.exists(fd_experiment_directory), f"Flowdroid experiment directory does not exist: {fd_experiment_directory}"
-    assert os.path.basename(fd_experiment_directory) == target_dir_base_name, f"Flowdroid experiment directory does not have the expected name: {fd_experiment_directory}"
-
-    x: InputModel
-    df[output_column] = df["Input Model"].apply(lambda x: os.path.join(fd_experiment_directory, x.input_identifier() + ".log"))
-
-    return df
+def get_fd_settings(fd_settings_param: FDSettingsParam) -> FlowdroidArgs:
+    if fd_settings_param == FDSettingsParam.DEFAULT:
+        return FlowdroidArgs(**FlowdroidArgs.default_settings)
+    elif fd_settings_param == FDSettingsParam.FOSSDROID_MODIFIED:
+        return FlowdroidArgs(**FlowdroidArgs.gpbench_experiment_settings_modified)
+    else:
+        raise ValueError(f"Unknown FD settings param: {fd_settings_param}")
 
 def rerun_fd_baseline():
     for ss_list_description in ["ss-per-scenario", "ss-full-fd-default"]:
         for benchmark in BenchmarkName:
+
             # params_in_name = [da_results_specifier.value] if da_results_specifier != DynamicResultsSpecifier.GPBENCH else []
             # params_in_name.append(analysis_constraints.name)
             timeout = 30 * 60 # seconds
@@ -140,10 +50,15 @@ def rerun_fd_baseline():
             # ss_list_description = "ss-full-fd-default"
             ss_list_path = get_default_source_sink_path(benchmark, ss_list_description == "ss-full-fd-default")
 
-            experiment_name = get_experiment_name(benchmark.value, "flowdroid-baseline", (0,1,2), [timeout_description, ss_list_description])
+            fd_settings_param = FDSettingsParam.DEFAULT
+            # fd_settings_param = FDSettingsParam.FOSSDROID_MODIFIED
+            fd_args = get_fd_settings(fd_settings_param)
+
+            experiment_name = get_experiment_name(benchmark.value, "flowdroid-baseline", (0,1,5), [timeout_description, ss_list_description, fd_settings_param.value], date_override="")
 
             experiment_description = """Baseline run of FD on apps
             1.2 - changed ram from 64GB -> 400GB
+            1.5 - added varying FD settings
             """
 
             # pull out all the relevant keyword args    
@@ -151,7 +66,8 @@ def rerun_fd_baseline():
             default_ss_list = get_default_source_sink_path(benchmark)
 
             flowdroid_kwargs = get_flowdroid_file_paths() 
-            flowdroid_kwargs["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.gpbench_experiment_settings_modified)
+
+            flowdroid_kwargs["flowdroid_args"] = fd_args
             flowdroid_ram_gigabytes = 400
             flowdroid_kwargs["flowdroid_args"].java_ram_gigabytes = flowdroid_ram_gigabytes
             flowdroid_kwargs["timeout"] = timeout
@@ -292,16 +208,109 @@ def setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark: Benchmar
     
     flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", apk_path_column=observation_harnessed_apks_column, **flowdroid_params)
 
-def rerun_fd_on_instrumented_apks():
-    for ss_list_description in ["ss-per-scenario", "ss-full-fd-default"]:
-        for benchmark in BenchmarkName:
-            pass
 
-def postprocess_fd_flows():
-    pass
 
-if __name__ == "__main__":
-    # change working directory to the root of the project
-    os.chdir(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-    fd_report_basic_custom_all()
+def fd_report_basic_baseline():
+    reports_dir = "data/experiments/fd_report_basic"
+    if not os.path.exists(reports_dir):
+        os.makedirs(reports_dir)
+
+    for benchmark, sa_results in [
+        (BenchmarkName.GPBENCH, "data/experiments/2025-03-25-_flowdroid-baseline_gpbench_0.1.1_30min-timeout_ss-per-scenario"),
+        (BenchmarkName.FOSSDROID, "data/experiments/2025-03-26-_flowdroid-baseline_fossdroid_0.1.1_30min-timeout_ss-full-fd-default"),
+        (BenchmarkName.FOSSDROID, "data/experiments/2025-03-26-_flowdroid-baseline_fossdroid_0.1.1_30min-timeout_ss-per-scenario"),
+        (BenchmarkName.GPBENCH, "data/experiments/2025-03-26-_flowdroid-baseline_gpbench_0.1.1_30min-timeout_ss-full-fd-default")]:
+
+        fd_report_basic_runner(benchmark, sa_results, reports_dir)
+
+def fd_report_basic_experiments_folder():
+    reports_dir = "data/experiments/fd_report_basic"
+    if not os.path.exists(reports_dir):
+        os.makedirs(reports_dir)
+
+    experiments_directory = os.path.join("data", "experiments")
+
+    items = os.listdir(experiments_directory)
+
+    for item in items:
+        sa_results = os.path.join(experiments_directory, item)
+
+        if "gpbench" in sa_results:
+            benchmark = BenchmarkName.GPBENCH
+        elif "fossdroid" in sa_results:
+            benchmark = BenchmarkName.FOSSDROID
+        elif "fd_report_basic" in sa_results:
+            continue
+        elif "sep24-da-observations-reports" in sa_results:
+            continue
+
+        fd_report_basic_runner(benchmark, sa_results, reports_dir)
+
+def fd_report_basic_runner(benchmark: BenchmarkName, sa_results: str, results_dir: str):
+    report_name = "fd_report_basic-" + os.path.basename(sa_results)
+    logger.debug(report_name)
+
+    df_file_paths = get_wild_benchmarks(benchmark)[0]
+    
+    # Setup up workdir and documentation
+    # experiment_id, experiment_directory_path = setup_experiment_dir(experiment_name, experiment_description, dependency_dict=
+    #                                                                 {"sa_results": sa_results, 
+    #                                                                  } | df_file_paths)
+    # workdir = experiment_directory_path
+
+    # actually construct dependencies
+    df = LoadBenchmark(df_file_paths).execute()
+
+    df = load_flowdroid_logs(sa_results, df, "fd_log_path")
+
+    fd_report_basic_batch("fd_log_path", "Input Model", df, "Benchmark ID", ["App Name", "Sources", "Leaks", "Error", "Time", "Memory"]
+                          ).to_csv(os.path.join(results_dir, f"{report_name}.csv"))
+    logger.debug(os.path.join(results_dir, f"{report_name}.csv"))
+
+def fd_report_basic_batch(fd_log_path: str, input_model: str, input_df: pd.DataFrame, key_col: str, output_cols: List[str]) -> pd.DataFrame:
+    rows = []
+    for i in input_df.index:
+        rows.append(fd_report_basic_single(input_df.at[i, fd_log_path],  input_df.at[i, input_model]))
+
+        # assert len(outout_cols) == len(rows[0])
+
+    result = pd.DataFrame(rows, columns=output_cols)
+    return result
+        
+
+def fd_report_basic_single(fd_log_path: str, input_model: InputModel) -> Tuple:
+
+    app_name = input_model.input_identifier()
+    
+    if not os.path.exists(fd_log_path):
+        return (app_name, "", "", "No log", "", "")
+
+    count_reported_leaks = get_flowdroid_reported_leaks_count(fd_log_path)
+    if count_reported_leaks is None:
+        count_reported_leaks
+    flowdroid_error = get_flowdroid_analysis_error(fd_log_path)
+
+    flowdroid_memory = get_flowdroid_memory(fd_log_path)
+    flowdroid_time = get_flowdroid_time(flowdroid_time_path_from_log_path(fd_log_path))
+    count_found_sources, _ = get_count_found_sources(fd_log_path)
+    
+    return app_name, str(count_found_sources), str(count_reported_leaks), flowdroid_error, flowdroid_time, flowdroid_memory
+
+def load_flowdroid_logs(fd_experiment_directory: str, df: pd.DataFrame, output_column: str="") -> pd.DataFrame:
+
+    if output_column == "":
+        output_column = "fd_log_path"
+
+    target_dir_base_name = "flowdroid-logs"
+    if not os.path.basename(fd_experiment_directory) == target_dir_base_name:
+        fd_experiment_directory = os.path.join(fd_experiment_directory, target_dir_base_name)
+
+    assert os.path.exists(fd_experiment_directory), f"Flowdroid experiment directory does not exist: {fd_experiment_directory}"
+    assert os.path.basename(fd_experiment_directory) == target_dir_base_name, f"Flowdroid experiment directory does not have the expected name: {fd_experiment_directory}"
+
+    x: InputModel
+    df[output_column] = df["Input Model"].apply(lambda x: os.path.join(fd_experiment_directory, x.input_identifier() + ".log"))
+
+    return df
+
