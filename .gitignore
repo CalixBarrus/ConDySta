@@ -21,6 +21,7 @@ data/ic3_output
 data/temp
 data/logger/condysta.log
 data/logger/condysta.log*
+data/readonly-decoded-apks/
 
 .DS_Store
 .vscode

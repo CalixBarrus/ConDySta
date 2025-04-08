@@ -739,6 +739,8 @@ class HarnessObservations(SmaliInstrumentationStrategy):
         else: 
             self.processed_observations = observations
 
+        # TODO: Deduplication should for sure happen here; the HarnessObservations settings should provide all needed context for deduplicating appropriately
+
         # TODO: need to reset counters? 
     
     def set_observed_strings(self, observed_strings: List[Set[str]]):

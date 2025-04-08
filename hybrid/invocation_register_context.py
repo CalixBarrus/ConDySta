@@ -57,3 +57,10 @@ def filter_access_paths_with_length_1(contexts: List[InvocationRegisterContext],
 
     return [contexts[i] for i in filtered_indices], [string_sets[i] for i in filtered_indices]
 
+def pretty_print_observation(context: InvocationRegisterContext, string_set: Set[str]) -> str:
+    result = f"class: {context[0].enclosing_class_name}, enclosing_method: {context[0].enclosing_method_name}, invoked_method: {context[0].invocation_java_signature}, invoke_id: {context[0].invoke_id}, arg_index: {context[0].invocation_argument_register_index}\n" \
+        f"access path: {context[1]}\n" \
+        f"string_set: {string_set}\n"
+
+    return result
+

@@ -54,6 +54,8 @@ def fd_report_basic_experiments_folder():
             benchmark = BenchmarkName.FOSSDROID
         elif "fd_report_basic" in sa_results:
             continue
+        elif "sep24-da-observations-reports" in sa_results:
+            continue
 
         fd_report_basic_runner(benchmark, sa_results, reports_dir)
 
@@ -204,13 +206,14 @@ def test_get_da_results_directory():
 
 def run_all_HA_experiments():
     for benchmark_name, da_result_specifier in zip([BenchmarkName.GPBENCH, BenchmarkName.FOSSDROID, BenchmarkName.FOSSDROID], DynamicResultsSpecifier):
-        for analysis_constraints in [AnalysisConstraints.DISABLE_FIELD_SENSITIVITY, AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY]:
+        for analysis_constraints in [AnalysisConstraints.DISABLE_FIELD_SENSITIVITY, AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY, AnalysisConstraints.DEPTH_0_DA_RESULTS_ONLY]:
         # for analysis_constraints in [AnalysisConstraints.DEPTH_0_DA_RESULTS_ONLY]:
             setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark_name, da_result_specifier, analysis_constraints)
 
 def run_HA_experiments_depth0_access_paths():
     for benchmark_name, da_result_specifier in zip([BenchmarkName.GPBENCH, BenchmarkName.FOSSDROID, BenchmarkName.FOSSDROID], DynamicResultsSpecifier):
         # for analysis_constraints in [AnalysisConstraints.DISABLE_FIELD_SENSITIVITY, AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY]:
+        # for analysis_constraints in [AnalysisConstraints.DISABLE_FIELD_SENSITIVITY, AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY, AnalysisConstraints.DEPTH_0_DA_RESULTS_ONLY]:
         for analysis_constraints in [AnalysisConstraints.DEPTH_0_DA_RESULTS_ONLY]:
             setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark_name, da_result_specifier, analysis_constraints)
 
@@ -219,7 +222,8 @@ def setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark: Benchmar
     params_in_name = [da_results_specifier.value] if da_results_specifier != DynamicResultsSpecifier.GPBENCH else []
     params_in_name.append(analysis_constraints.name)
     # params_in_name.append("1sec-timeout")
-    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,2), params_in_name, date_override="2025-03-26-")
+    # experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,2), params_in_name, date_override="2025-03-26-")
+    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,3), params_in_name, date_override="")
     experiment_description = """Static analysis with observations harnessed
     Doesn't reinstrument apks if already done in the experiment directory.
     """
@@ -253,8 +257,6 @@ def setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark: Benchmar
             harness_observations = HarnessObservations(disable_field_sensitivity=True)
         case AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY:
             harness_observations = HarnessObservations(disable_field_sensitivity=False)
-        
-    harness_observations = HarnessObservations(disable_field_sensitivity=True)
 
     observation_harnessed_apks_column = "observation_harnessed_apks"
 
