@@ -17,7 +17,7 @@ from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.invocation_register_context import InvocationRegisterContext
 from intercept import decode, instrument, intercept_main, keygen, rebuild, sign
 from intercept.decoded_apk_model import DecodedApkModel
-from intercept.instrument import HarnessObservations, instrumentation_strategy_factory_wrapper
+from intercept.instrument import HarnessObservations, SmaliInstrumentationStrategy, instrumentation_strategy_factory_wrapper
 import intercept.smali
 from util.input import ApkModel, input_apks_from_dir
 
@@ -111,6 +111,12 @@ def instrument_observations_single(instrumenter: HarnessObservations, observatio
 
 instrument_observations_batch = process_as_dataframe(instrument_observations_single, [False, True, True, False, False], [])
 
+# def instrument_instrumenters_single_timed(instrumenters: List[SmaliInstrumentationStrategy], observations: List[InvocationRegisterContext], apk: ApkModel, decoded_apks_directory_path: str, rebuilt_apks_directory_path: str) -> str:
+#     decoded_apk = DecodedApkModel(hybrid_config.decoded_apk_path(decoded_apks_directory_path, apk))
+#     # instrumenter.set_observations(observations)
+#     decoded_apk.instrument(instrumenters)
+#     return elapsed_time
+
 def instrument_experiment_generic(**kwargs):
     # TODO: this needs to get moved to a different file maybe (instrument_experiment??). Is this using the same setup/tear down automation as flowdroid experiments??
     experiment_id, experiment_dir_path, benchmark_df = experiment_setup(**kwargs)
@@ -164,8 +170,8 @@ def report_smali_LOC(results_df: pd.DataFrame, apks_df: pd.DataFrame, decoded_ap
 
         #look for and count smali files
         smali_file_paths = []
-        for smali_dir_path in intercept.smali.DecodedApkModel.get_project_smali_directory_paths(decoded_apk_dir_path):
-            smali_file_paths = intercept.smali.DecodedApkModel.scan_for_smali_file_paths(smali_dir_path)
+        for smali_dir_path in DecodedApkModel.get_project_smali_directory_paths(decoded_apk_dir_path):
+            smali_file_paths = DecodedApkModel.scan_for_smali_file_paths(smali_dir_path)
 
         """
         -JXmx256M
@@ -234,4 +240,7 @@ def extract_decompiled_smali_code_to_heap_snapshot(decompiled_apk_root_path: str
 
 
 
-    
+def instrument_app_single(decoded_apk_path: str, instrumentation_strategies: List[SmaliInstrumentationStrategy]):
+
+    DecodedApkModel(decoded_apk_path).instrument(instrumentation_strategies)
+    pass

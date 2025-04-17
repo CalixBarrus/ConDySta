@@ -179,7 +179,7 @@ def get_experiment_name(dataset_name: str, step_name: str, version: Tuple[int,in
     # return f"date_dataset_version_params"
 
 def setup_experiment_dir(experiment_name: str, experiment_description: str, dependency_dict: Dict[str,typing.Any], always_new_experiment_directory: bool=False) -> Tuple[str, str]:
-    # TODO: this should be refactored into ResultPathManager
+    # TODO: this shouldn't return an experiment_id anymore; that logic is in get_experiment_name(), called by the user.
     experiment_description += ('\n')
     for key, value in dependency_dict.items():
         if key in ["experiment_name", "experiment_description"]:

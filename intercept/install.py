@@ -210,13 +210,29 @@ def install_apk(apk_path: str):
 def check_device_is_ready() -> bool:
     cmd = 'adb devices'
     result = run_command(cmd.split())
+    """ example output:
+List of devices attached
+19031JEC201531  unauthorized
+ZX1G22KHQK      device
 
-    devices_found = result.splitlines()[1].__contains__("device")
+    List is empty if no devices are connected
+    """
+
+    # devices_found = result.splitlines()[1].__contains__("device")
+    result_lines = list(filter(lambda x: x.strip() != "", result.splitlines()))
+    devices_found = len(result_lines) > 1
+
+    multiple_devices = len(result_lines) > 2
 
     if not devices_found:
         logger.error("No devices found. adb devices output: \n" + result)
-
-    # TODO: If multiple devices, make sure ANDROID_SERIAL env variable is set or something
+        return False
+    
+    if multiple_devices:    
+        if os.environ.get("ANDROID_SERIAL") is None:
+            nexus_phone_id = "ZX1G22KHQK"
+            logger.debug(f"Setting ANDROID_SERIAL env variable to use the device {nexus_phone_id}")
+            os.environ["ANDROID_SERIAL"] = nexus_phone_id
 
     return devices_found
 

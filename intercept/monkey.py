@@ -115,6 +115,10 @@ def _uninstall_apk(apk_path):
 
 
 def test_apk_method_factory(execution_input_approach: str, monkey_kwargs: Dict[str, str]) -> Callable[[ApkModel, str], None]:
+    """
+    execution_input_approach: "monkey" or "manual"
+    monkey_kwargs: dictionary of kwargs to pass to the monkey test method
+    """
     default_seconds_to_test = 60
     default_force_stop_when_finished = True
 
@@ -136,6 +140,8 @@ def test_apk_method_factory(execution_input_approach: str, monkey_kwargs: Dict[s
 
 def test_apk_monkey(apk_model: ApkModel, seconds_to_test: int, logcat_output_path: str="", seed: int=-1, force_stop_when_finished=False):
     apk_package_name = apk_model.apk_package_name
+    if apk_package_name is None:
+        raise ValueError()
     # There is not explicit option to run monkey for n seconds, but a time delay
     # between events can be used.
     # As fast as possible on a toy app, monkey generated an event ~once every

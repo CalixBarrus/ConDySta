@@ -90,7 +90,7 @@ def instrumentation_strategy_factory(
         return StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(do_instrument_args)
     elif strategy_name == "HarnessSources":
         assert sources_to_harness_path != ""
-        signatures = sources_to_harness(sources_to_harness_path)
+        signatures = get_signatures_from_file(sources_to_harness_path)
         logger.info(f"Harnessing sources on list of {len(signatures)} method signatures")
         return HarnessSources(signatures)
     elif strategy_name == "HarnessObservations":
@@ -530,7 +530,6 @@ class HarnessSources(SmaliInstrumentationStrategy):
         self.sources_to_instrument = sources
         self.invocation_id = -1
 
-        # TODO Existing experiments weren't controlling this value
         self.overwrite_return = overwrite_return
 
 
@@ -680,6 +679,10 @@ class HarnessSources(SmaliInstrumentationStrategy):
 
 
         return smali_source_method, enclosing_smali_class, enclosing_method_name, observed_value, substituting_value, original_value
+
+    def path_to_directory(self):
+        raise NotImplementedError
+
     
 class HarnessObservations(SmaliInstrumentationStrategy):
     
@@ -1129,7 +1132,7 @@ def instance_child_access_code(base_object_register: str, access_path_register: 
     return code
 
 
-def sources_to_harness(sources_list: str) -> List[MethodSignature]:
+def get_signatures_from_file(sources_list: str) -> List[MethodSignature]:
 
     with open(sources_list, "r") as file:
         sources_text = file.read()

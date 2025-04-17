@@ -9,6 +9,8 @@ logger = util.logger.get_logger(__name__)
 project_root = os.path.dirname(os.path.dirname(__file__))
 
 config = configparser.ConfigParser()
+if not os.path.exists(os.path.join(project_root, 'external_path.ini')):
+    raise FileNotFoundError(f"external_path.ini not found in {project_root}. Please create it from external_path_template.ini.")
 config.read(os.path.join(project_root, 'external_path.ini'))
 
 home_dir = os.getenv("HOME")
