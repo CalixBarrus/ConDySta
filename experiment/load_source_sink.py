@@ -12,11 +12,11 @@ def get_default_source_sink_path(benchmark_name: str, fd_default: bool=False):
 
     if benchmark_name == "fossdroid":
         return "data/sources-and-sinks/SS-from-fossdroid-ground-truth.txt"
-    elif BenchmarkName.FOSSDROID:
-        return "data/sources-and-sinks/SS-from-fossdroid-ground-truth.txt"
     elif benchmark_name == "gpbench":
         return "data/sources-and-sinks/ss-gpl.txt"
-    elif BenchmarkName.GPBENCH:
+    elif benchmark_name == BenchmarkName.FOSSDROID:
+        return "data/sources-and-sinks/SS-from-fossdroid-ground-truth.txt"
+    elif benchmark_name == BenchmarkName.GPBENCH:
         return "data/sources-and-sinks/ss-gpl.txt"
     else:
         raise NotImplementedError

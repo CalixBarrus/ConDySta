@@ -15,7 +15,7 @@ from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.load_source_sink import get_default_source_sink_path
 from hybrid import dynamic, hybrid_config
 from hybrid.flowdroid import FlowdroidArgs
-from hybrid.log_process_fd import flowdroid_time_path_from_log_path, get_count_found_sources, get_flowdroid_analysis_error, get_flowdroid_memory, get_flowdroid_reported_leaks_count, get_flowdroid_time
+from hybrid.log_process_fd import did_flowdroid_timeout, flowdroid_time_path_from_log_path, get_count_found_sources, get_flowdroid_analysis_error, get_flowdroid_memory, get_flowdroid_reported_leaks_count, get_flowdroid_time, get_terminated_early_due_to_memory
 from intercept.instrument import HarnessObservations
 from util.input import InputModel
 
@@ -38,59 +38,61 @@ def get_fd_settings(fd_settings_param: FDSettingsParam) -> FlowdroidArgs:
 def rerun_fd_baseline():
     for ss_list_description in ["ss-per-scenario", "ss-full-fd-default"]:
         for benchmark in BenchmarkName:
+            for fd_settings_param in [FDSettingsParam.DEFAULT, FDSettingsParam.FOSSDROID_MODIFIED]:
 
-            # params_in_name = [da_results_specifier.value] if da_results_specifier != DynamicResultsSpecifier.GPBENCH else []
-            # params_in_name.append(analysis_constraints.name)
-            timeout = 30 * 60 # seconds
-            timeout_description = "30min-timeout"
-            # timeout = 1 * 1 # seconds
-            # timeout_description = "1sec-timeout"
+                # params_in_name = [da_results_specifier.value] if da_results_specifier != DynamicResultsSpecifier.GPBENCH else []
+                # params_in_name.append(analysis_constraints.name)
+                timeout = 30 * 60 # seconds
+                timeout_description = "30min-timeout"
+                # timeout = 1 * 1 # seconds
+                # timeout_description = "1sec-timeout"
 
-            # ss_list_description = "ss-per-scenario"
-            # ss_list_description = "ss-full-fd-default"
-            ss_list_path = get_default_source_sink_path(benchmark, ss_list_description == "ss-full-fd-default")
+                # ss_list_description = "ss-per-scenario"
+                # ss_list_description = "ss-full-fd-default"
+                ss_list_path = get_default_source_sink_path(benchmark, ss_list_description == "ss-full-fd-default")
 
-            fd_settings_param = FDSettingsParam.DEFAULT
-            # fd_settings_param = FDSettingsParam.FOSSDROID_MODIFIED
-            fd_args = get_fd_settings(fd_settings_param)
+                # fd_settings_param = FDSettingsParam.DEFAULT
+                # fd_settings_param = FDSettingsParam.FOSSDROID_MODIFIED
+                fd_args = get_fd_settings(fd_settings_param)
 
-            experiment_name = get_experiment_name(benchmark.value, "flowdroid-baseline", (0,1,5), [timeout_description, ss_list_description, fd_settings_param.value], date_override="")
+                experiment_name = get_experiment_name(benchmark.value, "flowdroid-baseline", (0,1,6), [ss_list_description, fd_settings_param.value], date_override="")
 
-            experiment_description = """Baseline run of FD on apps
-            1.2 - changed ram from 64GB -> 400GB
-            1.5 - added varying FD settings
-            """
+                experiment_description = """Baseline run of FD on apps
+                1.2 - changed ram from 64GB -> 400GB
+                1.5 - added varying FD settings
+                1.6 - changed ram back to 64GB, fixed s/s list for gpbench
+                """
 
-            # pull out all the relevant keyword args    
-            # da_results_directory = get_da_results_directory(benchmark, da_results_specifier)
-            default_ss_list = get_default_source_sink_path(benchmark)
+                # pull out all the relevant keyword args    
+                # da_results_directory = get_da_results_directory(benchmark, da_results_specifier)
+                default_ss_list = get_default_source_sink_path(benchmark)
 
-            flowdroid_kwargs = get_flowdroid_file_paths() 
+                flowdroid_kwargs = get_flowdroid_file_paths() 
 
-            flowdroid_kwargs["flowdroid_args"] = fd_args
-            flowdroid_ram_gigabytes = 400
-            flowdroid_kwargs["flowdroid_args"].java_ram_gigabytes = flowdroid_ram_gigabytes
-            flowdroid_kwargs["timeout"] = timeout
+                flowdroid_kwargs["flowdroid_args"] = fd_args
+                # flowdroid_ram_gigabytes = 400
+                # flowdroid_kwargs["flowdroid_args"].java_ram_gigabytes = flowdroid_ram_gigabytes
+                flowdroid_kwargs["timeout"] = timeout
 
-            df_file_paths = get_wild_benchmarks(benchmark)[0]
-            df_file_paths["source_sink_list_path"] = ss_list_path # change from default that comes with get_wild_benchmarks
-            
-            # Setup up workdir and documentation
-            experiment_id, experiment_directory_path = setup_experiment_dir(experiment_name, experiment_description, dependency_dict=
-                                                                            {
-                                                                            } | flowdroid_kwargs | df_file_paths)
-            workdir = experiment_directory_path
+                df_file_paths = get_wild_benchmarks(benchmark)[0]
+                df_file_paths["source_sink_list_path"] = ss_list_path # change from default that comes with get_wild_benchmarks
+                
+                # Setup up workdir and documentation
+                experiment_id, experiment_directory_path = setup_experiment_dir(experiment_name, experiment_description, dependency_dict=
+                                                                                {
+                                                                                } | flowdroid_kwargs | df_file_paths)
+                workdir = experiment_directory_path
 
-            # actually construct dependencies
-            df = LoadBenchmark(df_file_paths).execute()
-            # harness_observations = HarnessObservations()
-            
-            # no source_sink_column in kwargs, so it'll look up kwargs["source_sink_list_path"]
-            kwargs = flowdroid_kwargs | {"source_sink_list_path": df_file_paths["source_sink_list_path"]}
+                # actually construct dependencies
+                df = LoadBenchmark(df_file_paths).execute()
+                # harness_observations = HarnessObservations()
+                
+                # no source_sink_column in kwargs, so it'll look up kwargs["source_sink_list_path"]
+                kwargs = flowdroid_kwargs | {"source_sink_list_path": df_file_paths["source_sink_list_path"]}
 
-            apks_column = "" # will look up input_model.apk().apk_path()
-            flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", apk_path_column=apks_column, **kwargs)
-            # run_fd_on_apks(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs, observation_harnessed_apks_column)
+                apks_column = "" # will look up input_model.apk().apk_path()
+                flowdroid_on_benchmark_df(workdir, df, flowdroid_logs_directory_name="flowdroid-logs", apk_path_column=apks_column, **kwargs)
+                # run_fd_on_apks(workdir, df, da_results_directory, default_ss_list, harness_observations, flowdroid_kwargs, observation_harnessed_apks_column)
 
 class AnalysisConstraints(Enum):
     DEPTH_0_DA_RESULTS_ONLY = enum.auto() # imitate context sensitive ConDySTA
@@ -139,9 +141,11 @@ def setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark: Benchmar
     params_in_name.append(analysis_constraints.name)
     # params_in_name.append("1sec-timeout")
     # experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,2), params_in_name, date_override="2025-03-26-")
-    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,3), params_in_name, date_override="")
+    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,6), params_in_name, date_override="")
     experiment_description = """Static analysis with observations harnessed
     Doesn't reinstrument apks if already done in the experiment directory.
+
+    1.6 - changed ram back to 64GB, fixed s/s list for gpbench
     """
 
     # pull out all the relevant keyword args    
@@ -150,8 +154,10 @@ def setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark: Benchmar
 
     flowdroid_params = get_flowdroid_file_paths() 
     flowdroid_params["flowdroid_args"] = FlowdroidArgs(**FlowdroidArgs.gpbench_experiment_settings_modified)
-    flowdroid_ram_gigabytes = 400
-    flowdroid_params["flowdroid_args"].java_ram_gigabytes = flowdroid_ram_gigabytes
+
+    # just use default gb = 64
+    # flowdroid_ram_gigabytes = 400
+    # flowdroid_params["flowdroid_args"].java_ram_gigabytes = flowdroid_ram_gigabytes
     
     flowdroid_params["timeout"] = 30 * 60 # seconds
 
@@ -280,6 +286,7 @@ def fd_report_basic_batch(fd_log_path: str, input_model: str, input_df: pd.DataF
         
 
 def fd_report_basic_single(fd_log_path: str, input_model: InputModel) -> Tuple:
+    timeout_seconds = 30 * 60
 
     app_name = input_model.input_identifier()
     
@@ -288,10 +295,20 @@ def fd_report_basic_single(fd_log_path: str, input_model: InputModel) -> Tuple:
 
     count_reported_leaks = get_flowdroid_reported_leaks_count(fd_log_path)
     if count_reported_leaks is None:
-        count_reported_leaks
+        count_reported_leaks = ""
     flowdroid_error = get_flowdroid_analysis_error(fd_log_path)
 
+    if get_terminated_early_due_to_memory(fd_log_path):
+        flowdroid_error = "Terminated early due to insufficient memory; " + flowdroid_error
+
+
+    if did_flowdroid_timeout(flowdroid_time_path_from_log_path(fd_log_path), timeout_seconds):
+        flowdroid_error = "Timed out; " + flowdroid_error
+    
+
     flowdroid_memory = get_flowdroid_memory(fd_log_path)
+    flowdroid_time = get_flowdroid_time(flowdroid_time_path_from_log_path(fd_log_path))
+        
     flowdroid_time = get_flowdroid_time(flowdroid_time_path_from_log_path(fd_log_path))
     count_found_sources, _ = get_count_found_sources(fd_log_path)
     

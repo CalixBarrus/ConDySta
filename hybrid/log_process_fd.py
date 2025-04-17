@@ -3,6 +3,7 @@ import re
 from typing import List, Tuple
 import xml.etree.ElementTree as ET
 
+import experiment
 from experiment.common import format_num_secs
 from hybrid.flow import Flow, create_flows_elements
 from util import logger
@@ -184,9 +185,22 @@ or
     # return count_loaded_sources, count_loaded_sinks, count_found_sources, count_found_sinks
     return int(count_found_sources), int(count_found_sinks)
 
+def get_terminated_early_due_to_memory(flowdroid_log_path: str) -> bool:
+    """
+[Low memory monitor] INFO soot.jimple.infoflow.memory.MemoryWarningSystem - Triggering memory warning at 31380 MB (34359 MB max, 31144 in watched memory pool)…
+… 
+[Low memory monitor] WARN soot.jimple.infoflow.memory.FlowDroidMemoryWatcher - Running out of memory, solvers terminated
+    """
+    with open(flowdroid_log_path, 'r') as file:
+        lines = file.readlines()
 
+        messages = _get_log_messages(lines, "[Low memory monitor] WARN soot.jimple.infoflow.memory.FlowDroidMemoryWatcher - ", "Running out of memory, solvers terminated")
+        if len(messages) > 0:
+            return True
+        
+    return False
 
-def _get_log_messages(lines: str, log_tag: str, message_preamble: str) -> List[Tuple[int, str]]:
+def _get_log_messages(lines: List[str], log_tag: str, message_preamble: str) -> List[Tuple[int, str]]:
     messages = []
     for i, line in enumerate(lines):
         if log_tag + message_preamble in line:
@@ -200,6 +214,14 @@ def flowdroid_time_path_from_log_path(flowdroid_log_path: str) -> str:
 def get_flowdroid_time(flowdroid_time_path: str) -> str:
     with open(flowdroid_time_path, 'r') as file:
         return format_num_secs(int(file.read().strip()))
+    
+def did_flowdroid_timeout(flowdroid_time_path: str, timeout_seconds: int) -> bool:
+    with open(flowdroid_time_path, 'r') as file:
+        experiment_time = int(file.read().strip())
+
+    return experiment_time >= timeout_seconds
+
+    
 
 class FlowdroidLogException(Exception):
     msg: str
