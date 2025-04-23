@@ -1,6 +1,5 @@
 
 
-from enum import Enum
 import os
 import time
 from typing import Callable, List
@@ -8,19 +7,18 @@ from typing import Callable, List
 import pandas as pd
 from experiment import batch
 from experiment import common
-from experiment.batch import ExperimentStepException, process_as_dataframe
+from experiment.batch import LAST_ERROR_COLUMN, ExperimentStepException, process_as_dataframe
 from hybrid import hybrid_config
 from hybrid.dynamic import ExecutionObservation, LogcatLogFileModel
 from intercept import instrument
 from experiment.benchmark_name import BenchmarkName, lookup_benchmark_name
-from experiment.common import format_num_secs, get_experiment_name, get_project_root_path, instrumentation_arguments_default, setup_additional_directories, setup_experiment_dir
-from experiment.instrument import report_smali_LOC
+from experiment.common import format_num_secs, get_experiment_name, instrumentation_arguments_default, setup_additional_directories, setup_experiment_dir
+from experiment.instrument import InstrumentationApproach, report_smali_LOC, setup_dynamic_value_analysis_strategies
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from intercept import decode, keygen, rebuild, sign
 import intercept
 from intercept.decoded_apk_model import DecodedApkModel
 from intercept.install import check_device_is_ready, clean_apps_off_phone, get_package_name, install_apk
-from intercept.instrument import HarnessSources, StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy, instrumentation_strategy_factory_wrapper, get_signatures_from_file
 from intercept.monkey import test_apk_method_factory
 from util.input import ApkModel, InputModel
 
@@ -29,8 +27,8 @@ logger = util.logger.get_logger(__name__)
 
 def instrument_benchmark_apps_all():
     for benchmark_name, instrumentation_approach in [
-        (BenchmarkName.GPBENCH, InstrumentationApproach.SHALLOW_ARGS),
-        (BenchmarkName.FOSSDROID, InstrumentationApproach.SHALLOW_ARGS),
+        # (BenchmarkName.GPBENCH, InstrumentationApproach.SHALLOW_ARGS),
+        # (BenchmarkName.FOSSDROID, InstrumentationApproach.SHALLOW_ARGS),
         (BenchmarkName.FOSSDROID, InstrumentationApproach.INTERCEPT_ARGS),
     ]:
         instrument_benchmark_apps(benchmark_name, instrumentation_approach)
@@ -40,10 +38,10 @@ def instrument_benchmark_apps(benchmark_name: BenchmarkName, instrumentation_app
     benchmark_files = get_wild_benchmarks(benchmark_name)[0]
 
     # df_file_paths = get_wild_benchmarks(benchmark_name)[0]
-    instrumentation_strategies = setup_instrumentation_strategies(instrumentation_approach, benchmark_files)
+    instrumentation_strategies = setup_dynamic_value_analysis_strategies(instrumentation_approach, benchmark_name)
 
     params_in_name = [instrumentation_approach.value]
-    experiment_name = get_experiment_name(benchmark_name.value, "instrument-for-DA", (0,1,2), params_in_name, date_override="")
+    experiment_name = get_experiment_name(benchmark_name.value, "instrument-for-DA", (0,1,2), params_in_name, date_override="2025-04-18")
     experiment_description = """Instrument apps for subsequent dynamic analysis.
     Apps are instrumented to detect ad hoc values according to the logic in HeapSnapshot
     Additionally, selected sources are also harnessed so we know whenever they are triggered during execution. 
@@ -97,58 +95,17 @@ def instrument_benchmark_apps(benchmark_name: BenchmarkName, instrumentation_app
 
     results_df.to_csv(os.path.join(experiment_dir_path, experiment_name + ".csv"))
 
-
-class InstrumentationApproach(Enum):
-    SHALLOW_ARGS = "shallow-args" # also covers returns
-    INTERCEPT_ARGS = "intercept-args"
-    SHALLOW_RETURNS = "shallow-returns"
-    INTERCEPT_RETURNS = "intercept-returns"
-
-def setup_instrumentation_strategies(instrumentation_approach: InstrumentationApproach, benchmark_files):
-
-    harness_sources_directory = os.path.join(get_project_root_path(), "data", "harness-sources")
-    if benchmark_files["benchmark_name"] == "gpbench":
-        harness_sources_path = os.path.join(harness_sources_directory, "gpbench-harness-sources.txt")
-    elif benchmark_files["benchmark_name"] == "fossdroid":
-        harness_sources_path = os.path.join(harness_sources_directory, "fossdroid-harness-sources.txt")
-
-    sources = get_signatures_from_file(harness_sources_path)
-
-    match instrumentation_approach:
-        case InstrumentationApproach.SHALLOW_ARGS:
-            sources = []
-            do_intercept = False
-            do_instrument_args = True
-        case InstrumentationApproach.INTERCEPT_ARGS:
-            sources = []
-            do_intercept = True
-            do_instrument_args = True
-        case InstrumentationApproach.SHALLOW_RETURNS:
-            sources = []
-            do_intercept = False
-            do_instrument_args = False
-        case InstrumentationApproach.INTERCEPT_RETURNS:
-            sources = []
-            do_intercept = True
-            do_instrument_args = False
-        case _:
-            raise ValueError(f"Unknown instrumentation approach: {instrumentation_approach}")
-
-    instrumentation_strategies = [HarnessSources(sources, do_intercept), StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(do_instrument_args)]
-    return instrumentation_strategies
-
-
 def get_instrumented_apps_directory_path(benchmark_name: BenchmarkName, instrumentation_approach: 'InstrumentationApproach'):
     match benchmark_name:
         case BenchmarkName.GPBENCH:
             assert instrumentation_approach == InstrumentationApproach.SHALLOW_ARGS
-            return "data/experiments/2025-04-17_instrument-for-DA_gpbench_0.1.2_shallow-args/signed-apks"
+            return "data/experiments/2025-04-18_instrument-for-DA_gpbench_0.1.2_shallow-args/signed-apks"
         case BenchmarkName.FOSSDROID:
             match instrumentation_approach:
                 case InstrumentationApproach.SHALLOW_ARGS:
-                    return "data/experiments/2025-04-17_instrument-for-DA_fossdroid_0.1.2_shallow-args/signed-apks"
+                    return "data/experiments/2025-04-18_instrument-for-DA_fossdroid_0.1.2_shallow-args/signed-apks"
                 case InstrumentationApproach.INTERCEPT_ARGS:
-                    return "data/experiments/2025-04-17_instrument-for-DA_fossdroid_0.1.2_intercept-args/signed-apks"
+                    return "data/experiments/2025-04-18_instrument-for-DA_fossdroid_0.1.2_intercept-args/signed-apks"
                 case _:
                     raise NotImplementedError()
         case _:
@@ -158,20 +115,21 @@ def get_instrumented_apps_directory_path(benchmark_name: BenchmarkName, instrume
     # "data/experiments/2025-04-09_instrument-for-DA_fossdroid_0.1.1_intercept-args/signed-apks"
     # "data/experiments/2025-04-09_instrument-for-DA_fossdroid_0.1.1_shallow-args/signed-apks"
 
-def dynamic_experiments_main():
+def _4_8_25_dynamic_experiments_main():
     check_device_is_ready()
+    # uninstall_all_3rd_party_apps()
 
     # install_apps_selected_experiment(BenchmarkName.GPBENCH, InstrumentationApproach.SHALLOW_ARGS)
-    # run_apps_selected_experiment(BenchmarkName.GPBENCH, InstrumentationApproach.SHALLOW_ARGS, "manual")
+    run_apps_selected_experiment(BenchmarkName.GPBENCH, InstrumentationApproach.SHALLOW_ARGS, "manual")
     uninstall_all_3rd_party_apps()
 
-    install_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.SHALLOW_ARGS)
-    run_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.SHALLOW_ARGS, "monkey")
-    uninstall_all_3rd_party_apps()
+    # install_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.SHALLOW_ARGS)
+    # run_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.SHALLOW_ARGS, "monkey")
+    # uninstall_all_3rd_party_apps()
 
-    install_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.INTERCEPT_ARGS)
-    run_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.INTERCEPT_ARGS, "monkey")
-    uninstall_all_3rd_party_apps()
+    # install_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.INTERCEPT_ARGS)
+    # run_apps_selected_experiment(BenchmarkName.FOSSDROID, InstrumentationApproach.INTERCEPT_ARGS, "monkey")
+    # uninstall_all_3rd_party_apps()
 
 
 def install_apps_selected_experiment(benchmark, instrumentation_approach: 'InstrumentationApproach'):
@@ -188,7 +146,10 @@ def install_apps_selected_experiment(benchmark, instrumentation_approach: 'Instr
         
         apk_model: ApkModel = inputs_df.loc[i, "Input Model"].apk()
         apk_to_install_path = hybrid_config.apk_path(apks_to_test_directory_path, apk_model)
-        install_apk(apk_to_install_path)
+        if os.path.exists(apk_to_install_path):
+            install_apk(apk_to_install_path)
+        else:
+            logger.error(f"Path {apk_to_install_path} doesn't exist")
 
 def run_apps_selected_experiment(benchmark, instrumentation_approach: 'InstrumentationApproach', execution_approach: str):
 
@@ -219,7 +180,9 @@ def run_apps_selected_experiment(benchmark, instrumentation_approach: 'Instrumen
     inputs_df["Apk Model"] = inputs_df["Input Model"].apply(lambda x: x.apk())
     process_as_dataframe(load_apps_single, [False, True], [])(apks_to_test_directory_path, "Apk Model", input_df=inputs_df, output_col="Instrumented Apk Model")
 
-    inputs_df["Instrumented APK Path"] = inputs_df["Instrumented Apk Model"].apply(lambda x: hybrid_config.apk_path(apks_to_test_directory_path, x))
+
+    mask = inputs_df[LAST_ERROR_COLUMN] == ""
+    inputs_df["Instrumented APK Path"] = inputs_df[mask]["Instrumented Apk Model"].apply(lambda x: hybrid_config.apk_path(apks_to_test_directory_path, x))
     # get_package_name(apk_path, output_apk_model: ApkModel=None)
     process_as_dataframe(get_package_name, [True, True], [])("Instrumented APK Path", "Instrumented Apk Model", input_df=inputs_df, output_col="")
 

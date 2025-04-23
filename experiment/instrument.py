@@ -1,11 +1,13 @@
 
 
+from enum import Enum
 import os
 import time
 from typing import Dict, List
 
 import pandas as pd
 from experiment import external_path
+from experiment.benchmark_name import BenchmarkName
 from experiment.load_benchmark import get_wild_benchmarks
 from experiment.batch import process_as_dataframe
 from experiment.common import instrumentation_arguments_default, subset_setup_generic
@@ -17,7 +19,7 @@ from hybrid.hybrid_config import HybridAnalysisConfig, decoded_apk_path
 from hybrid.invocation_register_context import InvocationRegisterContext
 from intercept import decode, instrument, intercept_main, keygen, rebuild, sign
 from intercept.decoded_apk_model import DecodedApkModel
-from intercept.instrument import HarnessObservations, SmaliInstrumentationStrategy, instrumentation_strategy_factory_wrapper
+from intercept.instrument import HarnessObservations, HarnessSources, SmaliInstrumentationStrategy, StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy, get_signatures_from_file, instrumentation_strategy_factory_wrapper
 import intercept.smali
 from util.input import ApkModel, input_apks_from_dir
 
@@ -244,3 +246,46 @@ def instrument_app_single(decoded_apk_path: str, instrumentation_strategies: Lis
 
     DecodedApkModel(decoded_apk_path).instrument(instrumentation_strategies)
     pass
+
+
+class InstrumentationApproach(Enum):
+    SHALLOW_ARGS = "shallow-args" # also covers returns
+    INTERCEPT_ARGS = "intercept-args"
+    SHALLOW_RETURNS = "shallow-returns"
+    INTERCEPT_RETURNS = "intercept-returns"
+
+
+def setup_dynamic_value_analysis_strategies(instrumentation_approach: InstrumentationApproach, benchmark_name: BenchmarkName):
+    # TODO: change benchmark_files to benchmark_name
+    # TODO: move to experiment.instrument.py so this can be tested. 
+    harness_sources_directory = os.path.join(get_project_root_path(), "data", "harness-sources")
+
+    match benchmark_name:
+        case BenchmarkName.GPBENCH:
+            harness_sources_path = os.path.join(harness_sources_directory, "gpbench-harness-sources.txt")
+        case BenchmarkName.FOSSDROID:
+            harness_sources_path = os.path.join(harness_sources_directory, "fossdroid-harness-sources.txt")
+        case _:
+            raise NotImplementedError(f"Unknown benchmark name: {benchmark_name}")
+
+    match instrumentation_approach:
+        case InstrumentationApproach.SHALLOW_ARGS:
+            do_intercept = False
+            do_instrument_args = True
+        case InstrumentationApproach.INTERCEPT_ARGS:
+            do_intercept = True
+            do_instrument_args = True
+        case InstrumentationApproach.SHALLOW_RETURNS:
+            do_intercept = False
+            do_instrument_args = False
+        case InstrumentationApproach.INTERCEPT_RETURNS:
+            do_intercept = True
+            do_instrument_args = False
+        case _:
+            raise NotImplementedError(f"Unknown instrumentation approach: {instrumentation_approach}")
+
+    sources = get_signatures_from_file(harness_sources_path)
+    instrumentation_strategies = [HarnessSources(sources, do_intercept), StaticFunctionOnInvocationArgsAndReturnsInstrumentationStrategy(do_instrument_args)]
+    return instrumentation_strategies
+
+

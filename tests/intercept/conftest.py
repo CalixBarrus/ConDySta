@@ -12,27 +12,13 @@ phase_report_key = StashKey[Dict[str, CollectReport]]()
 
 
 
-@pytest.hookimpl(wrapper=True, tryfirst=True)
-def pytest_runtest_makereport(item, call):
-    # Code not well understood. Pulled from https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
-
-    # execute all other hooks to obtain the report object
-    rep = yield
-
-    # store test results for each phase of a call, which can
-    # be "setup", "call", "teardown"
-    print("rep.when: " + rep.when)   
-    item.stash.setdefault(phase_report_key, {})[rep.when] = rep
-
-    return rep
-
 @pytest.fixture
 def decompiled_apk_copy(request):
     # TODO: instead of getting fancy with this, just have separate fixture where clients are responsible for deleting it (or not)
 
     # copy smali dirs
     decompiled_apk = "tests/data/decompiledInstrumentableExample/app-debug"
-    assert os.path.exists(decompiled_apk)
+    assert os.path.exists(decompiled_apk), "Run scripts in build and decompile scripts in tests/android/"
 
     # decompiled_apk_copy = "tests/data/decompiledInstrumentableExample_copy"
 

@@ -39,6 +39,11 @@ def rebuild_apk(decoded_apk_directory_path: str, rebuilt_apk_directory_path: str
             os.remove(apk_path(rebuilt_apk_directory_path, apk))
             logger.debug(f"Instrumented APK {apk.apk_name} already present, deleting.")
 
+    java_heap_size = ""
+    java_heap_size = "1g"
+    java_heap_size = "8g"
+    java_heap_arg = ["-JXmx" + java_heap_size] if java_heap_size != "" else []
+
     cmd = ["apktool",  "-JXmx1g",
            "b", decoded_apk_path(decoded_apk_directory_path, apk),
            "-o", apk_path(rebuilt_apk_directory_path, apk),
