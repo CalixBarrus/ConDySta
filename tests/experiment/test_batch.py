@@ -52,3 +52,60 @@ def test_output_multiple_columns(test_data_df: pd.DataFrame):
 
     assert test_data_df["output"].tolist() == [6, 8, 10, 9]
     assert test_data_df["2x Output"].tolist() == [12, 16, 20, 18]
+
+
+def test_multiindex_practice():
+    # Create a sample DataFrame with a MultiIndex
+    arrays = [
+        ['A', 'A', 'B', 'B'],
+        ['one', 'two', 'one', 'two']
+    ]
+    index = pd.MultiIndex.from_arrays(arrays, names=('first', 'second'))
+    # df = pd.DataFrame({'value': [1, 2, 3, 4]}, index=index)
+
+    df1 = pd.DataFrame({'value': [7, 8]}, index=[0, 1])
+    df2 = pd.DataFrame({'other': [9, 10]}, index=[0, 1])
+    df3 = pd.DataFrame({'value': [11, 12]}, index=[1, 4])
+
+    df = pd.concat([df1, df2, df3], axis=0)
+
+    test_series = pd.Series([df1, df2, df3], index=[0, 1, 3])
+
+    print(test_series)
+    # print(test_series.shape)
+    # print(test_series.index)
+
+    # change test_series to multiindex df
+    arrays = [
+        ['A', 'A', 'B', 'B'],
+        ['one', 'two', 'one', 'two']
+    ]
+    benchmark_exploded_index = []
+    flows_indices = []
+    for benchmark_id in test_series.index:
+
+        benchmark_exploded_index = benchmark_exploded_index + [benchmark_id]*len(test_series[benchmark_id].index)
+        flows_indices = flows_indices + list(test_series[benchmark_id].index)
+
+    multiindex = pd.MultiIndex.from_arrays([benchmark_exploded_index, flows_indices], names=('benchmark_id', 'flow_id'))
+    print(multiindex)
+
+    combined_df = pd.concat(test_series.values, axis=0)
+    print(combined_df)
+    combined_df.index = multiindex
+    print(combined_df)
+
+    # print(pd.concat([df1, df2, df3], axis=1))
+    # print(df.index)
+    # print(df.columns)
+
+    # # Print the original DataFrame
+    # print("Original DataFrame:")
+    # print(df)
+
+    # # Reset the index to flatten the MultiIndex
+    # df_reset = df.reset_index()
+
+    # # Print the DataFrame after resetting the index
+    # print("\nDataFrame after resetting index:")
+    # print(df_reset)

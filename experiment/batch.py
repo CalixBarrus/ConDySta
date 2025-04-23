@@ -112,3 +112,21 @@ def process_as_dataframe(on_single: Callable, args_as_columns_mask: List[bool], 
     return as_batch
 
 
+def series_of_dataframe_to_multiindexed_dataframe(series: pd.Series, multi_index_names: List=["benchmark_id", "flow_id"]) -> pd.DataFrame:
+    # Convert a series of dataframes to a multiindexed dataframe
+    # uses the index of the series as the first level of the multiindex
+
+    outer_exploded_index = []
+    inner_indices = []
+    for outer_index in series.index:
+
+        outer_exploded_index = outer_exploded_index + [outer_index]*len(series[outer_index].index)
+        inner_indices = inner_indices + list(series[outer_index].index)
+
+    assert len(multi_index_names) == 2
+    multiindex = pd.MultiIndex.from_arrays([outer_exploded_index, inner_indices], names=multi_index_names)
+
+    combined_df = pd.concat(series.values, axis=0)
+    combined_df.index = multiindex
+    
+    return combined_df

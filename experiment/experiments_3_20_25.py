@@ -12,6 +12,7 @@ from experiment.benchmark_name import BenchmarkName
 from experiment.common import get_experiment_name, get_flowdroid_file_paths, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import flowdroid_on_benchmark_df
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
+from experiment.load_flowdroid_logs import load_flowdroid_logs
 from experiment.load_source_sink import get_default_source_sink_path
 from hybrid import dynamic, hybrid_config
 from hybrid.flowdroid import FlowdroidArgs
@@ -314,20 +315,4 @@ def fd_report_basic_single(fd_log_path: str, input_model: InputModel) -> Tuple:
     
     return app_name, str(count_found_sources), str(count_reported_leaks), flowdroid_error, flowdroid_time, flowdroid_memory
 
-def load_flowdroid_logs(fd_experiment_directory: str, df: pd.DataFrame, output_column: str="") -> pd.DataFrame:
-
-    if output_column == "":
-        output_column = "fd_log_path"
-
-    target_dir_base_name = "flowdroid-logs"
-    if not os.path.basename(fd_experiment_directory) == target_dir_base_name:
-        fd_experiment_directory = os.path.join(fd_experiment_directory, target_dir_base_name)
-
-    assert os.path.exists(fd_experiment_directory), f"Flowdroid experiment directory does not exist: {fd_experiment_directory}"
-    assert os.path.basename(fd_experiment_directory) == target_dir_base_name, f"Flowdroid experiment directory does not have the expected name: {fd_experiment_directory}"
-
-    x: InputModel
-    df[output_column] = df["Input Model"].apply(lambda x: os.path.join(fd_experiment_directory, x.input_identifier() + ".log"))
-
-    return df
 
