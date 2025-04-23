@@ -64,25 +64,28 @@ def get_da_results_directory(benchmark_name: BenchmarkName, specifier: DynamicRe
     match benchmark_name:
         case BenchmarkName.FOSSDROID:
             if specifier == DynamicResultsSpecifier.FOSSDROID_SHALLOW:
-                return "data/OneDrive_1_2-7-2025/2024-10-26-execution-full-fossdroid-extendedStrList-60s/logcat-output"
+                # return "data/OneDrive_1_2-7-2025/2024-10-26-execution-full-fossdroid-extendedStrList-60s/logcat-output"
+                return "data/uploads/2025-04-22_execution_fossdroid_0.1.1_shallow-args_monkey/logcat-output"
             elif specifier == DynamicResultsSpecifier.FOSSDROID_INTERCEPT:
-                return "data/OneDrive_1_2-7-2025/2024-10-28-execution-full-fossdroid-intercept-replace-60s/logcat-output"
+                # return "data/OneDrive_1_2-7-2025/2024-10-28-execution-full-fossdroid-intercept-replace-60s/logcat-output"
+                return "data/uploads/2025-04-22_execution_fossdroid_0.1.1_intercept-args_monkey/logcat-output"
 
         case BenchmarkName.GPBENCH:
-            return "data/OneDrive_1_2-7-2025/initial-results-for-xiaoyin/2024-10-21-execution-full-gpbench-manual/logcat-output"
+            # return "data/OneDrive_1_2-7-2025/initial-results-for-xiaoyin/2024-10-21-execution-full-gpbench-manual/logcat-output"
+            return "data/uploads/2025-04-22_execution_gpbench_0.1.1_shallow-args_manual/logcat-output"
         
-    raise ValueError()
+    raise NotImplementedError()        
 
 
-def report_observations_profile_feb_experiments_all():
+def report_observations_profile_da_experiments_all():
     for benchmark_name, specifier in [
         (BenchmarkName.GPBENCH, DynamicResultsSpecifier.GPBENCH),
         (BenchmarkName.FOSSDROID, DynamicResultsSpecifier.FOSSDROID_SHALLOW),
         (BenchmarkName.FOSSDROID, DynamicResultsSpecifier.FOSSDROID_INTERCEPT)
     ]:
-        report_observations_profile_sep24_experiments(benchmark_name, specifier)
+        report_observations_profile_da_experiments(benchmark_name, specifier)
 
-def report_observations_profile_sep24_experiments(benchmark_name: BenchmarkName, specifier: DynamicResultsSpecifier):
+def report_observations_profile_da_experiments(benchmark_name: BenchmarkName, specifier: DynamicResultsSpecifier):
 
     df_file_paths = get_wild_benchmarks(benchmark_name)[0]
     df = LoadBenchmark(df_file_paths).execute()
@@ -98,7 +101,7 @@ def report_observations_profile_sep24_experiments(benchmark_name: BenchmarkName,
 
     report_name = common.get_experiment_name(benchmark_name.value, "sep24-da-observations-report", (0,1,0), params=[specifier.value])
     
-    reports_dir = os.path.join("data", "experiments", "sep24-da-observations-reports")
+    reports_dir = os.path.join("data", "experiments", "apr25-da-observations-reports")
     os.makedirs(reports_dir, exist_ok=True)
     report_path = os.path.join(reports_dir, f"{report_name}.csv")
 

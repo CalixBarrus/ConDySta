@@ -44,7 +44,7 @@ def rebuild_apk(decoded_apk_directory_path: str, rebuilt_apk_directory_path: str
     java_heap_size = "8g"
     java_heap_arg = ["-JXmx" + java_heap_size] if java_heap_size != "" else []
 
-    cmd = ["apktool",  "-JXmx1g",
+    cmd = ["apktool"] + java_heap_arg + [
            "b", decoded_apk_path(decoded_apk_directory_path, apk),
            "-o", apk_path(rebuilt_apk_directory_path, apk),
            "--use-aapt2"]

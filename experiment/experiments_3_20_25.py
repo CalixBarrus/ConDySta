@@ -12,7 +12,7 @@ from experiment.benchmark_name import BenchmarkName
 from experiment.common import get_experiment_name, get_flowdroid_file_paths, setup_additional_directories, setup_experiment_dir
 from experiment.flowdroid_experiment import flowdroid_on_benchmark_df
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
-from experiment.load_flowdroid_logs import load_flowdroid_logs
+from experiment.load_flowdroid_logs import load_flowdroid_logs_batch
 from experiment.load_source_sink import get_default_source_sink_path
 from hybrid import dynamic, hybrid_config
 from hybrid.flowdroid import FlowdroidArgs
@@ -110,13 +110,19 @@ def get_da_results_directory(benchmark_name: BenchmarkName, specifier: DynamicRe
     match benchmark_name:
         case BenchmarkName.FOSSDROID:
             if specifier == DynamicResultsSpecifier.FOSSDROID_SHALLOW:
-                return "data/OneDrive_1_2-7-2025/2024-10-26-execution-full-fossdroid-extendedStrList-60s/logcat-output"
+                # return "data/OneDrive_1_2-7-2025/2024-10-26-execution-full-fossdroid-extendedStrList-60s/logcat-output"
+                return "data/uploads/2025-04-22_execution_fossdroid_0.1.1_shallow-args_monkey/logcat-output"
             elif specifier == DynamicResultsSpecifier.FOSSDROID_INTERCEPT:
-                return "data/OneDrive_1_2-7-2025/2024-10-28-execution-full-fossdroid-intercept-replace-60s/logcat-output"
+                # return "data/OneDrive_1_2-7-2025/2024-10-28-execution-full-fossdroid-intercept-replace-60s/logcat-output"
+                return "data/uploads/2025-04-22_execution_fossdroid_0.1.1_intercept-args_monkey/logcat-output"
 
         case BenchmarkName.GPBENCH:
-            return "data/OneDrive_1_2-7-2025/initial-results-for-xiaoyin/2024-10-21-execution-full-gpbench-manual/logcat-output"
+            # return "data/OneDrive_1_2-7-2025/initial-results-for-xiaoyin/2024-10-21-execution-full-gpbench-manual/logcat-output"
+            return "data/uploads/2025-04-22_execution_gpbench_0.1.1_shallow-args_manual/logcat-output"
         
+    raise NotImplementedError()        
+
+
 def test_get_da_results_directory():
     for benchmark_name, da_result_specifier in zip([BenchmarkName.GPBENCH, BenchmarkName.FOSSDROID, BenchmarkName.FOSSDROID], DynamicResultsSpecifier):
         assert os.path.exists(get_da_results_directory(benchmark_name, da_result_specifier))
@@ -142,11 +148,12 @@ def setup_and_run_analysis_by_benchmark_name_and_constraints(benchmark: Benchmar
     params_in_name.append(analysis_constraints.name)
     # params_in_name.append("1sec-timeout")
     # experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,2), params_in_name, date_override="2025-03-26-")
-    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,6), params_in_name, date_override="")
+    experiment_name = get_experiment_name(benchmark.value, "SA-with-observations-harnessed", (0,1,7), params_in_name, date_override="")
     experiment_description = """Static analysis with observations harnessed
     Doesn't reinstrument apks if already done in the experiment directory.
 
     1.6 - changed ram back to 64GB, fixed s/s list for gpbench
+    1.7 - using 4/22/25 da experiment results
     """
 
     # pull out all the relevant keyword args    
@@ -269,7 +276,7 @@ def fd_report_basic_runner(benchmark: BenchmarkName, sa_results: str, results_di
     # actually construct dependencies
     df = LoadBenchmark(df_file_paths).execute()
 
-    df = load_flowdroid_logs(sa_results, df, "fd_log_path")
+    df = load_flowdroid_logs_batch(sa_results, df, "fd_log_path")
 
     fd_report_basic_batch("fd_log_path", "Input Model", df, "Benchmark ID", ["App Name", "Sources", "Leaks", "Error", "Time", "Memory"]
                           ).to_csv(os.path.join(results_dir, f"{report_name}.csv"))

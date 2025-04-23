@@ -128,5 +128,7 @@ def test_apply_flow_mapping_cross_demo():
 
     mapped_13 = apply_flow_mapping(mapped_12, df3, ["string_observed"], ["expected_string_observed"])
 
-    assert len(mapped_23) > 1
+    # print(mapped_13.to_string())
+
+    assert len(mapped_13) > 1
 
