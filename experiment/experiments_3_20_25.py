@@ -256,7 +256,7 @@ def fd_report_basic_experiments_folder():
             benchmark = BenchmarkName.FOSSDROID
         elif "fd_report_basic" in sa_results:
             continue
-        elif "sep24-da-observations-reports" in sa_results:
+        elif "sep24-da-observations-reports" in sa_results or "apr25-da-observations-reports" in sa_results:
             continue
 
         fd_report_basic_runner(benchmark, sa_results, reports_dir)

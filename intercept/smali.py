@@ -46,17 +46,12 @@ class SmaliMethodInvocation:
         return SmaliMethodInvocation()
         # return SmaliMethodInvocation(-1, "", False, [], "", "", [], "", -1, "", "")
 
-    @staticmethod
-    def is_invocation(line: str) -> bool:
-        return line.strip().startswith("invoke")
 
-    @staticmethod
-    def is_move_result(line):
-        return line.strip().startswith("move-result")
 
     @staticmethod
     def is_filled_new_array(line):
-        return line.strip().startswith("filled-new-array")
+        # return line.strip().startswith("filled-new-array")
+        return line.startswith("filled-new-array")
 
     # def is_primitive_register(self, register_index):
     #     return self._is_type_primitive(self.register_type(register_index))
@@ -538,6 +533,7 @@ class SmaliFile:
         """
 
     def parse_smali_method(self, lines: List[str], function_start_index: int, enclosing_class_name: str) -> 'SmaliMethod':
+        # FYI: When loading the Fossdroid dataset, this function gets called 400,000 times. 
         # TODO: This should prolly get moved to Smali Method
 
         result_method: SmaliMethod = SmaliMethod()
@@ -546,41 +542,105 @@ class SmaliFile:
 
         self.parse_method_signature(result_method, lines[function_start_index])
 
+        # TODO: maybe a fast line classifier would be faster given that there are only so many fixed patterns we are expecting
 
         for i in range(function_start_index, len(lines)):
             line = lines[i]
             line = line.strip()
-            if line == (".end method"):
-                result_method.end_line_number = i
-                break
-            elif line.startswith(".locals"):
-                # Line will be of form
-                # .locals [n]
-                # where n is the number of locals used in the method
-                result_method.locals_line_number = i
-                result_method.number_of_locals = int(line.split(" ")[1])
-            elif line.startswith("return"):
-                result_method.return_line_numbers.append(i)
-                if line != "return-void":
-                    # if not void return, line is expected to be
-                    # "return v[n]" where n is the number of the return register
-                    result_method.return_registers.append(line.split(" ")[1])
-            elif SmaliMethodInvocation.is_invocation(line):
-                new_invocation = SmaliMethodInvocation.parse_invocation_line(i, line)
-                result_method.invocation_statements.append(new_invocation)
-            elif SmaliMethodInvocation.is_move_result(line):
-                # Move result always occurs after a method invoke or a filled-new-array instruction. We want to ignore move_results due to filled-new-array instructions
-                j, prev_instr_line = SmaliMethodInvocation.get_prev_instruction(i, lines)
-                if not SmaliMethodInvocation.is_filled_new_array(prev_instr_line):
-                    self.parse_move_result(
-                        result_method.invocation_statements[-1], i, line)
 
+
+
+            # if line == (".end method"):
+            #     result_method.end_line_number = i
+            #     break
+            # elif line.startswith(".locals"):
+            #     # Line will be of form
+            #     # .locals [n]
+            #     # where n is the number of locals used in the method
+            #     result_method.locals_line_number = i
+            #     result_method.number_of_locals = int(line.split(" ")[1])
+            # elif line.startswith("return"):
+            #     result_method.return_line_numbers.append(i)
+            #     if line != "return-void":
+            #         # if not void return, line is expected to be
+            #         # "return v[n]" where n is the number of the return register
+            #         result_method.return_registers.append(line.split(" ")[1])
+            # elif line.startswith("invoke"):
+            #     new_invocation = SmaliMethodInvocation.parse_invocation_line(i, line)
+            #     result_method.invocation_statements.append(new_invocation)
+            # elif line.startswith("move-result"):
+            #     # Move result always occurs after a method invoke or a filled-new-array instruction. We want to ignore move_results due to filled-new-array instructions
+            #     j, prev_instr_line = SmaliMethodInvocation.get_prev_instruction(i, lines)
+            #     if not SmaliMethodInvocation.is_filled_new_array(prev_instr_line):
+            #         self.parse_move_result(result_method.invocation_statements[-1], i, line)
+                    
+            match self.fast_custom_starts_with_smali_line(line):
+                case 0:
+                    result_method.end_line_number = i
+                    break
+                case 1:
+                    result_method.locals_line_number = i
+                    result_method.number_of_locals = int(line.split(" ")[1])
+                case 2:
+                    result_method.return_line_numbers.append(i)
+                case 3:
+                    result_method.return_line_numbers.append(i)
+                    result_method.return_registers.append(line.split(" ")[1])
+                case 4:
+                    result_method.invocation_statements.append(SmaliMethodInvocation.parse_invocation_line(i, line))
+                case 5:
+                    j, prev_instr_line = SmaliMethodInvocation.get_prev_instruction(i, lines)
+                    if not prev_instr_line.startswith("filled-new-array"):
+                        self.parse_move_result(result_method.invocation_statements[-1], i, line)
 
         # debug
-        assert result_method.start_line_number < result_method.end_line_number
+        # assert result_method.start_line_number < result_method.end_line_number
         # end debug
 
         return result_method
+
+    def fast_custom_starts_with_smali_line(self, line: str) -> int:
+        # cases = [".end method"-exact, ".locals", "return-void"-exact, "return", "invoke", "move-result", "filled-new-array"]
+        # returns the index of the case if it is a match, otherwise -1
+        line_length = len(line)
+        if line_length == 0:
+            return -1
+
+        match line[0]:
+            case ".":
+                if line_length == 1:
+                    return -1
+                match line[1]:
+                    case "e":
+                        if line == ".end method":
+                            return 0 # ".end method" - exact
+                        else: 
+                            return -1
+                    case "l":
+                        if len(line) >= len(".locals") and line[:len(".locals")] == ".locals":
+                            return 1 # ".locals" - starts with
+                        else:
+                            return -1
+            case "r":
+                if line == "return-void":
+                    return 2 # "return-void" - exact
+                elif len(line) >= len("return") and line[:len("return")] == "return":
+                    return 3 # "return" - starts with
+                else:
+                    return -1
+            case "i":
+                if len(line) >= len("invoke") and line[:len("invoke")] == "invoke":
+                    return 4 # "invoke" - starts with
+                else:
+                    return -1
+            case "m":
+                if len(line) >= len("move-result") and line[:len("move-result")] == "move-result":
+                    return 5 # "move-result" - starts with
+                else:
+                    return -1
+            case _:
+                return -1
+
 
     def parse_method_signature(self, method: 'SmaliMethod', signature: str) -> None:
         # Signature should be of the form

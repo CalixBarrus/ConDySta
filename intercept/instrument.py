@@ -718,6 +718,21 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
         self.set_observations(observations)
 
+        self.set_record_taint_function_mapping(record_taint_function_mapping)
+        # if self.record_taint_function_mapping:
+        #     self.mapping_key_cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method"]
+        #     self.mapping_observation_lookup_cols = ["Invocation Java Signature", "Argument Register Index", "Access Path"]
+        #     self.mapping_str_observation_lookup_cols = ["Observed Strings"]
+        #     # TODO: df_cols won't get updated correctly if someone changes any col names
+        #     self.cols_of_df_instrumentation_reporting = self.mapping_key_cols + self.mapping_observation_lookup_cols + self.mapping_str_observation_lookup_cols
+        #     # self.result_cols = ["Enclosing Class", "Enclosing Method", "Invocation ID", "Argument Register Index", "Access Path"]
+
+        #     self.df_instrumentation_reporting = self._initialize_df()
+
+        self.unprocessed_observed_strings = []
+
+    def set_record_taint_function_mapping(self, record_taint_function_mapping: bool):
+        self.record_taint_function_mapping = record_taint_function_mapping
         if self.record_taint_function_mapping:
             self.mapping_key_cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method"]
             self.mapping_observation_lookup_cols = ["Invocation Java Signature", "Argument Register Index", "Access Path"]
@@ -728,7 +743,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
             self.df_instrumentation_reporting = self._initialize_df()
 
-        self.unprocessed_observed_strings = []
+
 
 
     def set_observations(self, observations: List[InvocationRegisterContext]):
@@ -744,7 +759,6 @@ class HarnessObservations(SmaliInstrumentationStrategy):
 
         # TODO: Deduplication should for sure happen here; the HarnessObservations settings should provide all needed context for deduplicating appropriately
 
-        # TODO: need to reset counters? 
     
     def set_observed_strings(self, observed_strings: List[Set[str]]):
         self.unprocessed_observed_strings = observed_strings

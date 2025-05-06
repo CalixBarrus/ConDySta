@@ -96,9 +96,11 @@ def process_as_dataframe(on_single: Callable, args_as_columns_mask: List[bool], 
                 else: 
                     # TODO check that result is tuple of scalars; if there is a list in there, loc might break
                     if output_col != "":
-                        input_df.loc[i, output_col] = result
+                        for single_col, single_result in zip(output_col, result):
+                            input_df.at[i, single_col] = single_result
                     else:
-                        result_series.loc[i] = result
+                        # Save the raw tuple as each entry in the series
+                        result_series.at[i] = result
 
             except ExperimentStepException as e:
                 input_df.at[i, LAST_ERROR_COLUMN] = e.__str__()

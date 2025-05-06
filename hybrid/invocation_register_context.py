@@ -49,9 +49,12 @@ def filter_access_paths_with_length_1(contexts: List[InvocationRegisterContext],
 
     # context: InvocationRegisterContext
     # len(context[1].fields)
+    
+    if string_sets == []:
+        string_sets = [set()] * len(contexts)
 
     f = lambda i: len(contexts[i][1].fields) == 1
-    filtered_indices = filter(f, range(len(contexts)))
+    filtered_indices = list(filter(f, range(len(contexts))))
 
     # TODO: deduplicate contexts/merge string_sets
 

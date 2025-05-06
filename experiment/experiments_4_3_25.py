@@ -174,17 +174,19 @@ def get_readonly_decoded_apk_models(benchmark_name: BenchmarkName, input_df, out
     decoded_apk_path_col = output_col
     input_df[decoded_apk_path_col] = input_df["Input Model"].apply(lambda model: hybrid_config.decoded_apk_path(decoded_apks_directory_path, model.apk()))
 
-    already_decoded_mask = ~input_df[decoded_apk_path_col].apply(lambda path: os.path.exists(path))
+    not_already_decoded_mask = ~input_df[decoded_apk_path_col].apply(lambda path: os.path.exists(path))
+    if not_already_decoded_mask.any():
+        # decode.decode_apk(decoded_apks_directory_path, apk, clean=True)
+        batch_decode = process_as_dataframe(decode.decode_apk, [False, True], [False])
 
-    # decode.decode_apk(decoded_apks_directory_path, apk, clean=True)
-    batch_decode = process_as_dataframe(decode.decode_apk, [False, True], [False])
+        # paths generated as    
+        # decoded_apk_path = hybrid_config.decoded_apk_path(decoded_apks_directory_path, apk)
+        input_df["Apk Model"] = input_df["Input Model"].apply(lambda model: model.apk())
+        batch_decode(decoded_apks_directory_path, "Apk Model", clean=False, input_df=input_df[not_already_decoded_mask], output_col="")
+        input_df.drop(columns=["Apk Model"], inplace=True)
 
-    # paths generated as    
-    # decoded_apk_path = hybrid_config.decoded_apk_path(decoded_apks_directory_path, apk)
-    input_df["Apk Model"] = input_df["Input Model"].apply(lambda model: model.apk())
-    batch_decode(decoded_apks_directory_path, "Apk Model", clean=False, input_df=input_df[already_decoded_mask], output_col="")
-    input_df.drop(columns=["Apk Model"], inplace=True)
-    
+    # Get DecodedApkModels for result
+    input_df[output_col] = input_df["Input Model"].apply(lambda model: DecodedApkModel(hybrid_config.decoded_apk_path(decoded_apks_directory_path, model.apk())))
 
 
 save_to_file_batch = process_as_dataframe(save_to_file, [True, True], [])
@@ -192,7 +194,8 @@ save_to_file_batch = process_as_dataframe(save_to_file, [True, True], [])
 class AnalysisConstraints(Enum):
     DEPTH_0_DA_RESULTS_ONLY = enum.auto() # imitate context sensitive ConDySTA
     DISABLE_FIELD_SENSITIVITY = enum.auto() # Base objects should be tainted. Expected to have more FP than enabled field sensitivity
-    FULL_CONTEXT_AND_FIELD_SENSITIVITY = enum.auto()    
+    FULL_CONTEXT_AND_FIELD_SENSITIVITY = enum.auto()  
+
 
 def harness_observations_from_constraints(constraints: AnalysisConstraints) -> HarnessObservations:
     match constraints:
@@ -202,6 +205,17 @@ def harness_observations_from_constraints(constraints: AnalysisConstraints) -> H
             return HarnessObservations(disable_field_sensitivity=True)
         case AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY:
             return HarnessObservations()
+        
+def lookup_AnalysisConstraints(path: str) -> AnalysisConstraints:
+    if "DEPTH_0_DA_RESULTS_ONLY" in path:
+        return AnalysisConstraints.DEPTH_0_DA_RESULTS_ONLY
+    elif "DISABLE_FIELD_SENSITIVITY" in path:
+        return AnalysisConstraints.DISABLE_FIELD_SENSITIVITY
+    elif "FULL_CONTEXT_AND_FIELD_SENSITIVITY" in path:
+        return AnalysisConstraints.FULL_CONTEXT_AND_FIELD_SENSITIVITY
+    else:
+        raise NotImplementedError(f"Unknown analysis constraints: {path}")
+
 
 def report_instrumentation_location_details_all():
     # we want instr details for the 9 settings.
