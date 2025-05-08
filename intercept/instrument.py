@@ -1181,7 +1181,7 @@ def extract_private_string(flagged_string_value: str) -> Set[str]:
     if len(private_strings) > 0:
         return private_strings
     else:
-        logger.error(f"Unable to determine private string that caused flag on value: {flagged_string_value}")
+        # logger.error(f"Unable to determine private string that caused flag on value: {flagged_string_value}")
         return {"UNKNOWN"}
     
 

@@ -234,6 +234,8 @@ class LogcatLogFileModel:
     path: str
     lines: List[str]
 
+    _matched_against_statements_cache: Optional[List[Tuple[int, str]]]
+
     # exceptions: List['ExceptionModel']
 
     def __init__(self, log_path):
@@ -252,6 +254,8 @@ class LogcatLogFileModel:
             self.lines = log_file.readlines()
 
         self.path = log_path
+
+        self._matched_against_statements_cache = None
 
         # self.exceptions = self._scan_lines_for_exception_blocks()
 
@@ -295,7 +299,7 @@ class LogcatLogFileModel:
     def scan_log_for_instrumentation_reports(self) -> List['InstrumentationReport']:
         return [report for report, _, _ in self.scan_log_for_instrumentation_report_tuples()]
 
-    def scan_log_for_instrumentation_report_tuples(self) -> List[Tuple[InstrumentationReport, AccessPath, str]]:
+    def scan_log_for_instrumentation_report_tuples(self) -> List[Tuple[InstrumentationReport, AccessPath, Set[str]]]:
         # Tuples are instr_report, access_path, private_string
         # "Example 07-21 12:46:10.902  7001  7001 D Snapshot: InstrumentationReport(invoke_signature='<Lc..."
 
@@ -313,11 +317,21 @@ class LogcatLogFileModel:
                     raise AssertionError("Log did not parse correctly")
 
 
-                instr_report_string, access_path, private_string = re_result.group(1), re_result.group(
+                instr_report_string, access_path, flagged_string_value = re_result.group(1), re_result.group(
                     2), re_result.group(3)
                 # instr_report_string should be a working constructor for an InstrumentationReport object.
                 # access_path is the str representation of a List<FieldInfo> object, defined in Snapshot.Java
                 # private_string is the listed string of PII that was detected by the Snapshot code
+
+                private_string_set = extract_private_string(flagged_string_value)
+                if private_string_set == {"UNKNOWN"}:
+                    
+                    debug_line, debug_flagged_string_value = self._find_next_string_match_against_statement(i)                    
+                    if debug_flagged_string_value is not None:
+                        logger.debug(f"Looking up string for log line {i} in next debug statement at line {debug_line}")
+                        private_string_set = {debug_flagged_string_value}
+                    else: 
+                        logger.error(f"Unable to determine private string that caused flag on value: {flagged_string_value}")
 
                 if len(re.findall("InstrumentationReport", instr_report_string)) > 1:
                     logger.error(f"Instrumentation produced a bad string on line {i} of {os.path.basename(self.path)}; Tainted string was itself an Instrumentation Report! '{instr_report_string}'")
@@ -326,7 +340,7 @@ class LogcatLogFileModel:
                 access_path: AccessPath = AccessPath(access_path)
 
                 instr_report = eval(instr_report_string)
-                instr_report_tuples.append((instr_report, access_path, private_string))
+                instr_report_tuples.append((instr_report, access_path, private_string_set))
 
         return instr_report_tuples
     
@@ -378,12 +392,29 @@ class LogcatLogFileModel:
 
 
     def _get_log_messages(self, lines: str, log_tag: str, message_preamble: str) -> List[Tuple[int, str]]:
+        # strings with log_tag + message_preamble will be returned
+        # The string to be returned will start after log_tag, beginning with message_preamble
+
         errors = []
         for i, line in enumerate(lines):
             if log_tag + message_preamble in line:
                 errors.append((i, line.split(log_tag)[1]))
 
         return errors
+    
+    def _find_next_string_match_against_statement(self, current_line_number: int) -> Tuple[int, str]:
+        # example: 
+        # 05-08 11:39:36.390 26915 26915 D Snap-Debug: String matched against: en_US
+
+        if self._matched_against_statements_cache is None:
+            self._matched_against_statements_cache = self._get_log_messages(self.lines, "D Snap-Debug: String matched against: ", "")
+        
+        for i, message in self._matched_against_statements_cache:
+            if i > current_line_number:
+                return i, message
+            
+        return None, None
+
 
 def filter_exceptions_by_header(target_strings: List[str], exceptions) -> \
         List["ExceptionModel"]:
@@ -614,8 +645,9 @@ class ExecutionObservation:
         # Keeps track of information to be later queried through other functions.
 
         if not isinstance(instrumentation_result, InstrumentationReport):
-            instrumentation_report, access_path, flagged_string_value = instrumentation_result
-            private_string = extract_private_string(flagged_string_value)
+            instrumentation_report, access_path, private_string = instrumentation_result
+            # private_string = extract_private_string(flagged_string_value)
+            # TODO: if string not extracted successfully, we should look for the next debug msg in the log that specifies the triggering string
             invocation_id = instrumentation_report.invoke_id
 
             self._try_initialize_invocation_id(invocation_id, instrumentation_report)                        
@@ -645,7 +677,7 @@ class ExecutionObservation:
                     if invocation_id not in dictionary.keys():
                         dictionary[invocation_id] = dict()
 
-    def _update_register_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, observed_string: str="Not-Reported") -> None:
+    def _update_register_taints(self, invocation_id: int, instrumentation_report: InstrumentationReport, observed_string: Set[str]={"Not-Reported"}) -> None:
 
 
         # update observation data structures
@@ -741,7 +773,7 @@ class ExecutionObservation:
 
                     self.argument_access_path_newly_tainted[invocation_id][invocation_argument_register_index][access_path] = False
 
-    def _add_to_nested_dict(self, nested_dict, value_to_add: str, *keys):
+    def _add_to_nested_dict(self, nested_dict, value_to_add: Set[str], *keys):
         # Add a string to a the set at the innermost dictionary of a nested dictionary.
         # Creates an empty set if it's the first string to be added
         
