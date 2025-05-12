@@ -3,9 +3,12 @@ import re
 from typing import List, Tuple
 import xml.etree.ElementTree as ET
 
+import pandas as pd
+
 import experiment
+from experiment.batch import ExperimentStepException, process_as_dataframe
 from experiment.common import format_num_secs
-from hybrid.flow import Flow, create_flows_elements
+from hybrid.flow import Flow, create_flows_elements, get_reported_fd_flows_as_df
 from util import logger
 import util.logger
 logger = util.logger.get_logger(__name__)
@@ -98,6 +101,35 @@ def get_flowdroid_flows(flowdroid_log_path: str, apk_path: str) -> List[Flow]:
                 flows += create_flows_elements(sink_statement_full, sink_method, sink_class_name, source_tuples, apk_path)
 
     return flows
+
+def deduplicate_flows(flows: List[Flow]) -> List[Flow]:
+    # Deduplicate flows based on the source and sink methods, enclosing methods, and enclosing classes
+    # Note that FD differentiates between multiple statements in the same method
+
+    column_names = ["flow", "source_method", "source_enclosing_method", "source_enclosing_class", "sink_method", "sink_enclosing_method", "sink_enclosing_class"]
+    flows_df = get_reported_fd_flows_as_df(flows, column_names)
+
+    total_flows = len(flows_df)
+
+    flows_df.drop_duplicates(inplace=True, subset=["source_method", "source_enclosing_method", "source_enclosing_class", "sink_method", "sink_enclosing_method", "sink_enclosing_class"])
+
+    deduped_flows = len(flows_df)
+    if total_flows != deduped_flows:
+        logger.debug(f"Deduplicated {total_flows} flows to {deduped_flows} flows")
+
+    return list(flows_df["flow"].values)
+    
+
+
+def get_flowdroid_flows_from_df(flowdroid_log_path: str, apk_path: str, input_df: pd.DataFrame, output_col: str):
+    def _error_wrapper(a, b):
+        try:
+            return get_flowdroid_flows(a, b)
+        except FlowdroidLogException as e:
+            raise ExperimentStepException(e.msg)
+    
+    # TODO: this is a dependency from hybrid module into experiment module :(, this probably needs to live somewhere else
+    return process_as_dataframe(_error_wrapper, [True, False], [])(flowdroid_log_path, apk_path, input_df=input_df, output_col=output_col)
 
 
 def get_flowdroid_analysis_error(flowdroid_log_path: str) -> str:

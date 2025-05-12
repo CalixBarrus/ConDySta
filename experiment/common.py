@@ -178,7 +178,7 @@ def get_experiment_name(dataset_name: str, step_name: str, version: Tuple[int,in
     return "_".join([date, step_name, dataset_name, version_str] + params + reproduction_list)
     # return f"date_dataset_version_params"
 
-def setup_experiment_dir(experiment_name: str, experiment_description: str, dependency_dict: Dict[str,typing.Any], always_new_experiment_directory: bool=False) -> Tuple[str, str]:
+def setup_experiment_dir(experiment_name: str, experiment_description: str, dependency_dict: Dict[str,typing.Any], always_new_experiment_directory: bool=False, specify_experiments_subdirectory: str="") -> Tuple[str, str]:
     # TODO: this shouldn't return an experiment_id anymore; that logic is in get_experiment_name(), called by the user.
     experiment_description += ('\n')
     for key, value in dependency_dict.items():
@@ -211,7 +211,12 @@ def setup_experiment_dir(experiment_name: str, experiment_description: str, depe
                     experiment_id = experiment_id + str(i)
                     break
 
-    experiment_directory_path = os.path.join("data", "experiments", experiment_id)    
+    if specify_experiments_subdirectory != "":
+        os.makedirs(os.path.join("data", "experiments", specify_experiments_subdirectory), exist_ok=True)
+        experiment_directory_path = os.path.join("data", "experiments", specify_experiments_subdirectory, experiment_id)
+    else:
+        experiment_directory_path = os.path.join("data", "experiments", experiment_id)    
+
     for dir_path in [os.path.join("data"), os.path.join("data", "experiments"), experiment_directory_path]:
         if not os.path.isdir(dir_path):
             os.mkdir(dir_path)
@@ -279,6 +284,13 @@ def recent_experiment_directory_path(size: str, base_name: str, benchmark_name: 
 
 def source_sink_dir_path() -> str:
     return "data/sources-and-sinks"
+
+def lookup_experiment_parameter(experiment_path: str, parameter_name: str) -> str:
+
+    with open(os.path.join(experiment_path, "README.txt"), 'r') as file:
+        for line in file:
+            if line.startswith(parameter_name):
+                return line.split(": ")[1].strip()
 
 #### End Internal File Stuff
 

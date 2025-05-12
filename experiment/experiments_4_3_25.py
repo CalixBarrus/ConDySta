@@ -11,7 +11,7 @@ from typing import List, Tuple
 import pandas as pd
 
 from experiment import common
-from experiment.batch import process_as_dataframe
+from experiment.batch import ExperimentStepException, process_as_dataframe
 from experiment.benchmark_name import BenchmarkName
 from experiment.load_benchmark import LoadBenchmark, get_wild_benchmarks
 from experiment.report import save_to_file
@@ -185,8 +185,16 @@ def get_readonly_decoded_apk_models(benchmark_name: BenchmarkName, input_df, out
         batch_decode(decoded_apks_directory_path, "Apk Model", clean=False, input_df=input_df[not_already_decoded_mask], output_col="")
         input_df.drop(columns=["Apk Model"], inplace=True)
 
+
     # Get DecodedApkModels for result
-    input_df[output_col] = input_df["Input Model"].apply(lambda model: DecodedApkModel(hybrid_config.decoded_apk_path(decoded_apks_directory_path, model.apk())))
+    def _error_wrapper(model: InputModel):
+        decoded_apk_root_path = hybrid_config.decoded_apk_path(decoded_apks_directory_path, model.apk())
+        if not os.path.exists(decoded_apk_root_path):
+            raise ExperimentStepException(f"Readonly decoded apk not found at {decoded_apk_root_path}")
+        
+        return DecodedApkModel(decoded_apk_root_path)
+        
+    return process_as_dataframe(_error_wrapper, [True], [])("Input Model", input_df=input_df, output_col=output_col)
 
 
 save_to_file_batch = process_as_dataframe(save_to_file, [True, True], [])

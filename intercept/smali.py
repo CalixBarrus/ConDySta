@@ -64,6 +64,7 @@ class SmaliMethodInvocation:
 
     def get_java_style_signature(self) -> str:
         # TODO: move this method to source_sink.py
+        # TODO: This has overlap with MethodSignature.from_smali_style_signature
 
         method_name = self.method_name
         java_style_class_name = self.smali_type_to_java_type(self.class_name)

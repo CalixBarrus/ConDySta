@@ -547,10 +547,10 @@ class HarnessSources(SmaliInstrumentationStrategy):
 
         code_insertions = instrument_by_invocation(smali_file, self._instrument_invocation_statement)
 
-        # start debug
-        if len(code_insertions) > 0:
-            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {','.join([str(insertion.line_number) for insertion in code_insertions])}")
-        # end debug
+        # # start debug
+        # if len(code_insertions) > 0:
+        #     logger.debug(f"Code insertions on file {smali_file.file_path} on lines {','.join([str(insertion.line_number) for insertion in code_insertions])}")
+        # # end debug
 
         return code_insertions
 
@@ -734,7 +734,7 @@ class HarnessObservations(SmaliInstrumentationStrategy):
     def set_record_taint_function_mapping(self, record_taint_function_mapping: bool):
         self.record_taint_function_mapping = record_taint_function_mapping
         if self.record_taint_function_mapping:
-            self.mapping_key_cols = ["Taint Function Name", "Enclosing Class", "Enclosing Method"]
+            self.mapping_key_cols = ["Taint Function Signature", "Enclosing Class", "Enclosing Method Name"]
             self.mapping_observation_lookup_cols = ["Invocation Java Signature", "Argument Register Index", "Access Path"]
             self.mapping_str_observation_lookup_cols = ["Observed Strings"]
             # TODO: df_cols won't get updated correctly if someone changes any col names
@@ -864,10 +864,10 @@ class HarnessObservations(SmaliInstrumentationStrategy):
             required_registers = 2
             code_insertions = instrument_by_invocation(smali_file, _instrument_invocation_statement, required_registers)
 
-        # start debug
-        if len(code_insertions) > 0:
-            logger.debug(f"Code insertions on file {smali_file.file_path} on lines {','.join([str(insertion.line_number) for insertion in code_insertions])}")
-        # end debug
+        # # start debug
+        # if len(code_insertions) > 0:
+        #     logger.debug(f"Code insertions on file {smali_file.file_path} on lines {','.join([str(insertion.line_number) for insertion in code_insertions])}")
+        # # end debug
 
         return code_insertions
     

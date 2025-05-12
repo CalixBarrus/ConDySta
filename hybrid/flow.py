@@ -106,6 +106,11 @@ class Flow:
         else:
             return ""
 
+    def get_source_method_name(self) -> str:
+        method_name = self.get_source_method_text()
+        method: MethodSignature = MethodSignature.from_java_style_signature(method_name)
+        return method.method_name
+
     def get_sink_method_text(self) -> str:
         sink = self._get_sink_reference()
         method_element = sink.find("method")
@@ -466,24 +471,26 @@ def write_element(element: ET.Element, output_path: str):
     tree.write(output_path)
 
 def get_reported_fd_flows_as_df(reported_fd_flows: List[Flow], col_names: List[str]=[]) -> pd.DataFrame:
-    columns = ["source_method", "source_enclosing_method", "source_enclosing_class", "sink_method", "sink_enclosing_method", "sink_enclosing_class"]
+    columns = ["flow", "source_method", "source_enclosing_method", "source_enclosing_class", "sink_method", "sink_enclosing_method", "sink_enclosing_class"]
 
     if col_names != []:
-        assert len(col_names) == 6
+        assert len(col_names) == len(columns)
         for i, col_name in enumerate(col_names):
             if col_name != "":
                 columns[i] = col_name
 
     data = []
     for flow in reported_fd_flows:
-        source_method = flow.get_source_statementgeneric() # TODO: extract signature
+        source_method = flow.get_source_statementgeneric() 
+        source_method = str(MethodSignature.from_java_style_signature(source_method)) # Makes sure signature formatting is consistent
         source_enclosing_method = flow.get_source_method_text()
         source_enclosing_class = flow.get_source_classname_text()
 
-        sink_method = flow.get_sink_statementgeneric() # TODO: extract signature
+        sink_method = flow.get_sink_statementgeneric() 
+        sink_method = str(MethodSignature.from_java_style_signature(sink_method))
         sink_enclosing_method = flow.get_sink_method_text()
         sink_enclosing_class = flow.get_sink_classname_text()
 
-        data.append([source_method, source_enclosing_method, source_enclosing_class, sink_method, sink_enclosing_method, sink_enclosing_class])
+        data.append([flow, source_method, source_enclosing_method, source_enclosing_class, sink_method, sink_enclosing_method, sink_enclosing_class])
 
     return pd.DataFrame(data, columns=columns)

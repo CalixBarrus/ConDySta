@@ -7,8 +7,10 @@ from experiment.a_priori import a_priori_string_info
 from experiment.benchmark_name import BenchmarkName
 from hybrid.dynamic import LogcatLogFileModel
 from hybrid.invocation_register_context import InvocationRegisterContext, reduce_for_field_insensitivity
+from hybrid.source_sink import MethodSignature
 from intercept.decoded_apk_model import DecodedApkModel
 from intercept.instrument import HarnessObservations, HarnessSources
+from intercept.smali import SmaliMethodInvocation, smali_type_to_java_type
 
 
 def get_observation_harness_to_observed_source_map(harnesser: HarnessObservations, decoded_apk_model: DecodedApkModel, observations: List[InvocationRegisterContext]) -> pd.DataFrame:
@@ -76,8 +78,15 @@ def get_observation_harness_to_string_set_map(harnesser: HarnessObservations, de
     instrumenters = [harnesser]
     _ = decoded_apk_model.get_code_insertions_for_files(instrumenters, observations)
 
-    # df_mapping = harnesser.df_instrumentation_reporting[harnesser.mapping_key_cols + harnesser.mapping_observation_lookup_cols + harnesser.mapping_str_observation_lookup_cols]
-    df_mapping = harnesser.df_instrumentation_reporting[harnesser.mapping_key_cols + harnesser.mapping_str_observation_lookup_cols]
+    df_mapping = harnesser.df_instrumentation_reporting[harnesser.mapping_key_cols + harnesser.mapping_observation_lookup_cols + harnesser.mapping_str_observation_lookup_cols]
+    # df_mapping = harnesser.df_instrumentation_reporting[harnesser.mapping_key_cols + harnesser.mapping_str_observation_lookup_cols]
+
+    # Clean key columns
+    # ["Taint Function Signature", "Enclosing Class", "Enclosing Method Name"]
+    # change taint function signatures from smali to java. Change enclosing class from smali to java. 
+    f = lambda smali_signature: str(MethodSignature.from_smali_style_signature(smali_signature))
+    df_mapping[harnesser.mapping_key_cols[0]] = df_mapping[harnesser.mapping_key_cols[0]].apply(f)
+    df_mapping[harnesser.mapping_key_cols[1]] = df_mapping[harnesser.mapping_key_cols[1]].apply(smali_type_to_java_type)
 
     # TODO: would this need to agg on the mapping_key_cols while unioning the str col?
 
